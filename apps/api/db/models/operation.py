@@ -1,0 +1,42 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import CheckConstraint, DateTime, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
+
+from db.base import Base
+
+
+class Operation(Base):
+    __tablename__ = "operations"
+    __table_args__ = (
+        CheckConstraint(
+            "actor_type IN ('human', 'mcp_agent', 'pipeline')",
+            name="ck_operations_actor_type",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'escalated', 'approved', 'rejected')",
+            name="ck_operations_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    trace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    actor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    actor_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    artifact_digest: Mapped[str] = mapped_column(Text, nullable=False)
+    policy_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    findings: Mapped[list["Finding"]] = relationship(back_populates="operation", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
+    redactions: Mapped[list["Redaction"]] = relationship(back_populates="operation", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
+    artifacts: Mapped[list["Artifact"]] = relationship(back_populates="operation", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
