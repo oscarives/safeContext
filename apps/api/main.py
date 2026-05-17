@@ -10,6 +10,7 @@ from api.v1.router import v1_router
 from config import settings
 from core.logging import get_logger, setup_logging
 from core.tracing import setup_tracing
+from mcp.router import router as mcp_router
 
 logger = get_logger(__name__)
 
@@ -58,6 +59,9 @@ app.mount("/metrics", metrics_app)
 
 # API routers
 app.include_router(v1_router, prefix="/v1")
+
+# MCP Server — exposes SafeContext agents as MCP tools
+app.include_router(mcp_router)
 
 # /health is mounted at root (no /v1 prefix) for Docker/k8s healthchecks
 app.include_router(health_module.router)

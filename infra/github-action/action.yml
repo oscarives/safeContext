@@ -1,0 +1,70 @@
+name: SafeContext Security Gate
+description: >
+  Scans documents and code context for PII, secrets, and sensitive data
+  using SafeContext before allowing a pipeline to proceed.
+
+inputs:
+  api-url:
+    description: SafeContext API base URL (e.g. https://safecontext.internal)
+    required: true
+  token:
+    description: Bearer token for SafeContext MCP Server authentication
+    required: true
+  document-path:
+    description: Path to file or directory to scan (relative to workspace)
+    required: false
+    default: "."
+  policy-name:
+    description: OPA policy name to apply
+    required: false
+    default: "base"
+  fail-on-severity:
+    description: Minimum severity that causes pipeline failure (low|medium|high|critical)
+    required: false
+    default: "high"
+  post-comment:
+    description: Post findings as PR comment (true|false)
+    required: false
+    default: "true"
+
+outputs:
+  trace-id:
+    description: SafeContext trace_id for this scan operation
+    value: ${{ steps.scan.outputs.trace_id }}
+  findings-count:
+    description: Total number of findings detected
+    value: ${{ steps.scan.outputs.findings_count }}
+  result:
+    description: Scan result (pass|block)
+    value: ${{ steps.scan.outputs.result }}
+
+runs:
+  using: composite
+  steps:
+    - name: Scan document
+      id: scan
+      shell: bash
+      env:
+        SC_API_URL: ${{ inputs.api-url }}
+        SC_TOKEN: ${{ inputs.token }}
+        SC_DOCUMENT_PATH: ${{ inputs.document-path }}
+        SC_POLICY: ${{ inputs.policy-name }}
+        SC_FAIL_ON: ${{ inputs.fail-on-severity }}
+      run: |
+        "${{ github.action_path }}/scripts/scan.sh"
+
+    - name: Post PR comment
+      if: ${{ inputs.post-comment == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const reportPath = '/tmp/safecontext-report.md';
+          if (!fs.existsSync(reportPath)) { return; }
+          const body = fs.readFileSync(reportPath, 'utf8');
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body,
+          });
