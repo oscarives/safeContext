@@ -1,0 +1,159 @@
+{
+  "samples": [
+    {
+      "id": "email_001",
+      "text": "Contact john.doe@company.com for details",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 8, "span_end": 30}]
+    },
+    {
+      "id": "email_002",
+      "text": "Please send the invoice to alice.smith@example.org as soon as possible",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 26, "span_end": 49}]
+    },
+    {
+      "id": "email_003",
+      "text": "My work address is bob.johnson@acme-corp.net and my personal one is different",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 19, "span_end": 44}]
+    },
+    {
+      "id": "email_004",
+      "text": "Reach me at support+tickets@helpdesk.io for urgent issues",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 12, "span_end": 37}]
+    },
+    {
+      "id": "email_005",
+      "text": "The system alert was sent from noreply@notifications.safecontext.io",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 31, "span_end": 67}]
+    },
+    {
+      "id": "email_006",
+      "text": "User m.rodriguez_99@startup.dev registered at 2024-01-15",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 5, "span_end": 30}]
+    },
+    {
+      "id": "email_007",
+      "text": "Forward the report to cto@bigcorp.com and cfo@bigcorp.com",
+      "expected": [
+        {"entity_type": "EMAIL_ADDRESS", "span_start": 22, "span_end": 36},
+        {"entity_type": "EMAIL_ADDRESS", "span_start": 41, "span_end": 55}
+      ]
+    },
+    {
+      "id": "email_008",
+      "text": "Security contact: security-team@internal.example.com",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 18, "span_end": 52}]
+    },
+    {
+      "id": "email_009",
+      "text": "Newsletter unsubscribe: user.name+news@gmail.com",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 24, "span_end": 48}]
+    },
+    {
+      "id": "email_010",
+      "text": "The lead developer is firstname.lastname@university.edu",
+      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 21, "span_end": 55}]
+    },
+    {
+      "id": "apikey_001",
+      "text": "API key: sk-1234567890abcdef1234567890abcdef",
+      "expected": [{"entity_type": "API_KEY", "span_start": 9, "span_end": 44}]
+    },
+    {
+      "id": "apikey_002",
+      "text": "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature",
+      "expected": [{"entity_type": "API_KEY", "span_start": 15, "span_end": 77}]
+    },
+    {
+      "id": "apikey_003",
+      "text": "GitHub token: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ123456",
+      "expected": [{"entity_type": "API_KEY", "span_start": 14, "span_end": 51}]
+    },
+    {
+      "id": "apikey_004",
+      "text": "Set STRIPE_SECRET_KEY=sk_live_4eC39HqLyjWDarjtT1zdp7dc in production env",
+      "expected": [{"entity_type": "API_KEY", "span_start": 21, "span_end": 55}]
+    },
+    {
+      "id": "apikey_005",
+      "text": "The AWS access key is AKIAIOSFODNN7EXAMPLE and secret is wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+      "expected": [
+        {"entity_type": "API_KEY", "span_start": 21, "span_end": 41}
+      ]
+    },
+    {
+      "id": "apikey_006",
+      "text": "API_TOKEN=xoxb-1234567890-1234567890-AbCdEfGhIjKlMnOp",
+      "expected": [{"entity_type": "API_KEY", "span_start": 10, "span_end": 53}]
+    },
+    {
+      "id": "apikey_007",
+      "text": "Client secret: 9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d",
+      "expected": [{"entity_type": "API_KEY", "span_start": 15, "span_end": 51}]
+    },
+    {
+      "id": "apikey_008",
+      "text": "Paste your OpenAI key here: sk-proj-ABCDefgh1234567890abcdef1234567890ABCDEFGH",
+      "expected": [{"entity_type": "API_KEY", "span_start": 28, "span_end": 76}]
+    },
+    {
+      "id": "apikey_009",
+      "text": "HuggingFace token: hf_aBcDeFgHiJkLmNoPqRsTuVwXyZ",
+      "expected": [{"entity_type": "API_KEY", "span_start": 19, "span_end": 47}]
+    },
+    {
+      "id": "apikey_010",
+      "text": "Export ANTHROPIC_API_KEY=sk-ant-api03-AAABBBCCC111222333--XXXXX",
+      "expected": [{"entity_type": "API_KEY", "span_start": 24, "span_end": 63}]
+    },
+    {
+      "id": "person_001",
+      "text": "The meeting will be chaired by John Smith.",
+      "expected": [{"entity_type": "PERSON", "span_start": 31, "span_end": 41}]
+    },
+    {
+      "id": "person_002",
+      "text": "Dr. Emily Johnson signed the medical report",
+      "expected": [{"entity_type": "PERSON", "span_start": 4, "span_end": 18}]
+    },
+    {
+      "id": "person_003",
+      "text": "Invoice addressed to: Mr. Robert Garcia, 123 Main St",
+      "expected": [{"entity_type": "PERSON", "span_start": 26, "span_end": 39}]
+    },
+    {
+      "id": "person_004",
+      "text": "Patient name: Maria Gonzalez, DOB: 1985-03-21",
+      "expected": [{"entity_type": "PERSON", "span_start": 14, "span_end": 28}]
+    },
+    {
+      "id": "person_005",
+      "text": "Authored by Professor David Chen, PhD",
+      "expected": [{"entity_type": "PERSON", "span_start": 22, "span_end": 32}]
+    },
+    {
+      "id": "person_006",
+      "text": "Legal representative: Sarah Williams, Esq.",
+      "expected": [{"entity_type": "PERSON", "span_start": 22, "span_end": 36}]
+    },
+    {
+      "id": "person_007",
+      "text": "The CEO, James O'Brien, announced the merger",
+      "expected": [{"entity_type": "PERSON", "span_start": 9, "span_end": 22}]
+    },
+    {
+      "id": "person_008",
+      "text": "Payable to: Ana-Maria Fernandez",
+      "expected": [{"entity_type": "PERSON", "span_start": 12, "span_end": 31}]
+    },
+    {
+      "id": "person_009",
+      "text": "cc: Michael Brown <mbrown@corp.com>",
+      "expected": [{"entity_type": "PERSON", "span_start": 4, "span_end": 18}]
+    },
+    {
+      "id": "person_010",
+      "text": "Signed by: Lt. Col. Thomas Hughes on behalf of the department",
+      "expected": [{"entity_type": "PERSON", "span_start": 20, "span_end": 33}]
+    }
+  ]
+}
