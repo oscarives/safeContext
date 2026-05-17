@@ -1,0 +1,66 @@
+name: Policy Exception
+
+# Triggered manually when a deploy needs to proceed with a known exception.
+# Every exception is audited: trace_id, approver, and justification are required.
+on:
+  workflow_dispatch:
+    inputs:
+      exception_reason:
+        description: "Justification for the policy exception"
+        required: true
+        type: string
+      affected_component:
+        description: "Component affected (api|worker|ui|all)"
+        required: true
+        type: choice
+        options: [api, worker, ui, all]
+      cve_or_finding:
+        description: "CVE ID or finding ID being excepted"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  record-exception:
+    name: Record policy exception with audit trail
+    runs-on: ubuntu-latest
+    environment:
+      name: production   # requires designated approver — same gate as deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate exception trace_id
+        id: trace
+        run: echo "trace_id=$(python3 -c 'import uuid; print(uuid.uuid4())')" >> "$GITHUB_OUTPUT"
+
+      - name: Write exception record
+        run: |
+          mkdir -p docs/exceptions
+          EXCEPTION_FILE="docs/exceptions/EXC_$(date +%Y%m%d_%H%M%S).md"
+          cat > "$EXCEPTION_FILE" << EOF
+          # Policy Exception
+
+          | Field | Value |
+          |---|---|
+          | trace_id | ${{ steps.trace.outputs.trace_id }} |
+          | approver | ${{ github.actor }} |
+          | timestamp | $(date -u +%Y-%m-%dT%H:%M:%SZ) |
+          | sha | ${{ github.sha }} |
+          | component | ${{ inputs.affected_component }} |
+          | finding | ${{ inputs.cve_or_finding }} |
+          | justification | ${{ inputs.exception_reason }} |
+          | workflow_run | ${{ github.run_id }} |
+          EOF
+          echo "Exception recorded: $EXCEPTION_FILE"
+          cat "$EXCEPTION_FILE"
+
+      - name: Commit exception record
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/exceptions/
+          git commit -m "exception: ${{ inputs.cve_or_finding }} approved by ${{ github.actor }} [trace:${{ steps.trace.outputs.trace_id }}]"
+          git push

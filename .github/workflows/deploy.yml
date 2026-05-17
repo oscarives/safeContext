@@ -1,0 +1,81 @@
+name: Deploy Gate
+
+on:
+  workflow_run:
+    workflows: ["Build, Sign & Attest"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+  deployments: write
+
+jobs:
+  # ── Pre-deploy checks ───────────────────────────────────────────────────────
+  verify-signatures:
+    name: Verify image signatures (Cosign)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Verify all image signatures + SBOM attestations
+        run: |
+          chmod +x infra/compose/verify-signatures.sh
+          REGISTRY=ghcr.io/${{ github.repository_owner }} \
+          ./infra/compose/verify-signatures.sh ${{ github.sha }}
+        # Exit 1 if any signature or SBOM is missing — blocks deploy
+
+  scan-images:
+    name: Final Trivy scan (CRITICAL block)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    strategy:
+      matrix:
+        component: [api, worker, ui]
+    steps:
+      - name: Scan image for CRITICAL vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/safecontext-${{ matrix.component }}:${{ github.sha }}
+          severity: CRITICAL
+          exit-code: 1       # blocks deploy on any CRITICAL CVE
+          format: table
+
+  # ── Deploy to production (requires human approval) ─────────────────────────
+  deploy-production:
+    name: Deploy to production
+    needs: [verify-signatures, scan-images]
+    runs-on: ubuntu-latest
+    environment:
+      name: production      # GitHub deployment environment with required reviewers
+      url: https://safecontext.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log deployment start
+        run: |
+          echo "Deploying SHA: ${{ github.sha }}"
+          echo "Approved by: ${{ github.actor }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Deploy via kubectl (Kubernetes)
+        run: |
+          # In production: configure kubeconfig via OIDC to cluster
+          # kubectl set image deployment/api api=ghcr.io/.../safecontext-api:${{ github.sha }}
+          # kubectl set image deployment/worker worker=ghcr.io/.../safecontext-worker:${{ github.sha }}
+          # kubectl set image deployment/ui ui=ghcr.io/.../safecontext-ui:${{ github.sha }}
+          # kubectl rollout status deployment/api deployment/worker deployment/ui
+          echo "Deploy step — configure kubectl credentials in environment secrets"
+
+      - name: Record deployment evidence
+        run: |
+          echo "Deployment record:"
+          echo "  sha=${{ github.sha }}"
+          echo "  actor=${{ github.actor }}"
+          echo "  environment=production"
+          echo "  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
