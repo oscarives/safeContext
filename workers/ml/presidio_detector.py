@@ -2,6 +2,9 @@
 
 ADR-010: Presidio + spaCy en_core_web_lg as the default PII detection engine.
 The model is baked into the Docker image at build time (not downloaded at runtime).
+
+E5.3: model_loader guarantees resolution from local paths (image-baked or
+volume-mounted) without internet access at runtime.
 """
 from __future__ import annotations
 
@@ -13,6 +16,7 @@ from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_analyzer import Pattern
 
 from workers.core.detector import DetectorInterface, Finding
+from workers.ml.model_loader import load_spacy_nlp, verify_models_available
 
 logger = logging.getLogger(__name__)
 
@@ -126,13 +130,26 @@ def _build_api_key_recognizer() -> PatternRecognizer:
 
 
 def _build_analyzer() -> AnalyzerEngine:
-    """Construct and return a shared AnalyzerEngine backed by spaCy."""
-    configuration = {
-        "nlp_engine_name": "spacy",
-        "models": [{"lang_code": "en", "model_name": "en_core_web_lg"}],
-    }
-    provider = NlpEngineProvider(nlp_configuration=configuration)
-    nlp_engine = provider.create_engine()
+    """Construct and return a shared AnalyzerEngine backed by spaCy.
+
+    Uses model_loader to resolve the spaCy model from local paths (image-baked
+    or volume-mounted) — never downloads at runtime (ADR-010, E5.3).
+    """
+    # Log availability before loading (warns on misconfigured air-gapped setups)
+    availability = verify_models_available()
+    for model, available in availability.items():
+        if not available:
+            logger.warning("presidio_detector.model_unavailable model=%s", model)
+
+    # Load spaCy NLP from local path via model_loader
+    nlp = load_spacy_nlp()
+
+    from presidio_analyzer.nlp_engine import SpacyNlpEngine
+
+    nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": "en_core_web_lg"}])
+    # Inject the already-loaded nlp object to avoid a second load
+    nlp_engine.nlp = {"en": nlp}
+
     analyzer = AnalyzerEngine(nlp_engine=nlp_engine, supported_languages=["en"])
     # Register custom API_KEY recognizer
     analyzer.registry.add_recognizer(_build_api_key_recognizer())

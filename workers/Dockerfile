@@ -18,9 +18,19 @@ COPY pyproject.toml .
 # Install all dependencies into the system site-packages
 RUN uv pip install --system --no-cache .
 
-# ADR-010: Download and install spaCy model at build time — never at runtime.
-# Using en_core_web_lg for best recall on PII/entity recognition.
-RUN python -m spacy download en_core_web_lg
+# ADR-010 / E5.3: Download and bake ML models into image at build time.
+# Models are NEVER downloaded at runtime — this guarantees air-gapped operation.
+ENV TRANSFORMERS_CACHE=/models/transformers
+RUN mkdir -p /models/spacy /models/transformers
+
+# spaCy model — download via pip then copy to /models for deterministic path resolution
+RUN python -m spacy download en_core_web_lg && \
+    python -c "import spacy; m=spacy.load('en_core_web_lg'); print(m.path)" | \
+    xargs -I{} cp -r {} /models/spacy/en_core_web_lg/
+
+# Presidio models (uses spaCy internally — already downloaded above)
+RUN python -c "from presidio_analyzer import AnalyzerEngine; AnalyzerEngine()" && \
+    echo "Presidio initialized successfully"
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
@@ -34,6 +44,9 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages \
 # Copy installed binaries (dramatiq CLI, etc.) from builder
 COPY --from=builder /usr/local/bin /usr/local/bin
 
+# Copy baked-in ML models from builder (ADR-010 / E5.3: air-gapped operation)
+COPY --from=builder /models /models
+
 # Copy application source
 COPY . .
 
@@ -42,6 +55,12 @@ RUN useradd -r -u 1001 -g root appuser \
     && chown -R appuser:root /app
 
 USER appuser
+
+# E5.3: point model_loader to the image-baked path; disable HuggingFace downloads
+ENV LOCAL_MODELS_PATH=/models/local
+ENV TRANSFORMERS_CACHE=/models/transformers
+ENV TRANSFORMERS_OFFLINE=1
+ENV HF_DATASETS_OFFLINE=1
 
 # Healthcheck: verify broker connectivity every 30s
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
