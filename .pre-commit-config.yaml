@@ -1,0 +1,50 @@
+repos:
+  # ── Secrets detection ────────────────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '\.env\.example$'
+
+  # ── Python: ruff (lint + format) ─────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^(apps/api|workers)/
+      - id: ruff-format
+        files: ^(apps/api|workers)/
+
+  # ── Python: mypy (type checking) ─────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        files: ^(apps/api|workers)/
+        additional_dependencies:
+          - pydantic>=2.0
+          - sqlalchemy[asyncio]>=2.0
+
+  # ── JavaScript/TypeScript: eslint ────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd apps/ui && npx eslint --fix "$@"' --
+        language: system
+        files: ^apps/ui/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: true
+
+  # ── General ──────────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: [--branch, main]
