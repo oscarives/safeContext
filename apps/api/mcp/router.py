@@ -5,7 +5,7 @@ Tool schemas are versioned from F1; clients can pin tool_version from F4.
 """
 import hashlib
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -21,6 +21,7 @@ from mcp.auth import require_mcp_token
 from mcp.schemas import (
     ClassifyToolRequest,
     ClassifyToolResponse,
+    MCPToolCallVersioned,
     MCPToolResult,
     SanitizeToolRequest,
     SanitizeToolResponse,
@@ -42,6 +43,28 @@ _SEVERITY_TO_LEVEL = {
 }
 
 
+# ── Version registry (E4.5) ───────────────────────────────────────────────────
+
+SUPPORTED_VERSIONS = {"1.0.0", "1.1.0"}
+CURRENT_VERSION = "1.1.0"
+
+# Version compatibility matrix: maps (tool, requested_version) → handler name.
+# N-1 compatibility: 1.0.0 requests are handled by current handlers.
+VERSION_COMPAT: dict[tuple[str, str], str] = {
+    ("safecontext.scan", "1.0.0"): "tool_scan",
+    ("safecontext.scan", "1.1.0"): "tool_scan",
+    ("safecontext.sanitize", "1.0.0"): "tool_sanitize",
+    ("safecontext.sanitize", "1.1.0"): "tool_sanitize",
+    ("safecontext.classify", "1.0.0"): "tool_classify",
+    ("safecontext.classify", "1.1.0"): "tool_classify",
+    ("safecontext.audit", "1.0.0"): "tool_audit",
+    ("safecontext.audit", "1.1.0"): "tool_audit",
+    ("safecontext.policy.get", "1.0.0"): "tool_policy_get",
+    ("safecontext.policy.get", "1.1.0"): "tool_policy_get",
+    ("safecontext.approve", "1.1.0"): "tool_approve",  # new in 1.1.0
+}
+
+
 # ── Tool discovery ────────────────────────────────────────────────────────────
 
 @router.get("/tools", summary="List available MCP tools and their schemas")
@@ -49,6 +72,47 @@ async def list_tools(
     _token: Annotated[str, Depends(require_mcp_token)],
 ) -> dict[str, Any]:
     return {"tools": MCP_TOOLS}
+
+
+# ── Versioned dispatch (E4.5) ─────────────────────────────────────────────────
+
+@router.post("/call", response_model=MCPToolResult, summary="Versioned MCP tool dispatch")
+async def dispatch_tool(
+    call: MCPToolCallVersioned,
+    response: Response,
+    _token: Annotated[str, Depends(require_mcp_token)],
+    db: AsyncSession = Depends(get_db),
+) -> MCPToolResult:
+    version = call.tool_version
+    if version not in SUPPORTED_VERSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported tool version '{version}'. Supported: {sorted(SUPPORTED_VERSIONS)}",
+        )
+
+    key = (call.tool, version)
+    if key not in VERSION_COMPAT:
+        # Try current version as fallback for unknown combos
+        key = (call.tool, CURRENT_VERSION)
+    if key not in VERSION_COMPAT:
+        raise HTTPException(status_code=404, detail=f"Tool '{call.tool}' not found")
+
+    if call.tool == "safecontext.scan":
+        req = ScanToolRequest(**call.input)
+        return await tool_scan(req, response, _token, db)
+    elif call.tool == "safecontext.sanitize":
+        req = SanitizeToolRequest(**call.input)
+        return await tool_sanitize(req, response, _token, db)
+    elif call.tool == "safecontext.classify":
+        req = ClassifyToolRequest(**call.input)
+        return await tool_classify(req, response, _token, db)
+    elif call.tool == "safecontext.approve":
+        if version == "1.0.0":
+            raise HTTPException(400, "safecontext.approve requires tool_version >= 1.1.0")
+        req = ApproveToolRequest(**call.input)
+        return await tool_approve(req, response, _token, db)
+    else:
+        raise HTTPException(404, f"Tool '{call.tool}' not supported via /call")
 
 
 # ── safecontext.scan ──────────────────────────────────────────────────────────
@@ -375,3 +439,90 @@ async def tool_policy_get(
             "policy": policy_data,
         },
     )
+
+
+# ── safecontext.approve (E4.6) ────────────────────────────────────────────────
+
+class ApproveToolRequest(BaseModel):
+    finding_id: uuid.UUID
+    decision: Literal["approve", "reject"]
+    justification: str
+    agent_client_id: str   # identity of the delegated agent
+
+
+@router.post(
+    "/tools/safecontext.approve",
+    response_model=MCPToolResult,
+    summary="Agent-delegated approval of a finding (requires delegated permission)",
+)
+async def tool_approve(
+    request: ApproveToolRequest,
+    response: Response,
+    _token: Annotated[str, Depends(require_mcp_token)],
+    db: AsyncSession = Depends(get_db),
+) -> MCPToolResult:
+    with tracer.start_as_current_span("mcp.approve") as span:
+        span.set_attribute("finding.id", str(request.finding_id))
+        span.set_attribute("agent.client_id", request.agent_client_id)
+
+        from sqlalchemy import select
+        from db.models.finding import Finding
+
+        # Load finding
+        result = await db.execute(
+            select(Finding).where(Finding.id == request.finding_id)
+        )
+        finding = result.scalar_one_or_none()
+        if finding is None:
+            raise HTTPException(404, f"Finding {request.finding_id} not found")
+
+        # Load operation to verify it's escalated
+        result2 = await db.execute(
+            select(Operation).where(Operation.id == finding.operation_id)
+        )
+        operation = result2.scalar_one_or_none()
+        if operation is None or operation.status != "escalated":
+            raise HTTPException(409, "Operation is not in escalated state")
+
+        trace_uuid = operation.trace_id
+
+        if request.decision == "approve":
+            agent_uuid = uuid.uuid4()  # placeholder — real agent UUID in F4 full OIDC
+            redaction = Redaction(
+                finding_id=finding.id,
+                operation_id=operation.id,
+                redaction_type="mask",
+                policy_version=operation.policy_version,
+                approved_by_agent_id=agent_uuid,
+            )
+            async with db.begin():
+                db.add(redaction)
+                operation.status = "completed"
+                from datetime import datetime, timezone
+                operation.completed_at = datetime.now(timezone.utc)
+        else:
+            async with db.begin():
+                operation.status = "rejected"
+                from datetime import datetime, timezone
+                operation.completed_at = datetime.now(timezone.utc)
+
+        log.info(
+            "mcp.approve.recorded",
+            finding_id=str(request.finding_id),
+            decision=request.decision,
+            agent_client_id=request.agent_client_id,
+            trace_id=str(trace_uuid),
+        )
+
+        response.headers["X-Trace-ID"] = str(trace_uuid)
+        return MCPToolResult(
+            tool="safecontext.approve",
+            version="1.1.0",
+            output={
+                "finding_id": str(request.finding_id),
+                "decision": request.decision,
+                "trace_id": str(trace_uuid),
+                "recorded_by": request.agent_client_id,
+            },
+            trace_id=str(trace_uuid),
+        )

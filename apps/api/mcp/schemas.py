@@ -82,6 +82,13 @@ class MCPToolCall(BaseModel):
     input: dict[str, Any]
 
 
+class MCPToolCallVersioned(BaseModel):
+    """Versioned tool call envelope — clients can pin tool_version (E4.5)."""
+    tool: str
+    tool_version: str = "1.0.0"   # client can pin version
+    input: dict[str, Any]
+
+
 class MCPToolResult(BaseModel):
     tool: str
     version: str

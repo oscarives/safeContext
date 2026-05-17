@@ -38,6 +38,9 @@ class Redaction(Base):
     )
     approved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     approval_trace_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    approved_by_agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
 
     finding: Mapped["Finding"] = relationship(back_populates="redactions")  # type: ignore[name-defined]  # noqa: F821
     operation: Mapped["Operation"] = relationship(back_populates="redactions")  # type: ignore[name-defined]  # noqa: F821
