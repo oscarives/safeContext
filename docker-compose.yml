@@ -1,0 +1,340 @@
+# SafeContext — Docker Compose stack (development)
+# Services: api, worker, ui, postgres, redis, minio, otel, prometheus, grafana, nginx (10 total)
+# Run: docker compose up
+# Prerequisites: Run infra/compose/generate-certs.sh before first start.
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # ── PostgreSQL 15 with pgAudit ───────────────────────────────────────────────
+  postgres:
+    <<: *common
+    image: postgres:15.6-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/compose/postgres/init-pgaudit.sql:/docker-entrypoint-initdb.d/01-init-pgaudit.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend
+
+  # ── Redis 7 (broker + cache) ─────────────────────────────────────────────────
+  redis:
+    <<: *common
+    image: redis:7.2.4-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+  # ── MinIO Community Edition (object storage, S3-compatible) ─────────────────
+  minio:
+    <<: *common
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend
+
+  # ── FastAPI + MCP Server ─────────────────────────────────────────────────────
+  api:
+    <<: *common
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: runtime
+    image: safecontext/api:dev
+    environment:
+      # Database
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Redis
+      REDIS_URL: ${REDIS_URL}
+      BROKER_ADAPTER: ${BROKER_ADAPTER}
+      CACHE_ADAPTER: ${CACHE_ADAPTER}
+      # MinIO / Storage
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET_ARTIFACTS: ${MINIO_BUCKET_ARTIFACTS}
+      MINIO_USE_SSL: ${MINIO_USE_SSL}
+      STORAGE_ADAPTER: ${STORAGE_ADAPTER}
+      # OPA
+      OPA_URL: ${OPA_URL}
+      OPA_POLICY_PATH: ${OPA_POLICY_PATH}
+      # API config
+      API_HOST: ${API_HOST}
+      API_PORT: ${API_PORT}
+      API_SECRET_KEY: ${API_SECRET_KEY}
+      API_DEBUG: ${API_DEBUG}
+      # MCP
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN}
+      # OpenTelemetry
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend
+      - frontend
+
+  # ── Dramatiq Workers ─────────────────────────────────────────────────────────
+  worker:
+    <<: *common
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+      target: runtime
+    image: safecontext/worker:dev
+    environment:
+      # Database
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Redis
+      REDIS_URL: ${REDIS_URL}
+      BROKER_ADAPTER: ${BROKER_ADAPTER}
+      # MinIO / Storage
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET_ARTIFACTS: ${MINIO_BUCKET_ARTIFACTS}
+      MINIO_USE_SSL: ${MINIO_USE_SSL}
+      STORAGE_ADAPTER: ${STORAGE_ADAPTER}
+      # OPA
+      OPA_URL: ${OPA_URL}
+      OPA_POLICY_PATH: ${OPA_POLICY_PATH}
+      # Worker config
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY}
+      WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES}
+      # Detectors
+      DETECTOR_CONFIDENCE_THRESHOLD: ${DETECTOR_CONFIDENCE_THRESHOLD}
+      # OpenTelemetry
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      OTEL_SERVICE_NAME: safecontext-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import sys; sys.exit(0)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - backend
+
+  # ── Next.js UI ───────────────────────────────────────────────────────────────
+  ui:
+    <<: *common
+    build:
+      context: ./apps/ui
+      dockerfile: Dockerfile
+      target: runtime
+    image: safecontext/ui:dev
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      # Redis-backed Next.js custom cache handler for multi-instance consistency (ADR-011)
+      REDIS_URL: ${REDIS_URL}
+      CACHE_ADAPTER: ${CACHE_ADAPTER}
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || wget -qO- http://localhost:3000 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      - frontend
+
+  # ── OpenTelemetry Collector ──────────────────────────────────────────────────
+  otel:
+    <<: *common
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./infra/compose/otel-collector.yaml:/etc/otel-collector.yaml:ro
+    ports:
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+      - "8888:8888"    # OTel collector self-metrics
+      - "8889:8889"    # Prometheus exporter (app metrics forwarded by OTel)
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - backend
+      - observability
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  prometheus:
+    <<: *common
+    image: prom/prometheus:v2.50.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./infra/compose/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      otel:
+        condition: service_healthy
+    networks:
+      - observability
+
+  # ── Grafana ──────────────────────────────────────────────────────────────────
+  grafana:
+    <<: *common
+    image: grafana/grafana:10.3.3
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${API_SECRET_KEY}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_DOMAIN: localhost
+      GF_SERVER_ROOT_URL: "https://localhost/grafana"
+    volumes:
+      - ./infra/compose/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - observability
+
+  # ── nginx reverse proxy (TLS self-signed) ────────────────────────────────────
+  nginx:
+    <<: *common
+    image: nginx:1.25.4-alpine
+    volumes:
+      - ./infra/compose/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/compose/certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      api:
+        condition: service_healthy
+      ui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://localhost/api/health || wget -qO- http://localhost/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - frontend
+
+# ── Named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+  observability:
+    driver: bridge
