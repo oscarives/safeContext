@@ -1,0 +1,56 @@
+{
+  "realm": "safecontext",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "bruteForceProtected": true,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyPeriod": 30,
+  "roles": {
+    "realm": [
+      {"name": "viewer", "description": "Read-only access to operations and findings"},
+      {"name": "reviewer", "description": "Can approve or reject escalated findings"},
+      {"name": "policy_editor", "description": "Can create and modify OPA policies"},
+      {"name": "admin", "description": "Full access including user management"}
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "safecontext-api",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "redirectUris": ["https://localhost/*", "https://safecontext.example.com/*"],
+      "webOrigins": ["https://localhost", "https://safecontext.example.com"]
+    },
+    {
+      "clientId": "safecontext-ui",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["https://localhost/*"],
+      "webOrigins": ["https://localhost"]
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10
+    }
+  ],
+  "browserSecurityHeaders": {
+    "xFrameOptions": "DENY",
+    "contentSecurityPolicy": "frame-src 'none'; frame-ancestors 'none'; object-src 'none';"
+  }
+}

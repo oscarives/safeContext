@@ -22,6 +22,16 @@ class Settings(BaseSettings):
     api_debug: bool = False
 
     mcp_auth_token: str
+    mcp_rate_limit_rpm: int = 100
+
+    # OIDC / Keycloak
+    keycloak_url: str = "http://keycloak:8080"
+    keycloak_realm: str = "safecontext"
+    keycloak_client_id: str = "safecontext-api"
+
+    # Vault KMS
+    vault_addr: str = "http://vault:8200"
+    vault_dev_token: str = "safecontext-dev-token"
 
     otel_exporter_otlp_endpoint: str = "http://otel:4317"
     otel_service_name: str = "safecontext-api"
