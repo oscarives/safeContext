@@ -1,0 +1,69 @@
+# Harbor — Private container registry for air-gapped deployments
+# Run with: docker compose -f docker-compose.yml -f infra/compose/harbor/docker-compose.harbor.yml up
+version: "3.8"
+
+services:
+  harbor-registry:
+    image: goharbor/registry-photon:v2.10.2
+    container_name: harbor-registry
+    restart: unless-stopped
+    volumes:
+      - harbor_data:/storage
+      - ./infra/compose/harbor/config/registry.yml:/etc/registry/config.yml:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/v2/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  harbor-core:
+    image: goharbor/harbor-core:v2.10.2
+    container_name: harbor-core
+    restart: unless-stopped
+    depends_on:
+      harbor-registry:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_TYPE: postgresql
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_USERNAME: ${POSTGRES_USER:-safecontext_app}
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRESQL_DATABASE: harbor
+      REDIS_URL: redis://redis:6379/1
+      CORE_SECRET: ${HARBOR_CORE_SECRET:-change-me-harbor-secret}
+      JOBSERVICE_SECRET: ${HARBOR_JOB_SECRET:-change-me-job-secret}
+    volumes:
+      - harbor_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v2.0/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  harbor-portal:
+    image: goharbor/harbor-portal:v2.10.2
+    container_name: harbor-portal
+    restart: unless-stopped
+    depends_on:
+      harbor-core:
+        condition: service_healthy
+    networks:
+      - frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  harbor_data:

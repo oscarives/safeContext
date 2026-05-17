@@ -1,0 +1,22 @@
+version: 0.1
+log:
+  level: info
+storage:
+  filesystem:
+    rootdirectory: /storage
+  delete:
+    enabled: true
+http:
+  addr: :5000
+  secret: ${HARBOR_REGISTRY_SECRET:-change-me-registry-secret}
+auth:
+  token:
+    issuer: harbor-token-issuer
+    realm: http://harbor-core:8080/service/token
+    rootcertbundle: /etc/registry/root.crt
+    service: harbor-registry
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3

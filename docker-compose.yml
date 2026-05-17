@@ -2,6 +2,13 @@
 # Services: api, worker, ui, postgres, redis, minio, otel, prometheus, grafana, nginx, keycloak, vault (12 total)
 # Run: docker compose up
 # Prerequisites: Run infra/compose/generate-certs.sh before first start.
+#
+# Air-gapped / Harbor registry overlay:
+#   docker compose -f docker-compose.yml -f infra/compose/harbor/docker-compose.harbor.yml up
+# Sync images to Harbor (once, with internet):
+#   ./infra/scripts/sync-images.sh
+# Generate offline bundle:
+#   ./infra/scripts/bundle.sh <version>
 
 x-common: &common
   restart: unless-stopped
@@ -437,6 +444,8 @@ volumes:
     driver: local
   pg_backups:
     driver: local
+  # harbor_data is declared in infra/compose/harbor/docker-compose.harbor.yml
+  # and only created when the Harbor overlay is active.
 
 # ── Networks ───────────────────────────────────────────────────────────────────
 networks:
