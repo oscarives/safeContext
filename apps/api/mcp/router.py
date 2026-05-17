@@ -8,10 +8,11 @@ import uuid
 from typing import Annotated, Any, Literal
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.auth_oidc import check_rate_limit
 from core.tracing import get_trace_id, tracer
 from db.models.operation import Operation
 from db.models.outbox import Outbox
@@ -70,7 +71,9 @@ VERSION_COMPAT: dict[tuple[str, str], str] = {
 @router.get("/tools", summary="List available MCP tools and their schemas")
 async def list_tools(
     _token: Annotated[str, Depends(require_mcp_token)],
+    request: Request,
 ) -> dict[str, Any]:
+    check_rate_limit(request.headers.get("X-Client-ID", request.client.host if request.client else "unknown"))
     return {"tools": MCP_TOOLS}
 
 
@@ -80,9 +83,11 @@ async def list_tools(
 async def dispatch_tool(
     call: MCPToolCallVersioned,
     response: Response,
+    request: Request,
     _token: Annotated[str, Depends(require_mcp_token)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
+    check_rate_limit(request.headers.get("X-Client-ID", request.client.host if request.client else "unknown"))
     version = call.tool_version
     if version not in SUPPORTED_VERSIONS:
         raise HTTPException(

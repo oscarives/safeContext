@@ -22,6 +22,7 @@ from db.models.finding import Finding
 from db.models.operation import Operation
 from db.models.outbox import Outbox
 from db.models.redaction import Redaction
+from core.auth_oidc import require_reviewer
 from db.session import get_db
 
 log = structlog.get_logger()
@@ -74,6 +75,7 @@ async def _load_document_preview(operation_id: UUID, db: AsyncSession) -> str:
 
 @router.get("/review/pending", response_model=PendingReviewResponse)
 async def get_pending_reviews(
+    _actor: dict = Depends(require_reviewer),
     db: AsyncSession = Depends(get_db),
 ) -> PendingReviewResponse:
     """Return all operations with status='escalated' and their findings."""
@@ -113,6 +115,7 @@ async def get_pending_reviews(
 async def approve_finding(
     finding_id: UUID,
     body: ReviewDecisionRequest,
+    actor: dict = Depends(require_reviewer),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Approve a finding: create a Redaction, advance operation if fully reviewed."""
@@ -185,6 +188,7 @@ async def approve_finding(
 async def reject_finding(
     finding_id: UUID,
     body: ReviewDecisionRequest,
+    actor: dict = Depends(require_reviewer),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Reject a finding: mark the operation as 'rejected'."""
