@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow connections from api and worker pods only
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api
+        - podSelector:
+            matchLabels:
+              app: worker
+      ports:
+        - port: 5432
+  egress:
+    # DNS resolution only — postgres does not initiate outbound connections
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

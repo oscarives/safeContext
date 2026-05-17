@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: safecontext
+resources:
+  - namespace.yaml
+  - configmaps/otel-collector.yaml
+  - configmaps/prometheus.yaml
+  - statefulsets/postgres.yaml
+  - deployments/redis.yaml
+  - deployments/minio.yaml
+  - deployments/api.yaml
+  - deployments/worker.yaml
+  - deployments/ui.yaml
+  - deployments/otel.yaml
+  - deployments/prometheus.yaml
+  - deployments/grafana.yaml
+  - services/postgres.yaml
+  - services/redis.yaml
+  - services/minio.yaml
+  - services/api.yaml
+  - services/worker.yaml
+  - services/ui.yaml
+  - services/monitoring.yaml
+  - network-policies/deny-all.yaml
+  - network-policies/allow-api.yaml
+  - network-policies/allow-worker.yaml
+  - network-policies/allow-postgres.yaml
+  - network-policies/allow-monitoring.yaml
+  - hpa/api-hpa.yaml
+  - hpa/worker-hpa.yaml
+  - pdb/api-pdb.yaml
+  - pdb/postgres-pdb.yaml
+  - ingress/safecontext-ingress.yaml

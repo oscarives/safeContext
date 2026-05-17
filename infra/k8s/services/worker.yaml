@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  selector:
+    app: worker
+  ports:
+    - name: metrics
+      port: 9191
+      targetPort: 9191
+  # Workers don't serve external traffic; ClusterIP with metrics port only
+  clusterIP: None

@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui
+  labels:
+    app: ui
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ui
+  template:
+    metadata:
+      labels:
+        app: ui
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ui
+          image: ghcr.io/safecontext/safecontext-ui:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_PUBLIC_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: safecontext-config
+                  key: NEXT_PUBLIC_API_URL
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: safecontext-secrets
+                  key: NEXTAUTH_SECRET
+            - name: NEXTAUTH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: safecontext-config
+                  key: NEXTAUTH_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: safecontext-secrets
+                  key: REDIS_URL
+            - name: CACHE_ADAPTER
+              valueFrom:
+                configMapKeyRef:
+                  name: safecontext-config
+                  key: CACHE_ADAPTER
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
