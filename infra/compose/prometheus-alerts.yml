@@ -1,0 +1,55 @@
+groups:
+  - name: safecontext.workers
+    interval: 30s
+    rules:
+      # DLQ alert — criterio E2.3
+      - alert: DLQDepthHigh
+        expr: safecontext_dlq_depth > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "SafeContext DLQ has messages for > 5 minutes"
+          description: "Dead Letter Queue depth is {{ $value }}. Messages are not being processed."
+          runbook: "docs/runbooks/dlq-recovery.md"
+
+      # Worker processing latency
+      - alert: WorkerHighLatency
+        expr: histogram_quantile(0.95, rate(safecontext_scan_duration_seconds_bucket[5m])) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scan p95 latency > 10s"
+          description: "p95 scan latency is {{ $value }}s, above 10s threshold."
+
+      # Recall degradation
+      - alert: DetectorRecallLow
+        expr: safecontext_detector_recall < 0.90
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Detector recall below 90% threshold"
+          description: "Class {{ $labels.class }} recall is {{ $value }}, below 0.90 minimum."
+
+  - name: safecontext.infrastructure
+    rules:
+      # PostgreSQL connectivity
+      - alert: PostgreSQLDown
+        expr: up{job="safecontext-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SafeContext API is down"
+
+      # Operations stuck in pending
+      - alert: OperationsStuckPending
+        expr: safecontext_operations_total{status="pending"} > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Many operations stuck in pending state"

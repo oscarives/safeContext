@@ -8,6 +8,14 @@ global:
     project: safecontext
     environment: development
 
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []  # alertmanager opcional en F2; añadir en F4
+
 scrape_configs:
   # FastAPI metrics endpoint
   - job_name: safecontext-api
