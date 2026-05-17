@@ -312,6 +312,26 @@ services:
     networks:
       - observability
 
+  # ── PostgreSQL daily backup (pg_basebackup + WAL streaming) ─────────────────
+  pg-backup:
+    image: postgres:15.6-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./infra/compose/postgres/pg-backup.sh:/pg-backup.sh:ro
+      - pg_backups:/backups/postgres
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-safecontext_app}
+      POSTGRES_DB: ${POSTGRES_DB:-safecontext}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_DIR: /backups/postgres
+    entrypoint: ["/bin/sh", "-c", "while true; do /pg-backup.sh; sleep 86400; done"]
+    restart: unless-stopped
+    networks:
+      - backend
+
   # ── nginx reverse proxy (TLS self-signed) ────────────────────────────────────
   nginx:
     <<: *common
@@ -347,6 +367,8 @@ volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  pg_backups:
     driver: local
 
 # ── Networks ───────────────────────────────────────────────────────────────────
