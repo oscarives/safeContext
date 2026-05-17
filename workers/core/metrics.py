@@ -61,3 +61,8 @@ DLQ_MESSAGES_TOTAL = Counter(
     "Messages sent to the dead-letter queue after max retries",
     ["agent"],
 )
+
+dlq_depth = Gauge(
+    "safecontext_dlq_depth",
+    "Number of messages currently in the Dead Letter Queue",
+)
