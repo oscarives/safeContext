@@ -1,0 +1,99 @@
+# SafeContext — SLO Recording Rules & Alerts
+# Mount in docker-compose.yml as:
+#   - ./infra/compose/prometheus-slo-rules.yml:/etc/prometheus/alerts/slo-rules.yml:ro
+# This file is automatically picked up by prometheus.yml via rule_files: /etc/prometheus/alerts/*.yml
+
+groups:
+  # ── SLI Recording Rules ──────────────────────────────────────────────────
+  - name: safecontext.sli.recording
+    interval: 30s
+    rules:
+      # Availability SLI: ratio of successful requests over total
+      - record: safecontext:sli:availability:rate5m
+        expr: |
+          sum(rate(safecontext_operations_total{status!="error"}[5m]))
+          /
+          sum(rate(safecontext_operations_total[5m]))
+
+      # Long-window (1h) availability for burn rate
+      - record: safecontext:sli:availability:rate1h
+        expr: |
+          sum(rate(safecontext_operations_total{status!="error"}[1h]))
+          /
+          sum(rate(safecontext_operations_total[1h]))
+
+      # Latency SLI: ratio of fast requests (< 5s) over total
+      - record: safecontext:sli:latency_fast:rate5m
+        expr: |
+          sum(rate(safecontext_scan_duration_seconds_bucket{le="5"}[5m]))
+          /
+          sum(rate(safecontext_scan_duration_seconds_count[5m]))
+
+      # Error budget consumed (availability) — monthly window (30d = 43200 min)
+      - record: safecontext:error_budget:availability:consumed
+        expr: |
+          1 - (
+            sum(increase(safecontext_operations_total{status!="error"}[30d]))
+            /
+            sum(increase(safecontext_operations_total[30d]))
+          )
+
+      # Error budget remaining fraction
+      - record: safecontext:error_budget:availability:remaining
+        expr: |
+          1 - (safecontext:error_budget:availability:consumed / (1 - 0.999))
+
+  # ── SLO Alerts ───────────────────────────────────────────────────────────
+  - name: safecontext.slo.alerts
+    rules:
+      # Fast burn rate: consuming 2× budget in 1h window
+      - alert: SLOErrorBudgetBurnRateFast
+        expr: |
+          (
+            1 - safecontext:sli:availability:rate5m
+          ) > (14.4 * (1 - 0.999))
+        for: 2m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "SLO error budget fast burn rate (>14.4×)"
+          description: "Availability SLO is burning error budget at >14.4× rate. Budget will exhaust in <1h."
+          runbook: "docs/runbooks/slo-burn.md"
+
+      # Slow burn rate: consuming 5× budget in 6h window
+      - alert: SLOErrorBudgetBurnRateSlow
+        expr: |
+          (
+            1 - safecontext:sli:availability:rate1h
+          ) > (6 * (1 - 0.999))
+        for: 15m
+        labels:
+          severity: warning
+          slo: availability
+        annotations:
+          summary: "SLO error budget slow burn rate (>6×)"
+          description: "Availability SLO is burning error budget at >6× rate over the last hour."
+
+      # Error budget < 50% remaining
+      - alert: SLOErrorBudgetLow
+        expr: safecontext:error_budget:availability:remaining < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          slo: availability
+        annotations:
+          summary: "Error budget below 50% for the month"
+          description: "Only {{ $value | humanizePercentage }} of error budget remaining for the month."
+
+      # Latency SLO degraded
+      - alert: SLOLatencyDegraded
+        expr: |
+          histogram_quantile(0.95, rate(safecontext_scan_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "Scan latency p95 > 5s SLO"
+          description: "p95 scan latency is {{ $value | humanizeDuration }}, above 5s SLO."
