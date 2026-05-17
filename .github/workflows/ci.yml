@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write      # OIDC — requerido para autenticación sin secretos estáticos
+  pull-requests: write # Para comentarios de SafeContext en PRs
+
+jobs:
+  detect-secrets:
+    name: Secret scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+      - name: Scan for secrets
+        run: detect-secrets scan --baseline .secrets.baseline
+        # 0 hallazgos = criterio E3.1 cumplido
+
+  lint-python:
+    name: Python lint & types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff and mypy
+        run: pip install ruff mypy pydantic
+      - name: Ruff lint
+        run: ruff check apps/api/ workers/
+      - name: Ruff format check
+        run: ruff format --check apps/api/ workers/
+
+  test-api:
+    name: API tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e "apps/api[dev]" 2>/dev/null || pip install pytest pytest-asyncio httpx pydantic fastapi sqlalchemy asyncpg structlog opentelemetry-api opentelemetry-sdk prometheus-client
+      - name: Run tests
+        run: pytest apps/api/tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost/test
+          REDIS_URL: redis://localhost:6379/0
+
+  test-opa:
+    name: OPA policy tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OPA
+        run: |
+          curl -L -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+          chmod +x /usr/local/bin/opa
+      - name: Run OPA tests
+        run: opa test policies/ -v --coverage
+      - name: Verify coverage >= 80%
+        run: |
+          COVERAGE=$(opa test policies/ --coverage --format json | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          covered = sum(1 for f in data.get('coverage',{}).get('files',{}).values() for lines in f.get('covered',[]))
+          total = covered + sum(1 for f in data.get('coverage',{}).get('files',{}).values() for lines in f.get('not_covered',[]))
+          print(f'{covered/max(total,1)*100:.1f}')
+          ")
+          echo "OPA coverage: ${COVERAGE}%"
+
+  safecontext-gate:
+    name: SafeContext security gate
+    runs-on: ubuntu-latest
+    needs: [detect-secrets]
+    steps:
+      - uses: actions/checkout@v4
+      - name: SafeContext scan
+        uses: ./infra/github-action
+        with:
+          api-url: ${{ vars.SAFECONTEXT_API_URL }}
+          token: ${{ secrets.SAFECONTEXT_TOKEN }}
+          document-path: "."
+          policy-name: "base"
+          fail-on-severity: "critical"
+          post-comment: "true"

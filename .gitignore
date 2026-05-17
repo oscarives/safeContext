@@ -7,7 +7,9 @@
 *.p12
 *.pfx
 secrets/
-.secrets.baseline
+# .secrets.baseline is intentionally tracked — it's the CI reference for detect-secrets
+# Only the real secrets file is excluded. The baseline contains hashes, not secrets.
+!.secrets.baseline
 
 # Python
 __pycache__/
