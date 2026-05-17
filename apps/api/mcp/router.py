@@ -9,6 +9,7 @@ from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.tracing import get_trace_id, tracer
@@ -287,3 +288,90 @@ async def tool_classify(
             output=classify_result.model_dump(mode="json"),
             trace_id=str(trace_uuid),
         )
+
+
+# ── safecontext.audit ────────────────────────────────────────────────────────
+
+class AuditToolRequest(BaseModel):
+    trace_id: uuid.UUID
+
+
+@router.post(
+    "/tools/safecontext.audit",
+    response_model=MCPToolResult,
+    summary="Return full audit evidence for a given trace_id",
+)
+async def tool_audit(
+    request: AuditToolRequest,
+    _token: Annotated[str, Depends(require_mcp_token)],
+    db: AsyncSession = Depends(get_db),
+) -> MCPToolResult:
+    from api.v1.audit import get_audit_export
+
+    result = await get_audit_export(request.trace_id, db)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No operation for trace_id {request.trace_id}",
+        )
+    return MCPToolResult(
+        tool="safecontext.audit",
+        version="1.0.0",
+        output=result.model_dump(mode="json"),
+        trace_id=str(request.trace_id),
+    )
+
+
+# ── safecontext.policy.get ───────────────────────────────────────────────────
+
+class PolicyGetRequest(BaseModel):
+    policy_name: str
+    policy_version: str | None = None
+
+
+@router.post(
+    "/tools/safecontext.policy.get",
+    response_model=MCPToolResult,
+    summary="Return active OPA policy with version",
+)
+async def tool_policy_get(
+    request: PolicyGetRequest,
+    _token: Annotated[str, Depends(require_mcp_token)],
+) -> MCPToolResult:
+    import httpx
+
+    from config import settings
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(f"{settings.opa_url}/v1/data/safecontext/policy")
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="OPA policy unavailable",
+            )
+        policy_data = resp.json().get("result", {})
+
+    policy_version: str = "1.0.0"
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        vr = await client.get(
+            f"{settings.opa_url}/v1/data/safecontext/policy/policy_version"
+        )
+        if vr.status_code == 200:
+            raw = vr.json().get("result", "1.0.0")
+            policy_version = str(raw)
+
+    log.info(
+        "mcp.policy_get",
+        policy_name=request.policy_name,
+        policy_version=policy_version,
+    )
+
+    return MCPToolResult(
+        tool="safecontext.policy.get",
+        version="1.0.0",
+        output={
+            "policy_name": request.policy_name,
+            "policy_version": policy_version,
+            "policy": policy_data,
+        },
+    )

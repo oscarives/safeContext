@@ -123,4 +123,59 @@ MCP_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "name": "safecontext.audit",
+        "version": "1.0.0",
+        "description": "Return complete audit evidence for an operation given its trace_id. Includes operation metadata, findings, redactions, artifacts, and HMAC signature.",
+        "input_schema": {
+            "type": "object",
+            "required": ["trace_id"],
+            "properties": {
+                "trace_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Trace ID of the operation to audit",
+                },
+            },
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "trace_id": {"type": "string", "format": "uuid"},
+                "exported_at": {"type": "string", "format": "date-time"},
+                "operation": {"type": "object"},
+                "findings": {"type": "array", "items": {"type": "object"}},
+                "redactions": {"type": "array", "items": {"type": "object"}},
+                "artifacts": {"type": "array", "items": {"type": "object"}},
+                "hmac_signature": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "safecontext.policy.get",
+        "version": "1.0.0",
+        "description": "Return the active OPA policy with its version. Optionally filter by policy_name or pin to a specific policy_version.",
+        "input_schema": {
+            "type": "object",
+            "required": ["policy_name"],
+            "properties": {
+                "policy_name": {
+                    "type": "string",
+                    "description": "Name of the policy to retrieve (e.g. 'base')",
+                },
+                "policy_version": {
+                    "type": "string",
+                    "description": "Specific semver version to retrieve. Defaults to active version.",
+                },
+            },
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "policy_name": {"type": "string"},
+                "policy_version": {"type": "string"},
+                "policy": {"type": "object", "description": "Raw policy rules from OPA"},
+            },
+        },
+    },
 ]

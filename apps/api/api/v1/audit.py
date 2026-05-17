@@ -38,21 +38,15 @@ def compute_hmac(payload: dict, secret: str) -> str:
     return hmac.new(secret.encode(), data, hashlib.sha256).hexdigest()
 
 
-@router.get("/audit/{trace_id}", response_model=AuditExportResponse, tags=["audit"])
 async def get_audit_export(
     trace_id: UUID,
-    request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> AuditExportResponse:
-    """
-    Return full audit evidence for the operation identified by trace_id.
+    db: AsyncSession,
+    actor_id: str = "anonymous",
+) -> AuditExportResponse | None:
+    """Core audit logic — reusable by HTTP endpoint and MCP tool.
 
-    The response payload is signed with HMAC-SHA256 so consumers can verify
-    integrity without trusting the transport layer.
+    Returns None when the trace_id is not found (caller decides how to surface).
     """
-    # Determine requesting actor for structured logging (best-effort)
-    actor_id: str = str(getattr(request.state, "actor_id", "anonymous"))
-
     # Load operation with all related data in a single round-trip
     stmt = (
         select(Operation)
@@ -72,7 +66,7 @@ async def get_audit_export(
             trace_id=str(trace_id),
             requested_by=actor_id,
         )
-        raise HTTPException(status_code=404, detail="trace_id not found")
+        return None
 
     exported_at = datetime.now(timezone.utc)
 
@@ -159,3 +153,22 @@ async def get_audit_export(
         artifacts=artifacts,
         hmac_signature=signature,
     )
+
+
+@router.get("/audit/{trace_id}", response_model=AuditExportResponse, tags=["audit"])
+async def audit_export_endpoint(
+    trace_id: UUID,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AuditExportResponse:
+    """
+    Return full audit evidence for the operation identified by trace_id.
+
+    The response payload is signed with HMAC-SHA256 so consumers can verify
+    integrity without trusting the transport layer.
+    """
+    actor_id: str = str(getattr(request.state, "actor_id", "anonymous"))
+    result = await get_audit_export(trace_id, db, actor_id=actor_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="trace_id not found")
+    return result
