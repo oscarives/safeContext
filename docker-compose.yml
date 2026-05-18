@@ -313,6 +313,9 @@ services:
     image: safecontext/ui:dev
     environment:
       NODE_ENV: production
+      # Bind Next.js standalone server to all interfaces (needed for healthcheck)
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: ${NEXTAUTH_URL}
@@ -331,13 +334,14 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 > /dev/null 2>&1 || exit 1"]
-      interval: 15s
-      timeout: 5s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 > /dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 15s
       retries: 5
-      start_period: 45s
+      start_period: 60s
     networks:
       - frontend
+      - backend   # needed to reach Redis (custom cache handler) and API
 
   # ── OpenTelemetry Collector ──────────────────────────────────────────────────
   otel:
@@ -450,7 +454,7 @@ services:
       - api
       - ui
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
