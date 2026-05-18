@@ -394,6 +394,7 @@ services:
         condition: service_healthy
     networks:
       - observability
+      - backend    # needed to scrape api:8000 and worker:9090
 
   # ── Grafana ──────────────────────────────────────────────────────────────────
   grafana:
