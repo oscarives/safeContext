@@ -205,7 +205,6 @@ MCP_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
-    },
     {
         "name": "safecontext.approve",
         "version": "1.1.0",

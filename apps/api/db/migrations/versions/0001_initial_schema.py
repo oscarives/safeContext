@@ -53,7 +53,7 @@ def upgrade() -> None:
         USING (current_setting('app.current_role', true)
                IN ('viewer', 'reviewer', 'admin', 'policy_editor'))
     """)
-    op.execute("ALTER TABLE operations SET (security_barrier = true)")
+    # security_barrier is set via init-pgaudit.sql at postgres init time
 
     # ── findings ──────────────────────────────────────────────────────────────
     op.create_table(
@@ -81,7 +81,7 @@ def upgrade() -> None:
     op.execute("ALTER TABLE findings ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE findings FORCE ROW LEVEL SECURITY")
     op.execute("CREATE POLICY tenant_isolation ON findings USING (true)")
-    op.execute("ALTER TABLE findings SET (security_barrier = true)")
+    # security_barrier is set via init-pgaudit.sql at postgres init time
 
     # ── redactions ────────────────────────────────────────────────────────────
     op.create_table(

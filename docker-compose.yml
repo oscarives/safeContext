@@ -120,11 +120,11 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready 2>/dev/null || wget -q -O- http://localhost:8080/health/ready || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      timeout: 15s
+      retries: 10
+      start_period: 90s
     restart: unless-stopped
     networks:
       - backend
@@ -141,10 +141,11 @@ services:
     ports:
       - "8200:8200"
     healthcheck:
-      test: ["CMD", "vault", "status"]
+      # vault status exits 2 when sealed (normal in dev) — check HTTP instead
+      test: ["CMD", "sh", "-c", "wget -q -O- http://localhost:8200/v1/sys/health?standbyok=true | grep -q initialized"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
       start_period: 10s
     restart: unless-stopped
     networks:
@@ -160,6 +161,7 @@ services:
     image: safecontext/api:dev
     environment:
       # Database
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_DB: ${POSTGRES_DB}
@@ -204,10 +206,11 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      keycloak:
-        condition: service_healthy
-      vault:
-        condition: service_healthy
+      # keycloak and vault are optional in dev — enable when F4 auth is needed
+      # keycloak:
+      #   condition: service_healthy
+      # vault:
+      #   condition: service_healthy
     ports:
       - "8000:8000"
     healthcheck:
@@ -230,6 +233,7 @@ services:
     image: safecontext/worker:dev
     environment:
       # Database
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
       POSTGRES_DB: ${POSTGRES_DB}
