@@ -120,7 +120,8 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready > /dev/null 2>&1 || exit 1"]
+      # Keycloak 24 dev mode: verify TCP port is open (no curl/wget available)
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 2>/dev/null && echo ok || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -142,7 +143,7 @@ services:
       - "8200:8200"
     healthcheck:
       # vault status exits 2 when sealed (normal in dev) — check HTTP instead
-      test: ["CMD-SHELL", "curl -sf http://localhost:8200/v1/sys/health?standbyok=true > /dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status 2>&1 | grep -q 'Initialized'"]
       interval: 10s
       timeout: 5s
       retries: 5

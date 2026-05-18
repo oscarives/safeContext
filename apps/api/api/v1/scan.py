@@ -19,18 +19,20 @@ from schemas.scan import ScanRequest, ScanResponse
 router = APIRouter()
 logger = get_logger(__name__)
 
-_FALLBACK_POLICY_VERSION = "v0.0.0"
+_FALLBACK_POLICY_VERSION = "1.0.0"
 
 
 async def _get_policy_version(policy_name: str) -> str:
     """Query OPA for the current policy version; fall back gracefully."""
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            url = f"{settings.opa_url}{settings.opa_policy_path}/version"
-            resp = await client.get(url, params={"policy": policy_name})
+            # Correct OPA path: /v1/data/safecontext/policy/policy_version
+            url = f"{settings.opa_url}/v1/data/safecontext/policy/policy_version"
+            resp = await client.get(url)
             if resp.status_code == 200:
                 data = resp.json()
-                return str(data.get("result", _FALLBACK_POLICY_VERSION))
+                version = data.get("result", _FALLBACK_POLICY_VERSION)
+                return str(version)
     except Exception as exc:
         logger.warning("scan.opa_version.error", error=str(exc))
     return _FALLBACK_POLICY_VERSION
