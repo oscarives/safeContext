@@ -16,13 +16,38 @@ from httpx import ASGITransport, AsyncClient
 from main import app
 
 
+async def _fake_db_gen(session):
+    yield session
+
+
+def make_mock_db():
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=None)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    session = AsyncMock()
+    session.begin = MagicMock(return_value=cm)
+    session.add = MagicMock()
+    session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+    )
+    return session
+
+
 @pytest.fixture
 def mock_db():
-    session = AsyncMock()
-    session.begin.return_value.__aenter__ = AsyncMock(return_value=None)
-    session.begin.return_value.__aexit__ = AsyncMock(return_value=False)
-    session.add = MagicMock()
-    return session
+    return make_mock_db()
+
+
+@pytest.fixture(autouse=True)
+def override_db(mock_db):
+    from db.session import get_db
+
+    async def _override():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = _override
+    yield
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -38,8 +63,7 @@ def valid_token(monkeypatch):
 @pytest.mark.asyncio
 async def test_dispatch_scan_v100(valid_token, mock_db):
     """POST /v1/mcp/call with tool_version=1.0.0 returns same result as direct endpoint."""
-    with patch("mcp.router.get_db", return_value=mock_db):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/v1/mcp/call",
                 headers={"Authorization": f"Bearer {valid_token}"},
@@ -59,8 +83,7 @@ async def test_dispatch_scan_v100(valid_token, mock_db):
 @pytest.mark.asyncio
 async def test_dispatch_scan_v110(valid_token, mock_db):
     """POST /v1/mcp/call with tool_version=1.1.0 returns same result."""
-    with patch("mcp.router.get_db", return_value=mock_db):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/v1/mcp/call",
                 headers={"Authorization": f"Bearer {valid_token}"},
@@ -79,8 +102,7 @@ async def test_dispatch_scan_v110(valid_token, mock_db):
 @pytest.mark.asyncio
 async def test_dispatch_unknown_version(valid_token, mock_db):
     """tool_version=99.0.0 → 400 Unsupported tool version."""
-    with patch("mcp.router.get_db", return_value=mock_db):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/v1/mcp/call",
                 headers={"Authorization": f"Bearer {valid_token}"},
@@ -114,8 +136,7 @@ async def test_dispatch_without_token_returns_401(mock_db):
 @pytest.mark.asyncio
 async def test_approve_requires_v110(valid_token, mock_db):
     """safecontext.approve with tool_version=1.0.0 → 400."""
-    with patch("mcp.router.get_db", return_value=mock_db):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/v1/mcp/call",
                 headers={"Authorization": f"Bearer {valid_token}"},
@@ -173,8 +194,7 @@ async def test_approve_records_agent_id(valid_token, mock_db):
 
     mock_db.add = capture_add
 
-    with patch("mcp.router.get_db", return_value=mock_db):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/v1/mcp/tools/safecontext.approve",
                 headers={"Authorization": f"Bearer {valid_token}"},
@@ -209,8 +229,7 @@ async def test_approve_finding_not_found(valid_token, mock_db):
     not_found_result.scalar_one_or_none.return_value = None
     mock_db.execute = AsyncMock(return_value=not_found_result)
 
-    with patch("mcp.router.get_db", return_value=mock_db):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/v1/mcp/tools/safecontext.approve",
                 headers={"Authorization": f"Bearer {valid_token}"},
@@ -249,8 +268,7 @@ async def test_approve_operation_not_escalated(valid_token, mock_db):
 
     mock_db.execute = AsyncMock(side_effect=[finding_result, operation_result])
 
-    with patch("mcp.router.get_db", return_value=mock_db):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/v1/mcp/tools/safecontext.approve",
                 headers={"Authorization": f"Bearer {valid_token}"},

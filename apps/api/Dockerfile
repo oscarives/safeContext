@@ -3,14 +3,9 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install uv for fast dependency resolution
-RUN pip install --no-cache-dir uv
-
-# Copy only dependency manifest first (layer-cache friendly)
-COPY pyproject.toml .
-
-# Install all project dependencies into the system Python
-RUN uv pip install --system --no-cache .
+# Copy requirements and install (layer-cache friendly)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

@@ -25,10 +25,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
 # Copy built output
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/cache-handler.ts ./cache-handler.ts
+# public/ may be empty in minimal setup — copy only if it exists
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/cache-handler.js ./cache-handler.js
 
 USER nextjs
 EXPOSE 3000

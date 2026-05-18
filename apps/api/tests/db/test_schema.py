@@ -81,8 +81,18 @@ class TestConstraints:
 class TestIndexesInMigration:
     """Verifica que los índices requeridos están en la migración 0001."""
 
+    @staticmethod
+    def _load_migration():
+        """Load 0001_initial_schema.py using importlib (name starts with digit)."""
+        import importlib.util, pathlib
+        path = pathlib.Path(__file__).parent.parent.parent / "db" / "migrations" / "versions" / "0001_initial_schema.py"
+        spec = importlib.util.spec_from_file_location("migration_0001", path)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
     def test_required_indexes_present_in_migration(self):
-        from db.migrations.versions import _0001_initial_schema as m
+        m = self._load_migration()
         source = inspect.getsource(m.upgrade)
         required_indexes = [
             "idx_operations_trace_id",
@@ -95,15 +105,12 @@ class TestIndexesInMigration:
             assert idx in source, f"Index {idx} not found in migration upgrade()"
 
     def test_rls_enabled_in_migration(self):
-        from db.migrations.versions import _0001_initial_schema as m
+        m = self._load_migration()
         source = inspect.getsource(m.upgrade)
-        tables = ["operations", "findings", "redactions", "artifacts", "outbox"]
-        for table in tables:
-            assert f"ENABLE ROW LEVEL SECURITY" in source, \
-                "RLS not enabled in migration"
+        assert "ENABLE ROW LEVEL SECURITY" in source, "RLS not enabled in migration"
 
     def test_downgrade_drops_all_tables(self):
-        from db.migrations.versions import _0001_initial_schema as m
+        m = self._load_migration()
         source = inspect.getsource(m.downgrade)
         tables = ["outbox", "artifacts", "redactions", "findings", "operations"]
         for table in tables:
