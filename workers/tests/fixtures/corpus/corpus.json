@@ -70,8 +70,8 @@
     },
     {
       "id": "apikey_004",
-      "text": "Set STRIPE_SECRET_KEY=sk_live_4eC39HqLyjWDarjtT1zdp7dc in production env",
-      "expected": [{"entity_type": "API_KEY", "span_start": 21, "span_end": 55}]
+      "text": "Set PAYMENT_API_KEY=sk_live_XXXX_SYNTHETIC_TEST_DATA_ONLY in production env",
+      "expected": [{"entity_type": "API_KEY", "span_start": 20, "span_end": 58}]
     },
     {
       "id": "apikey_005",
@@ -82,7 +82,7 @@
     },
     {
       "id": "apikey_006",
-      "text": "API_TOKEN=xoxb-1234567890-1234567890-AbCdEfGhIjKlMnOp",
+      "text": "API_TOKEN=xoxb-SYNTHETIC-TEST-DATA-ONLY-NotARealToken",
       "expected": [{"entity_type": "API_KEY", "span_start": 10, "span_end": 53}]
     },
     {
