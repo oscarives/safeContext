@@ -60,7 +60,14 @@
       "Bash(python -m pytest tests/mcp/test_mcp_tools.py::test_scan_returns_trace_id_in_body_and_header -s)",
       "Bash(python -m py_compile tests/mcp/test_mcp_versioning.py)",
       "Bash(python -m pytest tests/ -v --tb=line)",
-      "Bash(python -m pytest tests/api/test_audit.py::test_audit_hmac_is_valid -s)"
+      "Bash(python -m pytest tests/api/test_audit.py::test_audit_hmac_is_valid -s)",
+      "Bash(python -m pytest tests/api/test_scan.py::test_scan_returns_trace_id --tb=short -q)",
+      "Bash(python -m pytest tests/ --tb=line -q)",
+      "Bash(PYTHONPATH=apps/api python -m pytest apps/api/tests/ --tb=line -q)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:8000/v1/scan -H \"Content-Type: application/json\" -d '{\"document\":\"test\",\"policy_name\":\"base\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:8000/v1/scan -H \"Content-Type: application/json\" -H \"Authorization: Bearer safecontext_dev_mcp_token_123\" -d '{\"document\":\"test\",\"policy_name\":\"base\"}')",
+      "Bash(git -C D:/SafeContext add -u)",
+      "Bash(git -C D:/SafeContext status --short)"
     ]
   }
 }

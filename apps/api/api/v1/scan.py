@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
+from mcp.auth import require_mcp_token
 from core.logging import get_logger
 from core.metrics import operations_total, scan_duration
 from core.tracing import get_trace_id, tracer
@@ -43,6 +44,7 @@ async def scan(
     request: Request,
     body: ScanRequest,
     response: Response,
+    _token: Annotated[str, Depends(require_mcp_token)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ScanResponse:
     """

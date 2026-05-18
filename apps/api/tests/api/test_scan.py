@@ -22,7 +22,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/
 os.environ.setdefault("MINIO_ACCESS_KEY", "minioadmin")
 os.environ.setdefault("MINIO_SECRET_KEY", "minioadmin")
 os.environ.setdefault("API_SECRET_KEY", "test-secret")
-os.environ.setdefault("MCP_AUTH_TOKEN", "test-token")
+os.environ["MCP_AUTH_TOKEN"] = "test-token"  # must match header below
 
 # ---------------------------------------------------------------------------
 # App import (after env stubs)
@@ -74,9 +74,14 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
         app.dependency_overrides[real_get_db] = _fake_get_db
         app.state.broker = mock_broker
+        # Sync settings token with test header value
+        from config import settings as _settings
+        _settings.mcp_auth_token = "test-token"
 
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": "Bearer test-token"},
         ) as ac:
             yield ac
 
