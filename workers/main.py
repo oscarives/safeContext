@@ -140,12 +140,14 @@ signal.signal(signal.SIGINT, _handle_sigterm)
 
 
 async def _startup_background_tasks() -> None:
-    """Launch OPA polling and DLQ monitoring as background asyncio tasks."""
+    """Launch OPA polling, DLQ monitoring and recall evaluation as background tasks."""
     from workers.core.opa_client import opa_client
     from workers.dlq_monitor import monitor_dlq
+    from workers.ml.recall_evaluator import run_recall_loop
 
     asyncio.create_task(opa_client.start_polling(), name="opa-hot-reload")
     asyncio.create_task(monitor_dlq(), name="dlq-monitor")
+    asyncio.create_task(run_recall_loop(), name="recall-evaluator")
     log.info("worker.background_tasks_started")
 
 

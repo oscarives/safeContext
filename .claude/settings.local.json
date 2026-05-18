@@ -97,7 +97,12 @@
       "Bash(python -c \"import json,sys; r=json.load\\(sys.stdin\\)['data']['result']; print\\(f'  operations: {[\\(x[\\\\\"metric\\\\\"].get\\(\\\\\"status\\\\\"\\),x[\\\\\"value\\\\\"][1]\\) for x in r]}'\\)\")",
       "Bash(python -c \"import json,sys; r=json.load\\(sys.stdin\\)['data']['result']; print\\(f'  findings_series: {len\\(r\\)}'\\)\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001)",
-      "Bash(git -C D:/SafeContext commit -m ' *)"
+      "Bash(git -C D:/SafeContext commit -m ' *)",
+      "Bash(git -C D:/SafeContext log --oneline)",
+      "Bash(curl -s -X POST http://localhost:8000/v1/scan -H \"Authorization: Bearer safecontext_dev_mcp_token_123\" -H \"Content-Type: application/json\" -d '{\"document\":\"test@corp.com 4111-1111-1111-1111\",\"policy_name\":\"base\"}')",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'policy={d[\\\\\"policy_version\\\\\"]} trace={d[\\\\\"trace_id\\\\\"][:8]}...'\\)\")",
+      "Bash(python -c \"import json,sys; r=json.load\\(sys.stdin\\)['data']['result']; [print\\(f'  {x[\\\\\"metric\\\\\"].get\\(\\\\\"class\\\\\"\\)}: {float\\(x[\\\\\"value\\\\\"][1]\\):.3f}'\\) for x in r] if r else print\\('  no data yet'\\)\")",
+      "Bash(git -C D:/SafeContext add workers/ml/recall_evaluator.py)"
     ]
   }
 }

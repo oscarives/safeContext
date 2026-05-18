@@ -54,6 +54,14 @@ OUTBOX_LAG_EVENTS = Gauge(
     "Number of unprocessed outbox events (approximation)",
 )
 
+# ── ML quality metrics ───────────────────────────────────────────────────────
+
+DETECTOR_RECALL = Gauge(
+    "safecontext_detector_recall",
+    "Recall of the detector for each entity class (evaluated against labeled corpus)",
+    ["class"],
+)
+
 # ── DLQ metrics ──────────────────────────────────────────────────────────────
 
 DLQ_MESSAGES_TOTAL = Counter(
