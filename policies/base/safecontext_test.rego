@@ -1,4 +1,4 @@
-package safecontext.policy_test
+package safecontext.policy
 
 import future.keywords.if
 

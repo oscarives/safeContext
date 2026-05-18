@@ -120,9 +120,9 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready 2>/dev/null || wget -q -O- http://localhost:8080/health/ready || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready > /dev/null 2>&1 || exit 1"]
       interval: 30s
-      timeout: 15s
+      timeout: 10s
       retries: 10
       start_period: 90s
     restart: unless-stopped
@@ -142,7 +142,7 @@ services:
       - "8200:8200"
     healthcheck:
       # vault status exits 2 when sealed (normal in dev) — check HTTP instead
-      test: ["CMD", "sh", "-c", "wget -q -O- http://localhost:8200/v1/sys/health?standbyok=true | grep -q initialized"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8200/v1/sys/health?standbyok=true > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -152,6 +152,30 @@ services:
       - backend
 
   # ── FastAPI + MCP Server ─────────────────────────────────────────────────────
+  # ── OPA Policy Engine ────────────────────────────────────────────────────────
+  opa:
+    image: openpolicyagent/opa:0.63.0
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8181"
+      - "--log-level=info"
+      - "--ignore=*_test.rego"
+      - "/policies"
+    volumes:
+      - ./policies:/policies:ro
+    ports:
+      - "8181:8181"
+    healthcheck:
+      test: ["CMD", "/opa", "eval", "--data", "/policies", "data.safecontext.policy.policy_version"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - backend
+
   api:
     <<: *common
     build:
@@ -206,6 +230,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      opa:
+        condition: service_healthy
       # keycloak and vault are optional in dev — enable when F4 auth is needed
       # keycloak:
       #   condition: service_healthy
@@ -214,7 +240,7 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -300,11 +326,11 @@ services:
       redis:
         condition: service_healthy
       api:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || wget -qO- http://localhost:3000 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 > /dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -416,22 +442,18 @@ services:
     <<: *common
     image: nginx:1.25.4-alpine
     volumes:
-      - ./infra/compose/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/compose/certs:/etc/nginx/certs:ro
+      - ./infra/compose/nginx-dev.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "80:80"
-      - "443:443"
+      - "8088:80"    # 80 requires admin on Windows; use localhost:8088 in dev
     depends_on:
-      api:
-        condition: service_healthy
-      ui:
-        condition: service_healthy
+      - api
+      - ui
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://localhost/api/health || wget -qO- http://localhost/ || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 15s
     networks:
       - frontend
 

@@ -37,8 +37,7 @@ severity_map := {
 }
 
 # ---------------------------------------------------------------------------
-# requires_review: determina si un hallazgo individual requiere revisión humana
-# Regla: confianza < umbral de la clase  OR  severidad == "critical"
+# requires_review: hallazgo individual requiere revisión humana
 # ---------------------------------------------------------------------------
 
 requires_review(finding) if {
@@ -51,9 +50,7 @@ requires_review(finding) if {
 }
 
 # ---------------------------------------------------------------------------
-# effective_severity: severidad efectiva de un hallazgo
-# Si confianza < 0.50 → "low" (independientemente de la clase)
-# Si confianza >= 0.50 → severidad base del mapa
+# effective_severity
 # ---------------------------------------------------------------------------
 
 effective_severity(finding) := "low" if {
@@ -66,7 +63,7 @@ effective_severity(finding) := base if {
 }
 
 # ---------------------------------------------------------------------------
-# should_block: bloquear si existe algún hallazgo crítico con confianza >= umbral
+# should_block: bloquear si hay hallazgo crítico con confianza >= umbral
 # ---------------------------------------------------------------------------
 
 should_block(findings) if {
@@ -77,22 +74,46 @@ should_block(findings) if {
 }
 
 # ---------------------------------------------------------------------------
-# operation_requires_review: la operación requiere revisión si algún hallazgo lo requiere
+# _blocking_count: cuenta hallazgos que bloquearían (evita `not` en objetos)
 # ---------------------------------------------------------------------------
 
-operation_requires_review(findings) if {
-    some f in findings
-    requires_review(f)
+_blocking_count(findings) = n {
+    n := count([f |
+        f := findings[_]
+        f.severity == "critical"
+        threshold := confidence_thresholds[f.entity_type]
+        f.confidence >= threshold
+    ])
 }
 
 # ---------------------------------------------------------------------------
-# decision: respuesta consolidada para una operación
+# _review_count: cuenta hallazgos que requieren revisión
 # ---------------------------------------------------------------------------
 
-decision(findings) := {
-    "allow":                not should_block(findings),
-    "requires_human_review": operation_requires_review(findings),
-    "policy_version":       policy_version,
-    "findings_count":       count(findings),
-    "critical_count":       count([f | f := findings[_]; f.severity == "critical"]),
+_review_count(findings) = n {
+    n := count([f | f := findings[_]; requires_review(f)])
+}
+
+# ---------------------------------------------------------------------------
+# operation_requires_review
+# ---------------------------------------------------------------------------
+
+operation_requires_review(findings) if {
+    _review_count(findings) > 0
+}
+
+# ---------------------------------------------------------------------------
+# decision: respuesta consolidada — sin `not` dentro de literales de objeto
+# ---------------------------------------------------------------------------
+
+decision(findings) = d {
+    blocking := _blocking_count(findings)
+    reviewing := _review_count(findings)
+    d := {
+        "allow":                 blocking == 0,
+        "requires_human_review": reviewing > 0,
+        "policy_version":        policy_version,
+        "findings_count":        count(findings),
+        "critical_count":        count([f | f := findings[_]; f.severity == "critical"]),
+    }
 }
