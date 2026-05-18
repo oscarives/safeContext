@@ -42,11 +42,16 @@ logger = structlog.get_logger(__name__)
 
 # Event type → Dramatiq queue name mapping
 _EVENT_TO_QUEUE: dict[str, str] = {
-    "document.scan_requested": "safecontext_scan",
+    # API writes these event types (without "document." prefix)
+    "scan_requested":     "safecontext_scan",
+    "sanitize_requested": "safecontext_sanitize",
+    "classify_requested": "safecontext_classify",
+    "audit_requested":    "safecontext_audit",
+    "review_requested":   "safecontext_review",
+    # legacy prefixed variants
+    "document.scan_requested":     "safecontext_scan",
     "document.sanitize_requested": "safecontext_sanitize",
     "document.classify_requested": "safecontext_classify",
-    "document.audit_requested": "safecontext_audit",
-    "document.review_requested": "safecontext_review",
 }
 
 _POLL_INTERVAL_SECONDS: float = float(
@@ -96,19 +101,16 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
 
             operation_id: str = event.payload.get("operation_id", "")
 
-            # Dramatiq envelope format
-            dramatiq_message = {
-                "queue_name": queue_name,
-                "actor_name": _queue_to_actor(queue_name),
-                "args": [operation_id],
-                "kwargs": {},
-                "options": {},
-                "message_id": str(event.id),
-                "message_timestamp": int(event.created_at.timestamp() * 1000),
-            }
-
+            # Use Dramatiq actor.send() directly — correct key naming (dramatiq:<queue>)
             try:
-                await broker.enqueue(queue_name, dramatiq_message)
+                actor = _get_actor(queue_name)
+                if actor is None:
+                    logger.warning("outbox_relay.no_actor", queue=queue_name)
+                    await session.execute(
+                        update(Outbox).where(Outbox.id == event.id).values(processed=True)
+                    )
+                    continue
+                actor.send(operation_id)
             except Exception as exc:  # noqa: BLE001
                 logger.error(
                     "outbox_relay.enqueue_failed",
@@ -117,7 +119,7 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                     error=str(exc),
                 )
                 OUTBOX_RELAY_ERRORS.inc()
-                raise  # re-raise to roll back session — event stays unprocessed
+                raise
 
             # Mark processed AFTER successful enqueue
             await session.execute(
@@ -139,14 +141,20 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
     return relayed
 
 
-def _queue_to_actor(queue_name: str) -> str:
+def _get_actor(queue_name: str):  # type: ignore[return]
+    """Return the Dramatiq actor for a given queue name."""
+    from workers.agents.detector_agent import process_scan
+    from workers.agents.sanitizer_agent import process_sanitize
+    from workers.agents.classifier_agent import process_classify
+    from workers.agents.auditor_agent import process_audit
+    from workers.agents.reviewer_agent import process_review
     return {
-        "safecontext_scan": "process_scan",
-        "safecontext_sanitize": "process_sanitize",
-        "safecontext_classify": "process_classify",
-        "safecontext_audit": "process_audit",
-        "safecontext_review": "process_review",
-    }.get(queue_name, "unknown")
+        "safecontext_scan":     process_scan,
+        "safecontext_sanitize": process_sanitize,
+        "safecontext_classify": process_classify,
+        "safecontext_audit":    process_audit,
+        "safecontext_review":   process_review,
+    }.get(queue_name)
 
 
 async def run_relay_loop() -> None:

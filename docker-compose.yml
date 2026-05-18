@@ -253,8 +253,8 @@ services:
   worker:
     <<: *common
     build:
-      context: ./workers
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: workers/Dockerfile
       target: runtime
     image: safecontext/worker:dev
     environment:

@@ -91,6 +91,7 @@ async def scan(
             event_type="scan_requested",
             payload={
                 "operation_id": str(operation_id),
+                "document_text": body.document,      # workers read this key
                 "document_hash": artifact_digest,
                 "policy_name": body.policy_name,
                 "policy_version": policy_version,

@@ -157,7 +157,7 @@ async def tool_scan(
             event_type="scan_requested",
             payload={
                 "operation_id": str(operation.id),
-                "document": request.document,
+                "document_text": request.document,   # workers read this key
                 "document_hash": artifact_digest,
                 "policy_name": request.policy_name,
                 "source": "mcp",
