@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // Required for Docker multi-stage build (copies only what's needed)
+  output: 'standalone',
+
   // Use Redis as cache backend (ADR-002: Redis as ephemeral cache, not disk)
   cacheHandler: require.resolve('./cache-handler'),
   cacheMaxMemorySize: 0,  // disable in-memory cache entirely for multi-instance

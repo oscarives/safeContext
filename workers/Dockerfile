@@ -35,7 +35,9 @@ RUN python -c "from presidio_analyzer import AnalyzerEngine; AnalyzerEngine()" &
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
-WORKDIR /app
+# Place code at /workspace/workers so that "from workers.xxx" resolves correctly
+# Build context is ./workers, so COPY . . puts files into /workspace/workers/
+WORKDIR /workspace/workers
 
 # Copy installed Python packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages \
@@ -47,12 +49,15 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy baked-in ML models from builder (ADR-010 / E5.3: air-gapped operation)
 COPY --from=builder /models /models
 
-# Copy application source
+# Copy application source into /workspace/workers/
 COPY . .
+
+# PYTHONPATH must include /workspace so that "from workers.xxx" resolves to /workspace/workers/xxx
+ENV PYTHONPATH=/workspace
 
 # Non-root user for security (principle of least privilege)
 RUN useradd -r -u 1001 -g root appuser \
-    && chown -R appuser:root /app
+    && chown -R appuser:root /workspace
 
 USER appuser
 
@@ -69,4 +74,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
 # Start Dramatiq worker process
 # --processes: one process per CPU core for parallelism
 # --threads:   async tasks per process (IO-bound detection workloads)
+WORKDIR /workspace
 CMD ["python", "-m", "dramatiq", "workers.agents", "--processes", "2", "--threads", "4"]

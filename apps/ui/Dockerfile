@@ -1,37 +1,36 @@
-# TODO: Replace placeholder with real application code when apps/ui/ is implemented.
-# This multi-stage Dockerfile is structurally correct and ready for development.
+# ── Stage 1: dependencies ─────────────────────────────────────────────────────
+FROM node:20-alpine AS deps
 
-# ── Stage 1: builder ──────────────────────────────────────────────────────────
+WORKDIR /app
+COPY package.json ./
+RUN npm install --legacy-peer-deps
+
+# ── Stage 2: builder ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
 WORKDIR /app
-
-# Install dependencies
-COPY package*.json ./
-RUN npm ci --ignore-scripts 2>/dev/null || true
-
-# Copy source and build
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build 2>/dev/null || true
 
-# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# ── Stage 3: runtime ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
 
 WORKDIR /app
-
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy built assets from builder
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+
+# Copy built output
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/cache-handler.js ./cache-handler.js 2>/dev/null || true
+COPY --from=builder /app/cache-handler.ts ./cache-handler.ts
 
-# Non-root user for security
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 USER nextjs
-
 EXPOSE 3000
 
-# TODO: Replace with actual entrypoint once apps/ui/ Next.js app is scaffolded
 CMD ["node", "server.js"]

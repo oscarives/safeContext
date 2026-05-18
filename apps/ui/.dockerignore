@@ -1,0 +1,7 @@
+node_modules/
+.next/
+.env
+.env.*
+tests/
+*.test.ts
+*.spec.ts
