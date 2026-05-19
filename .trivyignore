@@ -1,0 +1,11 @@
+# .trivyignore — CVEs aceptadas en el stack ML/NLP de SafeContext
+#
+# Criterio de aceptación: CVE sin fix upstream disponible en el stack de
+# dependencias de Presidio/spaCy/thinc. Revisadas y aprobadas en F1.
+# Próxima revisión: inicio de F3 (Supply chain hardening).
+#
+# Formato: CVE-ID  # motivo
+#
+# spaCy / thinc / cymem / murmurhash — sin fix en versiones actuales
+# Se revisan en F3 al actualizar el stack de dependencias ML.
+# (Añadir CVEs específicos cuando Trivy los reporte en CI)

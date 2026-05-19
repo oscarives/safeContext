@@ -54,6 +54,8 @@ jobs:
           scan-ref: ${{ matrix.context }}
           severity: CRITICAL,HIGH
           exit-code: 1
+          ignore-unfixed: true          # solo fallar en CVEs con fix disponible
+          trivyignore-file: .trivyignore
           format: sarif
           output: trivy-${{ matrix.component }}.sarif
 
@@ -96,6 +98,8 @@ jobs:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.component }}:${{ github.sha }}
           severity: CRITICAL
           exit-code: 1
+          ignore-unfixed: true
+          trivyignore-file: .trivyignore
 
       # ── Sign image with Cosign (keyless via OIDC) ─────────────────────────
       - name: Install Cosign

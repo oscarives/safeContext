@@ -41,18 +41,53 @@ jobs:
   test-api:
     name: API tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: pip install -e "apps/api[dev]" 2>/dev/null || pip install pytest pytest-asyncio httpx pydantic fastapi sqlalchemy asyncpg structlog opentelemetry-api opentelemetry-sdk prometheus-client
+        run: |
+          pip install pytest pytest-asyncio httpx pydantic fastapi \
+            sqlalchemy asyncpg structlog opentelemetry-api opentelemetry-sdk \
+            prometheus-client python-jose alembic
+      - name: Run Alembic migrations
+        run: |
+          cd apps/api
+          alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost/test
       - name: Run tests
         run: pytest apps/api/tests/ -v --tb=short
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost/test
           REDIS_URL: redis://localhost:6379/0
+          MCP_AUTH_TOKEN: test-token
+          API_SECRET_KEY: test-secret-key-for-ci-only
+          OPA_URL: http://localhost:8181
 
   test-opa:
     name: OPA policy tests
@@ -67,14 +102,24 @@ jobs:
         run: opa test policies/ -v --coverage
       - name: Verify coverage >= 80%
         run: |
-          COVERAGE=$(opa test policies/ --coverage --format json | python3 -c "
+          COVERAGE=$(opa test policies/ --coverage --format json 2>/dev/null | python3 -c "
           import sys, json
           data = json.load(sys.stdin)
-          covered = sum(1 for f in data.get('coverage',{}).get('files',{}).values() for lines in f.get('covered',[]))
-          total = covered + sum(1 for f in data.get('coverage',{}).get('files',{}).values() for lines in f.get('not_covered',[]))
-          print(f'{covered/max(total,1)*100:.1f}')
+          files = data.get('coverage', {}).get('files', {})
+          covered = sum(len(f.get('covered', [])) for f in files.values())
+          not_covered = sum(len(f.get('not_covered', [])) for f in files.values())
+          total = covered + not_covered
+          pct = covered / max(total, 1) * 100
+          print(f'{pct:.1f}')
           ")
           echo "OPA coverage: ${COVERAGE}%"
+          python3 -c "
+          pct = float('${COVERAGE}')
+          if pct < 80:
+              print(f'FAIL: coverage {pct:.1f}% < 80%')
+              exit(1)
+          print(f'PASS: coverage {pct:.1f}%')
+          "
 
   safecontext-gate:
     name: SafeContext security gate
