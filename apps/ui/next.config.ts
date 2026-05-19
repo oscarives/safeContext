@@ -10,10 +10,18 @@ const nextConfig: NextConfig = {
 
   // API rewrites so UI can call /api/* → FastAPI
   async rewrites() {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://api:8000'
     return [
+      // Health check lives at /health on the backend (no /v1 prefix)
+      {
+        source: '/health',
+        destination: `${apiBase}/health`,
+      },
+      // Note: /api/auth/* Route Handlers take precedence over this rewrite
+      // because Next.js resolves file-system routes before applying rewrites.
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL ?? 'http://api:8000'}/v1/:path*`,
+        destination: `${apiBase}/v1/:path*`,
       },
     ]
   },

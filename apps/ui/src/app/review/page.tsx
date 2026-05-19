@@ -1,169 +1,228 @@
 'use client'
-import { useEffect, useState } from 'react'
+
+import { useCallback, useEffect, useState } from 'react'
+import {
+  ConfirmModal,
+  EmptyState,
+  FindingCard,
+  LoadingSpinner,
+  useToast,
+} from '@/components'
+import { apiClient, ForbiddenError, type PendingFinding } from '@/lib/api-client'
+import { useSession } from '@/hooks/useSession'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface PendingFinding {
-  operation_id: string
-  trace_id: string
-  finding_id: string
-  detector: string
-  rule_id: string
-  confidence: number
-  severity: 'low' | 'medium' | 'high' | 'critical'
-  span_start: number
-  span_end: number
-  explanation: Record<string, unknown>
-  document_preview: string
-  created_at: string
+interface PendingDecision {
+  findingId: string
+  action: 'approve' | 'reject'
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReviewPage() {
+  const { showToast } = useToast()
+  const { user } = useSession()
+
   const [findings, setFindings] = useState<PendingFinding[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [filterText, setFilterText] = useState('')
+  const [pendingDecision, setPendingDecision] = useState<PendingDecision | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/review/pending')
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
-      .then(d => {
-        setFindings(d.items ?? [])
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(String(err))
-        setLoading(false)
-      })
+  const loadFindings = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await apiClient.getPendingReviews()
+      setFindings(data.items ?? [])
+      setTotal(data.total ?? data.items?.length ?? 0)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  async function handleDecision(findingId: string, action: 'approve' | 'reject') {
-    const justification = prompt(`Justification for ${action}:`)
-    if (!justification) return
+  useEffect(() => {
+    loadFindings()
+  }, [loadFindings])
 
-    const res = await fetch(`/api/review/${findingId}/${action}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ justification }),
-    })
+  // ── Derived: filtered list ────────────────────────────────────────────────
 
-    if (!res.ok) {
-      alert(`Failed to ${action}: HTTP ${res.status}`)
-      return
-    }
+  const filteredFindings = filterText.trim()
+    ? findings.filter((f) =>
+        f.trace_id.toLowerCase().includes(filterText.trim().toLowerCase())
+      )
+    : findings
 
-    setFindings(prev => prev.filter(f => f.finding_id !== findingId))
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  function openApprove(findingId: string) {
+    setPendingDecision({ findingId, action: 'approve' })
   }
 
+  function openReject(findingId: string) {
+    setPendingDecision({ findingId, action: 'reject' })
+  }
+
+  function cancelDecision() {
+    if (!isSubmitting) setPendingDecision(null)
+  }
+
+  async function confirmDecision(justification: string) {
+    if (!pendingDecision) return
+
+    const { findingId, action } = pendingDecision
+    setIsSubmitting(true)
+
+    try {
+      await apiClient.postReviewDecision(findingId, action, justification)
+
+      // Remove from local list and update counter
+      setFindings((prev) => {
+        const next = prev.filter((f) => f.finding_id !== findingId)
+        setTotal(next.length)
+        return next
+      })
+
+      const label = action === 'approve' ? 'aprobado' : 'rechazado'
+      showToast(`Hallazgo ${label} correctamente.`, 'success')
+      setPendingDecision(null)
+    } catch (err) {
+      if (err instanceof ForbiddenError) {
+        showToast(
+          'No tienes permiso para revisar esta operación (segregación de funciones).',
+          'error'
+        )
+      } else {
+        showToast(
+          err instanceof Error ? err.message : 'Error al procesar la decisión.',
+          'error'
+        )
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // ── Render states ─────────────────────────────────────────────────────────
+
   if (loading) {
-    return <div className="p-8 text-gray-500">Loading pending reviews...</div>
+    return (
+      <main className="flex items-center justify-center min-h-[60vh]">
+        <LoadingSpinner />
+      </main>
+    )
   }
 
   if (error) {
     return (
-      <div className="p-8 text-red-600">
-        Error loading reviews: {error}
-      </div>
+      <main className="p-8 max-w-4xl mx-auto">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-red-700 mb-4">{error}</p>
+          <button
+            onClick={loadFindings}
+            className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </main>
     )
   }
 
   if (findings.length === 0) {
     return (
-      <div className="p-8 text-green-600 font-medium">
-        No pending reviews — all clear.
-      </div>
+      <main className="p-8 max-w-4xl mx-auto">
+        <EmptyState
+          title="Sin revisiones pendientes"
+          description="Todos los documentos han sido revisados."
+        />
+      </main>
     )
   }
 
+  // ── Active decision context (for modal title/description) ─────────────────
+
+  const activeAction = pendingDecision?.action ?? 'approve'
+  const modalTitle =
+    activeAction === 'approve' ? 'Aprobar hallazgo' : 'Rechazar hallazgo'
+  const modalDescription =
+    activeAction === 'approve'
+      ? 'Confirma que este hallazgo ha sido evaluado y puede aprobarse. Escribe una justificación.'
+      : 'Confirma que este hallazgo debe ser rechazado. Escribe una justificación.'
+
+  // ── Main render ───────────────────────────────────────────────────────────
+
   return (
     <main className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2">Pending Human Review</h1>
-      <p className="text-gray-500 mb-6">{findings.length} finding(s) require review</p>
-      <div className="space-y-4">
-        {findings.map(f => (
-          <FindingCard key={f.finding_id} finding={f} onDecision={handleDecision} />
-        ))}
-      </div>
-    </main>
-  )
-}
-
-// ── FindingCard ───────────────────────────────────────────────────────────────
-
-const severityColors: Record<PendingFinding['severity'], string> = {
-  low: 'bg-green-100 text-green-800',
-  medium: 'bg-yellow-100 text-yellow-800',
-  high: 'bg-red-100 text-red-800',
-  critical: 'bg-purple-100 text-purple-800',
-}
-
-function FindingCard({
-  finding,
-  onDecision,
-}: {
-  finding: PendingFinding
-  onDecision: (id: string, action: 'approve' | 'reject') => void
-}) {
-  const preview = finding.document_preview
-  const before = preview.slice(0, finding.span_start)
-  const highlighted = preview.slice(finding.span_start, finding.span_end)
-  const after = preview.slice(finding.span_end)
-
-  return (
-    <div className="border rounded-lg p-4 bg-white shadow-sm">
-      {/* Header row */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`inline-block px-2 py-1 rounded text-xs font-semibold ${severityColors[finding.severity]}`}
-          >
-            {finding.severity.toUpperCase()}
+      {/* Header */}
+      <h1 className="text-2xl font-bold mb-1">Revisión humana pendiente</h1>
+      <p className="text-gray-500 mb-6">
+        {total} hallazgo{total !== 1 ? 's' : ''} pendiente{total !== 1 ? 's' : ''} de
+        revisión
+        {user ? (
+          <span className="ml-2 text-xs text-gray-400">
+            (usuario: <code className="bg-gray-100 px-1 rounded">{user.sub}</code>)
           </span>
-          <span className="font-mono text-sm text-gray-700">{finding.detector}</span>
-          <span className="text-xs text-gray-400">rule: {finding.rule_id}</span>
-        </div>
-        <span className="text-sm text-gray-500 whitespace-nowrap ml-2">
-          {Math.round(finding.confidence * 100)}% confidence
-        </span>
+        ) : null}
+      </p>
+
+      {/* Trace ID filter */}
+      <div className="mb-6">
+        <input
+          type="text"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          placeholder="Filtrar por Trace ID..."
+          className="w-full max-w-sm px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/30"
+        />
+        {filterText.trim() && (
+          <p className="mt-1 text-xs text-gray-400">
+            {filteredFindings.length} de {findings.length} hallazgo
+            {findings.length !== 1 ? 's' : ''} coincide
+            {filteredFindings.length !== 1 ? 'n' : ''}
+          </p>
+        )}
       </div>
 
-      {/* Document preview with highlighted span */}
-      <div className="font-mono text-sm bg-gray-50 p-2 rounded mb-3 overflow-x-auto whitespace-pre-wrap break-words">
-        {before}
-        <mark className="bg-yellow-200 px-0.5 rounded">{highlighted}</mark>
-        {after}
-      </div>
-
-      {/* Meta */}
-      <div className="text-xs text-gray-400 mb-3 space-y-0.5">
-        <div>
-          Trace: <code className="bg-gray-100 px-1 rounded">{finding.trace_id}</code>
+      {/* Findings list */}
+      {filteredFindings.length === 0 ? (
+        <p className="text-gray-500 text-sm">
+          Ningún hallazgo coincide con el filtro.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {filteredFindings.map((f) => (
+            <div key={f.finding_id}>
+              {/* Operation ID metadata (SoD transparency) */}
+              <div className="text-xs text-gray-400 mb-1 px-1">
+                Operación:{' '}
+                <code className="bg-gray-100 px-1 rounded">{f.operation_id}</code>
+              </div>
+              <FindingCard
+                finding={f}
+                onApprove={openApprove}
+                onReject={openReject}
+              />
+            </div>
+          ))}
         </div>
-        <div>
-          Span [{finding.span_start}:{finding.span_end}] &middot; Created:{' '}
-          {new Date(finding.created_at).toLocaleString()}
-        </div>
-      </div>
+      )}
 
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => onDecision(finding.finding_id, 'approve')}
-          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
-        >
-          Approve
-        </button>
-        <button
-          onClick={() => onDecision(finding.finding_id, 'reject')}
-          className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-        >
-          Reject
-        </button>
-      </div>
-    </div>
+      {/* Confirm modal */}
+      <ConfirmModal
+        isOpen={pendingDecision !== null}
+        title={modalTitle}
+        description={modalDescription}
+        action={activeAction}
+        onConfirm={confirmDecision}
+        onCancel={cancelDecision}
+        isLoading={isSubmitting}
+      />
+    </main>
   )
 }
