@@ -2,6 +2,7 @@
 
 ADR-009: All observability via OpenTelemetry + Prometheus.
 """
+
 from __future__ import annotations
 
 from prometheus_client import Counter, Histogram, Gauge

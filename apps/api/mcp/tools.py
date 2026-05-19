@@ -1,11 +1,12 @@
 """MCP tool definitions — JSON schemas exposed at /v1/mcp/tools."""
+
 from typing import Any
 
 MCP_TOOLS: list[dict[str, Any]] = [
     {
         "name": "safecontext.scan",
         "version": "1.0.0",
-        "description": "Scan a document for PII, secrets, and sensitive data. Returns findings with full explanation.",
+        "description": "Scan a document for PII, secrets, and sensitive data. Returns findings with full explanation.",  # noqa: E501
         "input_schema": {
             "type": "object",
             "required": ["document", "policy_name"],
@@ -46,7 +47,10 @@ MCP_TOOLS: list[dict[str, Any]] = [
                             "span_start": {"type": "integer"},
                             "span_end": {"type": "integer"},
                             "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                            "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                            "severity": {
+                                "type": "string",
+                                "enum": ["low", "medium", "high", "critical"],
+                            },  # noqa: E501
                             "explanation": {"type": "object"},
                         },
                     },
@@ -58,7 +62,7 @@ MCP_TOOLS: list[dict[str, Any]] = [
     {
         "name": "safecontext.sanitize",
         "version": "1.0.0",
-        "description": "Sanitize a document based on scan findings. Returns sanitized document and redaction map.",
+        "description": "Sanitize a document based on scan findings. Returns sanitized document and redaction map.",  # noqa: E501
         "input_schema": {
             "type": "object",
             "required": ["trace_id", "redaction_type"],
@@ -126,7 +130,7 @@ MCP_TOOLS: list[dict[str, Any]] = [
     {
         "name": "safecontext.audit",
         "version": "1.0.0",
-        "description": "Return complete audit evidence for an operation given its trace_id. Includes operation metadata, findings, redactions, artifacts, and HMAC signature.",
+        "description": "Return complete audit evidence for an operation given its trace_id. Includes operation metadata, findings, redactions, artifacts, and HMAC signature.",  # noqa: E501
         "input_schema": {
             "type": "object",
             "required": ["trace_id"],
@@ -154,7 +158,7 @@ MCP_TOOLS: list[dict[str, Any]] = [
     {
         "name": "safecontext.policy.get",
         "version": "1.0.0",
-        "description": "Return the active OPA policy with its version. Optionally filter by policy_name or pin to a specific policy_version.",
+        "description": "Return the active OPA policy with its version. Optionally filter by policy_name or pin to a specific policy_version.",  # noqa: E501
         "input_schema": {
             "type": "object",
             "required": ["policy_name"],
@@ -165,7 +169,7 @@ MCP_TOOLS: list[dict[str, Any]] = [
                 },
                 "policy_version": {
                     "type": "string",
-                    "description": "Specific semver version to retrieve. Defaults to active version.",
+                    "description": "Specific semver version to retrieve. Defaults to active version.",  # noqa: E501
                 },
             },
         },
@@ -181,7 +185,7 @@ MCP_TOOLS: list[dict[str, Any]] = [
     {
         "name": "safecontext.approve",
         "version": "1.1.0",
-        "description": "Agent-delegated approval or rejection of an escalated finding. Requires delegated permission. Available from tool_version 1.1.0.",
+        "description": "Agent-delegated approval or rejection of an escalated finding. Requires delegated permission. Available from tool_version 1.1.0.",  # noqa: E501
         "input_schema": {
             "type": "object",
             "required": ["finding_id", "decision", "justification", "agent_client_id"],
@@ -208,7 +212,7 @@ MCP_TOOLS: list[dict[str, Any]] = [
     {
         "name": "safecontext.approve",
         "version": "1.1.0",
-        "description": "Agent-delegated approval or rejection of a finding. Requires delegated permission.",
+        "description": "Agent-delegated approval or rejection of a finding. Requires delegated permission.",  # noqa: E501
         "input_schema": {
             "type": "object",
             "required": ["finding_id", "decision", "justification", "agent_client_id"],

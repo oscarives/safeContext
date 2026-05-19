@@ -9,6 +9,7 @@ This module:
 3. Computes recall per entity class
 4. Sets the DETECTOR_RECALL gauge for Prometheus to scrape
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,7 +21,13 @@ import structlog
 log = structlog.get_logger()
 
 # Path to corpus — relative to this file (workers/ml/ → workers/tests/fixtures/corpus/)
-_CORPUS_PATH = pathlib.Path(__file__).parent.parent / "tests" / "fixtures" / "corpus" / "corpus.json"
+_CORPUS_PATH = (
+    pathlib.Path(__file__).parent.parent
+    / "tests"
+    / "fixtures"
+    / "corpus"
+    / "corpus.json"
+)
 
 # Interval between evaluations (default: every 5 minutes)
 EVAL_INTERVAL_SECONDS = int(os.environ.get("RECALL_EVAL_INTERVAL", "300"))
@@ -33,7 +40,8 @@ def _compute_recall(samples: list[dict], entity_class: str, detector) -> float:
 
     for sample in samples:
         expected = [
-            e for e in sample.get("expected", [])
+            e
+            for e in sample.get("expected", [])
             if e.get("entity_type") == entity_class
         ]
         if not expected:
@@ -41,6 +49,7 @@ def _compute_recall(samples: list[dict], entity_class: str, detector) -> float:
 
         # Run detection synchronously (corpus eval runs in executor)
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
             findings = loop.run_until_complete(detector.detect(sample["text"], {}))
@@ -48,18 +57,13 @@ def _compute_recall(samples: list[dict], entity_class: str, detector) -> float:
             loop.close()
 
         detected_spans = {
-            (f.span_start, f.span_end)
-            for f in findings
-            if entity_class in f.detector
+            (f.span_start, f.span_end) for f in findings if entity_class in f.detector
         }
 
         for exp in expected:
             exp_span = (exp["span_start"], exp["span_end"])
             # IoU-based match: spans overlap significantly
-            hit = any(
-                _iou(exp_span, det_span) >= 0.5
-                for det_span in detected_spans
-            )
+            hit = any(_iou(exp_span, det_span) >= 0.5 for det_span in detected_spans)
             if hit:
                 true_positive += 1
             else:
@@ -105,11 +109,7 @@ def evaluate_and_update_gauge() -> dict[str, float]:
         return {}
 
     # Determine entity classes from corpus
-    classes = {
-        e["entity_type"]
-        for s in samples
-        for e in s.get("expected", [])
-    }
+    classes = {e["entity_type"] for s in samples for e in s.get("expected", [])}
 
     detector = PresidioDetector()
     results: dict[str, float] = {}
@@ -125,7 +125,11 @@ def evaluate_and_update_gauge() -> dict[str, float]:
                 recall=round(recall, 3),
             )
         except Exception as exc:
-            log.error("recall_evaluator.class_error", entity_class=entity_class, error=str(exc))
+            log.error(
+                "recall_evaluator.class_error",
+                entity_class=entity_class,
+                error=str(exc),
+            )
 
     return results
 
@@ -138,7 +142,9 @@ async def run_recall_loop() -> None:
 
     # Run first evaluation immediately at startup
     loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="recall-eval")
+    executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=1, thread_name_prefix="recall-eval"
+    )
 
     while True:
         try:

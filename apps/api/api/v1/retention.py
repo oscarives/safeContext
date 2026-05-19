@@ -19,7 +19,7 @@ first to allow independent artifact retention windows.
 """
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,8 +41,8 @@ async def run_retention(db: AsyncSession) -> dict[str, int]:
     ops_days = int(os.environ.get("RETENTION_DAYS_OPERATIONS", 365))
     art_days = int(os.environ.get("RETENTION_DAYS_ARTIFACTS", 730))
 
-    cutoff_ops = datetime.now(timezone.utc) - timedelta(days=ops_days)
-    cutoff_art = datetime.now(timezone.utc) - timedelta(days=art_days)
+    cutoff_ops = datetime.now(UTC) - timedelta(days=ops_days)
+    cutoff_art = datetime.now(UTC) - timedelta(days=art_days)
 
     logger.info(
         "retention.run.start",
@@ -55,16 +55,12 @@ async def run_retention(db: AsyncSession) -> dict[str, int]:
     # Delete orphaned / old artifacts first so that the FK constraint
     # (artifacts.operation_id → operations.id) does not block operation deletes
     # for artifacts whose operation was already removed in a prior run.
-    art_result = await db.execute(
-        delete(Artifact).where(Artifact.created_at < cutoff_art)
-    )
+    art_result = await db.execute(delete(Artifact).where(Artifact.created_at < cutoff_art))
     n_art: int = art_result.rowcount  # type: ignore[assignment]
 
     # Delete operations; ON DELETE CASCADE removes remaining child rows
     # (findings, redactions, artifacts created after the artifact cutoff).
-    ops_result = await db.execute(
-        delete(Operation).where(Operation.created_at < cutoff_ops)
-    )
+    ops_result = await db.execute(delete(Operation).where(Operation.created_at < cutoff_ops))
     n_ops: int = ops_result.rowcount  # type: ignore[assignment]
 
     logger.info(

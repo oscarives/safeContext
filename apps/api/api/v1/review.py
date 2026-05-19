@@ -4,10 +4,11 @@ GET  /v1/review/pending              — list escalated findings awaiting review
 POST /v1/review/{finding_id}/approve — approve a finding, register redaction
 POST /v1/review/{finding_id}/reject  — reject a finding, mark operation rejected
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -18,11 +19,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from core.auth_oidc import require_reviewer
 from db.models.finding import Finding
 from db.models.operation import Operation
 from db.models.outbox import Outbox
 from db.models.redaction import Redaction
-from core.auth_oidc import require_reviewer
 from db.session import get_db
 
 log = structlog.get_logger()
@@ -30,6 +31,7 @@ router = APIRouter(tags=["review"])
 
 
 # ── Request / Response schemas ────────────────────────────────────────────────
+
 
 class ReviewDecisionRequest(BaseModel):
     justification: str
@@ -57,12 +59,11 @@ class PendingReviewResponse(BaseModel):
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 
+
 async def _load_document_preview(operation_id: UUID, db: AsyncSession) -> str:
     """Return first 200 chars of the document stored in the outbox payload."""
     result = await db.execute(
-        select(Outbox).where(
-            Outbox.payload["operation_id"].as_string() == str(operation_id)
-        )
+        select(Outbox).where(Outbox.payload["operation_id"].as_string() == str(operation_id))
     )
     outbox_entry = result.scalar_one_or_none()
     if outbox_entry is None:
@@ -72,6 +73,7 @@ async def _load_document_preview(operation_id: UUID, db: AsyncSession) -> str:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/review/pending", response_model=PendingReviewResponse)
 async def get_pending_reviews(
@@ -121,9 +123,7 @@ async def approve_finding(
     """Approve a finding: create a Redaction, advance operation if fully reviewed."""
     # Load finding and its operation
     finding_result = await db.execute(
-        select(Finding)
-        .where(Finding.id == finding_id)
-        .options(selectinload(Finding.operation))
+        select(Finding).where(Finding.id == finding_id).options(selectinload(Finding.operation))
     )
     finding: Finding | None = finding_result.scalar_one_or_none()
     if finding is None:
@@ -160,6 +160,7 @@ async def approve_finding(
 
     # Check existing redactions
     from db.models.redaction import Redaction as RedactionModel
+
     redactions_result = await db.execute(
         select(RedactionModel).where(RedactionModel.operation_id == operation.id)
     )
@@ -170,7 +171,7 @@ async def approve_finding(
     if all_finding_ids.issubset(redacted_finding_ids):
         async with db.begin():
             operation.status = "completed"
-            operation.completed_at = datetime.now(timezone.utc)
+            operation.completed_at = datetime.now(UTC)
             db.add(operation)
 
     log.info(
@@ -193,9 +194,7 @@ async def reject_finding(
 ) -> dict[str, Any]:
     """Reject a finding: mark the operation as 'rejected'."""
     finding_result = await db.execute(
-        select(Finding)
-        .where(Finding.id == finding_id)
-        .options(selectinload(Finding.operation))
+        select(Finding).where(Finding.id == finding_id).options(selectinload(Finding.operation))
     )
     finding: Finding | None = finding_result.scalar_one_or_none()
     if finding is None:
@@ -212,7 +211,7 @@ async def reject_finding(
 
     async with db.begin():
         operation.status = "rejected"
-        operation.completed_at = datetime.now(timezone.utc)
+        operation.completed_at = datetime.now(UTC)
         db.add(operation)
 
     log.info(

@@ -12,6 +12,7 @@ Redaction strategy (from finding.severity / policy):
   remove  → delete the span entirely
   replace → substitute with a placeholder token
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,12 +38,15 @@ def process_sanitize(operation_id: str) -> None:
 
 
 async def _process_sanitize_async(operation_id: str) -> None:
-    from sqlalchemy import select, update, func
+    from sqlalchemy import select
 
     from workers.db import get_session
 
     import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api"))
+
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
+    )
 
     from db.models.operation import Operation
     from db.models.finding import Finding as FindingModel
@@ -54,14 +58,10 @@ async def _process_sanitize_async(operation_id: str) -> None:
         async with get_session() as session:
             # ── Idempotency check ────────────────────────────────────────────
             existing = await session.execute(
-                select(Redaction).where(
-                    Redaction.operation_id == op_uuid
-                ).limit(1)
+                select(Redaction).where(Redaction.operation_id == op_uuid).limit(1)
             )
             if existing.scalar_one_or_none() is not None:
-                logger.info(
-                    "sanitizer_agent.skip_idempotent id=%s", operation_id
-                )
+                logger.info("sanitizer_agent.skip_idempotent id=%s", operation_id)
                 TASKS_TOTAL.labels(agent="sanitizer", status="skipped").inc()
                 return
 
@@ -77,9 +77,7 @@ async def _process_sanitize_async(operation_id: str) -> None:
                 return
 
             findings_result = await session.execute(
-                select(FindingModel).where(
-                    FindingModel.operation_id == op_uuid
-                )
+                select(FindingModel).where(FindingModel.operation_id == op_uuid)
             )
             findings = findings_result.scalars().all()
 
@@ -118,6 +116,7 @@ async def _process_sanitize_async(operation_id: str) -> None:
 
     # Enqueue audit stage outside of session
     from workers.agents.auditor_agent import process_audit
+
     process_audit.send(operation_id)
     logger.info("sanitizer_agent.enqueued_audit id=%s", operation_id)
     TASKS_TOTAL.labels(agent="sanitizer", status="success").inc()

@@ -6,13 +6,12 @@ The model is baked into the Docker image at build time (not downloaded at runtim
 E5.3: model_loader guarantees resolution from local paths (image-baked or
 volume-mounted) without internet access at runtime.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, RecognizerResult
-from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_analyzer import Pattern
 
 from workers.core.detector import DetectorInterface, Finding
@@ -146,7 +145,9 @@ def _build_analyzer() -> AnalyzerEngine:
 
     from presidio_analyzer.nlp_engine import SpacyNlpEngine
 
-    nlp_engine = SpacyNlpEngine(models=[{"lang_code": "en", "model_name": "en_core_web_lg"}])
+    nlp_engine = SpacyNlpEngine(
+        models=[{"lang_code": "en", "model_name": "en_core_web_lg"}]
+    )
     # Inject the already-loaded nlp object to avoid a second load
     nlp_engine.nlp = {"en": nlp}
 
@@ -212,9 +213,7 @@ class PresidioDetector(DetectorInterface):
                     "entity_type": entity_type,
                     "recognition_metadata": r.recognition_metadata or {},
                     "analysis_explanation": (
-                        str(r.analysis_explanation)
-                        if r.analysis_explanation
-                        else None
+                        str(r.analysis_explanation) if r.analysis_explanation else None
                     ),
                 },
             )

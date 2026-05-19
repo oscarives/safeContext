@@ -6,10 +6,10 @@ Criterios:
 - verify_models_available retorna estado correcto
 - PresidioDetector inicializa desde paths locales
 """
+
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -74,9 +74,12 @@ class TestModelLoader:
 
     def test_get_spacy_model_path_returns_none_when_not_found(self, tmp_path):
         """Returns None (triggering spaCy default resolution) when no local path exists."""
-        with patch("workers.ml.model_loader.IMAGE_MODELS_PATH", tmp_path / "nonexistent"):
+        with patch(
+            "workers.ml.model_loader.IMAGE_MODELS_PATH", tmp_path / "nonexistent"
+        ):
             with patch(
-                "workers.ml.model_loader.LOCAL_MODELS_PATH", tmp_path / "also_nonexistent"
+                "workers.ml.model_loader.LOCAL_MODELS_PATH",
+                tmp_path / "also_nonexistent",
             ):
                 import workers.ml.model_loader as ml
 
@@ -149,7 +152,6 @@ class TestOfflineOperation:
 
     def test_model_loader_does_not_call_requests_on_import(self):
         """Importing model_loader does not trigger any HTTP requests."""
-        import importlib
         import sys
 
         # Remove cached module to force fresh import
@@ -159,6 +161,7 @@ class TestOfflineOperation:
 
         # Block socket connections during import
         import socket
+
         original_getaddrinfo = socket.getaddrinfo
 
         def no_network(*args, **kwargs):
@@ -208,8 +211,6 @@ class TestOfflineOperation:
         Note: Requires production corpus with >=50 samples per class and the
         full en_core_web_lg model baked into the image.
         """
-        import json
-        from pathlib import Path
 
         from workers.tests.ml.test_recall import (
             ENTITY_CLASSES,

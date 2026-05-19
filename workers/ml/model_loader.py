@@ -10,6 +10,7 @@ Model resolution priority:
 
 In air-gapped environments, only paths 1 and 2 are valid.
 """
+
 from __future__ import annotations
 
 import os

@@ -16,7 +16,7 @@ def setup_tracing(service_name: str, otlp_endpoint: str) -> None:
 
 
 def get_trace_id() -> str:
-    """Return the current span's trace_id as a 32-char hex string, or all-zeros if no active span."""
+    """Return the current span's trace_id as a 32-char hex string, or all-zeros if no active span."""  # noqa: E501
     span = trace.get_current_span()
     ctx = span.get_span_context()
     if ctx is None or not ctx.is_valid:

@@ -8,13 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
-from mcp.auth import require_mcp_token
 from core.logging import get_logger
 from core.metrics import operations_total, scan_duration
 from core.tracing import get_trace_id, tracer
 from db.models.operation import Operation
 from db.models.outbox import Outbox
 from db.session import get_db
+from mcp.auth import require_mcp_token
 from schemas.scan import ScanRequest, ScanResponse
 
 router = APIRouter()
@@ -95,7 +95,7 @@ async def scan(
             event_type="scan_requested",
             payload={
                 "operation_id": str(operation_id),
-                "document_text": body.document,      # workers read this key
+                "document_text": body.document,  # workers read this key
                 "document_hash": artifact_digest,
                 "policy_name": body.policy_name,
                 "policy_version": policy_version,

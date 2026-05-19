@@ -1,11 +1,12 @@
 """MCP tool request/response schemas — matches DOC-3 formal tool definitions."""
+
 from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-
 # ── safecontext.scan ──────────────────────────────────────────────────────────
+
 
 class ScanToolRequest(BaseModel):
     document: str
@@ -35,6 +36,7 @@ class ScanToolResponse(BaseModel):
 
 # ── safecontext.sanitize ──────────────────────────────────────────────────────
 
+
 class SanitizeToolRequest(BaseModel):
     trace_id: UUID
     redaction_type: Literal["mask", "remove", "replace"]
@@ -58,6 +60,7 @@ class SanitizeToolResponse(BaseModel):
 
 # ── safecontext.classify ──────────────────────────────────────────────────────
 
+
 class ClassifyToolRequest(BaseModel):
     document: str
 
@@ -76,6 +79,7 @@ class ClassifyToolResponse(BaseModel):
 
 # ── MCP envelope ─────────────────────────────────────────────────────────────
 
+
 class MCPToolCall(BaseModel):
     tool: str
     version: str = "1.0.0"
@@ -84,8 +88,9 @@ class MCPToolCall(BaseModel):
 
 class MCPToolCallVersioned(BaseModel):
     """Versioned tool call envelope — clients can pin tool_version (E4.5)."""
+
     tool: str
-    tool_version: str = "1.0.0"   # client can pin version
+    tool_version: str = "1.0.0"  # client can pin version
     input: dict[str, Any]
 
 

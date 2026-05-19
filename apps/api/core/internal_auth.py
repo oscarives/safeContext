@@ -4,6 +4,7 @@ Generates short-lived JWT tokens (5 min TTL) signed with the API secret key.
 Workers validate these tokens before accepting messages from the API.
 This implements Zero Trust for intra-cluster communication (ADR: RNF-SEC-01).
 """
+
 import base64
 import hashlib
 import hmac

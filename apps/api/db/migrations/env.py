@@ -6,7 +6,13 @@ from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from db.base import Base
-from db.models import Artifact, Finding, Operation, Outbox, Redaction  # noqa: F401 — register models
+from db.models import (  # noqa: F401 — register models
+    Artifact,
+    Finding,
+    Operation,
+    Outbox,
+    Redaction,
+)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])

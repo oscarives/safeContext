@@ -1,4 +1,5 @@
 """Tests E1.4 — MCP Server acceptance criteria."""
+
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -7,8 +8,8 @@ from httpx import ASGITransport, AsyncClient
 
 from main import app
 
-
 # ── Shared helpers ────────────────────────────────────────────────────────────
+
 
 async def _fake_db_gen(session):
     yield session
@@ -49,11 +50,13 @@ def override_db(mock_db):
 def valid_token(monkeypatch):
     monkeypatch.setenv("MCP_AUTH_TOKEN", "test-token-abc")
     from config import settings
+
     settings.mcp_auth_token = "test-token-abc"
     return "test-token-abc"
 
 
 # ── Authentication ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_scan_without_token_returns_401():
@@ -87,6 +90,7 @@ async def test_classify_without_token_returns_401():
 
 # ── Tool schemas ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_tools_returns_three_tools(valid_token):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -115,6 +119,7 @@ async def test_tools_have_version_field(valid_token):
 
 
 # ── safecontext.scan ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_scan_returns_trace_id_in_body_and_header(valid_token, mock_db):
@@ -158,12 +163,14 @@ async def test_scan_records_actor_type_mcp_agent(valid_token, mock_db):
         )
 
     from db.models.operation import Operation
+
     operations = [o for o in captured if isinstance(o, Operation)]
     assert len(operations) == 1
     assert operations[0].actor_type == "mcp_agent"
 
 
 # ── safecontext.classify ──────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_classify_returns_sensitivity_level(valid_token):

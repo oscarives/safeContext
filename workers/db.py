@@ -4,6 +4,7 @@ Workers are called by Dramatiq in threads that each call asyncio.run(),
 creating a NEW event loop per task. We must create the engine INSIDE
 each asyncio.run() context to avoid "Future attached to different loop" errors.
 """
+
 from __future__ import annotations
 
 import os
@@ -20,7 +21,7 @@ def _make_session_factory() -> async_sessionmaker:
         url,
         echo=False,
         pool_pre_ping=True,
-        pool_size=2,       # small pool — each worker task has its own engine
+        pool_size=2,  # small pool — each worker task has its own engine
         max_overflow=5,
     )
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

@@ -3,8 +3,10 @@
 All tools share authentication (Bearer token) and audit trail (actor_type='mcp_agent').
 Tool schemas are versioned from F1; clients can pin tool_version from F4.
 """
+
 import hashlib
 import uuid
+from datetime import UTC
 from typing import Annotated, Any, Literal
 
 import structlog
@@ -68,16 +70,20 @@ VERSION_COMPAT: dict[tuple[str, str], str] = {
 
 # ── Tool discovery ────────────────────────────────────────────────────────────
 
+
 @router.get("/tools", summary="List available MCP tools and their schemas")
 async def list_tools(
     _token: Annotated[str, Depends(require_mcp_token)],
     request: Request,
 ) -> dict[str, Any]:
-    check_rate_limit(request.headers.get("X-Client-ID", request.client.host if request.client else "unknown"))
+    fallback = request.client.host if request.client else "unknown"
+    client_id = request.headers.get("X-Client-ID", fallback)
+    check_rate_limit(client_id)
     return {"tools": MCP_TOOLS}
 
 
 # ── Versioned dispatch (E4.5) ─────────────────────────────────────────────────
+
 
 @router.post("/call", response_model=MCPToolResult, summary="Versioned MCP tool dispatch")
 async def dispatch_tool(
@@ -87,7 +93,9 @@ async def dispatch_tool(
     _token: Annotated[str, Depends(require_mcp_token)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
-    check_rate_limit(request.headers.get("X-Client-ID", request.client.host if request.client else "unknown"))
+    fallback = request.client.host if request.client else "unknown"
+    client_id = request.headers.get("X-Client-ID", fallback)
+    check_rate_limit(client_id)
     version = call.tool_version
     if version not in SUPPORTED_VERSIONS:
         raise HTTPException(
@@ -121,6 +129,7 @@ async def dispatch_tool(
 
 
 # ── safecontext.scan ──────────────────────────────────────────────────────────
+
 
 @router.post(
     "/tools/safecontext.scan",
@@ -157,7 +166,7 @@ async def tool_scan(
             event_type="scan_requested",
             payload={
                 "operation_id": str(operation.id),
-                "document_text": request.document,   # workers read this key
+                "document_text": request.document,  # workers read this key
                 "document_hash": artifact_digest,
                 "policy_name": request.policy_name,
                 "source": "mcp",
@@ -192,6 +201,7 @@ async def tool_scan(
 
 # ── safecontext.sanitize ─────────────────────────────────────────────────────
 
+
 @router.post(
     "/tools/safecontext.sanitize",
     response_model=MCPToolResult,
@@ -206,9 +216,8 @@ async def tool_sanitize(
     with tracer.start_as_current_span("mcp.sanitize"):
         # Retrieve operation by trace_id to get document content
         from sqlalchemy import select
-        result = await db.execute(
-            select(Operation).where(Operation.trace_id == request.trace_id)
-        )
+
+        result = await db.execute(select(Operation).where(Operation.trace_id == request.trace_id))
         operation = result.scalar_one_or_none()
         if operation is None:
             raise HTTPException(
@@ -223,6 +232,7 @@ async def tool_sanitize(
 
         # Retrieve findings to build redaction map
         from db.models.finding import Finding
+
         findings_result = await db.execute(
             select(Finding).where(Finding.operation_id == operation.id)
         )
@@ -230,6 +240,7 @@ async def tool_sanitize(
 
         # Retrieve original document from outbox payload
         from db.models.outbox import Outbox as OutboxModel
+
         outbox_result = await db.execute(
             select(OutboxModel).where(
                 OutboxModel.payload["operation_id"].as_string() == str(operation.id)
@@ -255,13 +266,15 @@ async def tool_sanitize(
             sanitized = sanitized[:start] + replacement + sanitized[end:]
             offset += len(replacement) - (f.span_end - f.span_start)
 
-            redaction_map.append({
-                "finding_id": str(f.id),
-                "span_start": f.span_start,
-                "span_end": f.span_end,
-                "redaction_type": request.redaction_type,
-                "policy_version": operation.policy_version,
-            })
+            redaction_map.append(
+                {
+                    "finding_id": str(f.id),
+                    "span_start": f.span_start,
+                    "span_end": f.span_end,
+                    "redaction_type": request.redaction_type,
+                    "policy_version": operation.policy_version,
+                }
+            )
 
         sanitized_digest = hashlib.sha256(sanitized.encode()).hexdigest()
         response.headers["X-Trace-ID"] = str(request.trace_id)
@@ -281,6 +294,7 @@ async def tool_sanitize(
 
 
 # ── safecontext.classify ─────────────────────────────────────────────────────
+
 
 @router.post(
     "/tools/safecontext.classify",
@@ -309,10 +323,12 @@ async def tool_classify(
 
         for idx, para in enumerate(paragraphs):
             lower = para.lower()
-            if any(k in lower for k in ["password", "secret", "api_key", "token", "ssn", "credit card"]):
+            credential_keys = ["password", "secret", "api_key", "token", "ssn", "credit card"]
+            confidential_keys = ["confidential", "internal only", "do not share", "pii", "personal"]
+            if any(k in lower for k in credential_keys):
                 level = "restricted"
                 justification = "Contains credential or highly sensitive data pattern"
-            elif any(k in lower for k in ["confidential", "internal only", "do not share", "pii", "personal"]):
+            elif any(k in lower for k in confidential_keys):
                 level = "confidential"
                 justification = "Contains confidential or personal information markers"
             elif any(k in lower for k in ["internal", "draft", "not for distribution"]):
@@ -325,11 +341,13 @@ async def tool_classify(
             if _LEVEL_ORDER[level] > _LEVEL_ORDER[max_level]:
                 max_level = level
 
-            sections.append(SectionClassification(
-                section_id=idx,
-                level=level,
-                justification=justification,
-            ))
+            sections.append(
+                SectionClassification(
+                    section_id=idx,
+                    level=level,
+                    justification=justification,
+                )
+            )
 
         # Record operation for audit trail
         operation = Operation(
@@ -360,6 +378,7 @@ async def tool_classify(
 
 
 # ── safecontext.audit ────────────────────────────────────────────────────────
+
 
 class AuditToolRequest(BaseModel):
     trace_id: uuid.UUID
@@ -393,6 +412,7 @@ async def tool_audit(
 
 # ── safecontext.policy.get ───────────────────────────────────────────────────
 
+
 class PolicyGetRequest(BaseModel):
     policy_name: str
     policy_version: str | None = None
@@ -422,9 +442,7 @@ async def tool_policy_get(
 
     policy_version: str = "1.0.0"
     async with httpx.AsyncClient(timeout=5.0) as client:
-        vr = await client.get(
-            f"{settings.opa_url}/v1/data/safecontext/policy/policy_version"
-        )
+        vr = await client.get(f"{settings.opa_url}/v1/data/safecontext/policy/policy_version")
         if vr.status_code == 200:
             raw = vr.json().get("result", "1.0.0")
             policy_version = str(raw)
@@ -448,11 +466,12 @@ async def tool_policy_get(
 
 # ── safecontext.approve (E4.6) ────────────────────────────────────────────────
 
+
 class ApproveToolRequest(BaseModel):
     finding_id: uuid.UUID
     decision: Literal["approve", "reject"]
     justification: str
-    agent_client_id: str   # identity of the delegated agent
+    agent_client_id: str  # identity of the delegated agent
 
 
 @router.post(
@@ -471,20 +490,17 @@ async def tool_approve(
         span.set_attribute("agent.client_id", request.agent_client_id)
 
         from sqlalchemy import select
+
         from db.models.finding import Finding
 
         # Load finding
-        result = await db.execute(
-            select(Finding).where(Finding.id == request.finding_id)
-        )
+        result = await db.execute(select(Finding).where(Finding.id == request.finding_id))
         finding = result.scalar_one_or_none()
         if finding is None:
             raise HTTPException(404, f"Finding {request.finding_id} not found")
 
         # Load operation to verify it's escalated
-        result2 = await db.execute(
-            select(Operation).where(Operation.id == finding.operation_id)
-        )
+        result2 = await db.execute(select(Operation).where(Operation.id == finding.operation_id))
         operation = result2.scalar_one_or_none()
         if operation is None or operation.status != "escalated":
             raise HTTPException(409, "Operation is not in escalated state")
@@ -503,13 +519,15 @@ async def tool_approve(
             async with db.begin():
                 db.add(redaction)
                 operation.status = "completed"
-                from datetime import datetime, timezone
-                operation.completed_at = datetime.now(timezone.utc)
+                from datetime import datetime
+
+                operation.completed_at = datetime.now(UTC)
         else:
             async with db.begin():
                 operation.status = "rejected"
-                from datetime import datetime, timezone
-                operation.completed_at = datetime.now(timezone.utc)
+                from datetime import datetime
+
+                operation.completed_at = datetime.now(UTC)
 
         log.info(
             "mcp.approve.recorded",

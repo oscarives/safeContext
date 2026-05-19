@@ -5,10 +5,8 @@ Criterios de aceptación:
 - RLS está habilitado en la migración (DDL verificable)
 - Los 5 índices requeridos están presentes en la migración
 """
-import inspect
 
-import pytest
-import sqlalchemy as sa
+import inspect
 
 from db.models import Artifact, Finding, Operation, Outbox, Redaction
 
@@ -17,32 +15,58 @@ class TestModelDefinitions:
     def test_operation_required_columns(self):
         cols = {c.name for c in Operation.__table__.columns}
         required = {
-            "id", "trace_id", "actor_id", "actor_type", "document_id",
-            "artifact_digest", "policy_version", "status", "created_at", "completed_at",
+            "id",
+            "trace_id",
+            "actor_id",
+            "actor_type",
+            "document_id",
+            "artifact_digest",
+            "policy_version",
+            "status",
+            "created_at",
+            "completed_at",
         }
         assert required.issubset(cols)
 
     def test_finding_required_columns(self):
         cols = {c.name for c in Finding.__table__.columns}
         required = {
-            "id", "operation_id", "detector", "rule_id",
-            "span_start", "span_end", "confidence", "severity", "explanation",
+            "id",
+            "operation_id",
+            "detector",
+            "rule_id",
+            "span_start",
+            "span_end",
+            "confidence",
+            "severity",
+            "explanation",
         }
         assert required.issubset(cols)
 
     def test_redaction_required_columns(self):
         cols = {c.name for c in Redaction.__table__.columns}
         required = {
-            "id", "finding_id", "operation_id", "redaction_type",
-            "policy_version", "applied_at", "approved_by", "approval_trace_id",
+            "id",
+            "finding_id",
+            "operation_id",
+            "redaction_type",
+            "policy_version",
+            "applied_at",
+            "approved_by",
+            "approval_trace_id",
         }
         assert required.issubset(cols)
 
     def test_artifact_required_columns(self):
         cols = {c.name for c in Artifact.__table__.columns}
         required = {
-            "id", "operation_id", "artifact_type",
-            "minio_key", "digest", "worm_locked", "created_at",
+            "id",
+            "operation_id",
+            "artifact_type",
+            "minio_key",
+            "digest",
+            "worm_locked",
+            "created_at",
         }
         assert required.issubset(cols)
 
@@ -84,8 +108,16 @@ class TestIndexesInMigration:
     @staticmethod
     def _load_migration():
         """Load 0001_initial_schema.py using importlib (name starts with digit)."""
-        import importlib.util, pathlib
-        path = pathlib.Path(__file__).parent.parent.parent / "db" / "migrations" / "versions" / "0001_initial_schema.py"
+        import importlib.util
+        import pathlib
+
+        path = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "db"
+            / "migrations"
+            / "versions"
+            / "0001_initial_schema.py"
+        )
         spec = importlib.util.spec_from_file_location("migration_0001", path)
         m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(m)

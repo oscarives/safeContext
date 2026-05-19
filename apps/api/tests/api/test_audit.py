@@ -4,13 +4,11 @@ Tests for GET /v1/audit/{trace_id}.
 All DB interactions are mocked — no real infrastructure is required.
 """
 
-import hashlib
-import hmac
-import json
 import os
 import uuid
-from datetime import datetime, timezone
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -48,7 +46,7 @@ _ARTIFACT_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 
 def _make_mock_operation() -> MagicMock:
     """Return a fully populated mock Operation ORM object."""
-    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
 
     finding = MagicMock()
     finding.id = _FINDING_ID
@@ -99,6 +97,7 @@ def _make_mock_operation() -> MagicMock:
 def _recompute_hmac(response_body: dict, secret: str) -> str:
     """Rebuild the HMAC using the same function as the endpoint."""
     from api.v1.audit import compute_hmac
+
     # Exclude hmac_signature to get the signable payload (same as endpoint)
     signable = {k: v for k, v in response_body.items() if k != "hmac_signature"}
     return compute_hmac(signable, secret)
@@ -137,9 +136,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         app.dependency_overrides[real_get_db] = _fake_get_db
         app.state.broker = mock_broker
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             yield ac
 
         app.dependency_overrides.clear()
@@ -156,7 +153,7 @@ async def client_with_operation(client: AsyncClient) -> AsyncGenerator[AsyncClie
     mock_result = MagicMock()
     mock_result.scalars.return_value = mock_scalars
 
-    with patch("api.v1.audit.get_db") as mock_get_db:
+    with patch("api.v1.audit.get_db") as _mock_get_db:
         mock_db = AsyncMock()
         mock_db.execute = AsyncMock(return_value=mock_result)
 

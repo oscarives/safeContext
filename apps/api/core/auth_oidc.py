@@ -4,6 +4,7 @@ Validates JWT tokens issued by Keycloak.
 Enforces MFA (verified by amr claim containing 'otp').
 Provides role-based access control via JWT realm_access.roles.
 """
+
 from __future__ import annotations
 
 import os
@@ -14,7 +15,7 @@ from typing import Annotated
 
 import httpx
 import structlog
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
@@ -79,6 +80,7 @@ def get_roles(payload: dict) -> list[str]:
 
 def require_role(role: str):
     """Dependency factory: require a specific role."""
+
     def _check(payload: dict = Depends(require_auth)) -> dict:
         if role not in get_roles(payload):
             raise HTTPException(
@@ -86,6 +88,7 @@ def require_role(role: str):
                 detail=f"Role '{role}' required",
             )
         return payload
+
     return _check
 
 

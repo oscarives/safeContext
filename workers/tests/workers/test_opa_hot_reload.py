@@ -5,12 +5,11 @@ AC E2.3:
   - OPA client evaluate() posts to OPA with the correct input payload.
   - DLQ monitor updates the Prometheus gauge with the Redis list length.
 """
+
 from __future__ import annotations
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -107,9 +106,7 @@ class TestOPAClientEvaluate:
             mock_http.post = AsyncMock(return_value=mock_response)
 
             with patch("httpx.AsyncClient", return_value=mock_http):
-                result = await client.evaluate(
-                    "safecontext/policy/allow", input_data
-                )
+                result = await client.evaluate("safecontext/policy/allow", input_data)
             return result, mock_http
 
         result, mock_http = _run(_run_evaluate())
@@ -210,6 +207,7 @@ class TestDLQMonitorUpdatesGauge:
                 mock_sleep.side_effect = asyncio.CancelledError()
                 try:
                     from workers import dlq_monitor as mod
+
                     # Reset the module so patched from_url is used
                     with patch.object(mod, "DLQ_KEY", "dramatiq:safecontext_dl.DQ"):
                         await mod.monitor_dlq()
@@ -238,6 +236,7 @@ class TestDLQMonitorUpdatesGauge:
                 mock_sleep.side_effect = asyncio.CancelledError()
                 try:
                     from workers import dlq_monitor as mod
+
                     await mod.monitor_dlq()
                 except asyncio.CancelledError:
                     pass
@@ -262,6 +261,7 @@ class TestDLQMonitorUpdatesGauge:
                 mock_sleep.side_effect = asyncio.CancelledError()
                 try:
                     from workers import dlq_monitor as mod
+
                     await mod.monitor_dlq()
                 except asyncio.CancelledError:
                     pass  # expected — loop terminated by mocked sleep

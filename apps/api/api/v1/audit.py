@@ -7,11 +7,12 @@ using settings.api_secret_key.  This endpoint is strictly read-only.
 import hashlib
 import hmac
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -68,7 +69,7 @@ async def get_audit_export(
         )
         return None
 
-    exported_at = datetime.now(timezone.utc)
+    exported_at = datetime.now(UTC)
 
     # Serialize Operation fields
     operation_dict: dict = {
@@ -152,6 +153,43 @@ async def get_audit_export(
         redactions=redactions,
         artifacts=artifacts,
         hmac_signature=signature,
+    )
+
+
+class VerificationKeyResponse(BaseModel):
+    algorithm: str
+    key_hint: str
+    instructions: str
+
+
+@router.get("/audit/verification-key", response_model=VerificationKeyResponse, tags=["audit"])
+async def verification_key() -> VerificationKeyResponse:
+    """
+    Return the public HMAC verification hint and usage instructions.
+
+    No authentication required — this is informational metadata only.
+    The secret key itself is never exposed; only the first 8 characters
+    are returned as an identifier hint.
+    """
+    key_hint = settings.api_secret_key[:8] + "..."
+    instructions = (
+        "Para verificar la integridad de un export de auditoría:\n"
+        "\n"
+        "import hashlib, hmac, json\n"
+        "\n"
+        "def verify_export(export: dict, secret: str) -> bool:\n"
+        "    received_sig = export.pop('hmac_signature')\n"
+        "    data = json.dumps(export, sort_keys=True, default=str).encode()\n"
+        "    expected = hmac.new(secret.encode(), data, hashlib.sha256).hexdigest()\n"
+        "    return hmac.compare_digest(received_sig, expected)\n"
+        "\n"
+        "La clave completa debe obtenerse del administrador del sistema."
+    )
+    logger.info("audit.verification_key.requested")
+    return VerificationKeyResponse(
+        algorithm="HMAC-SHA256",
+        key_hint=key_hint,
+        instructions=instructions,
     )
 
 

@@ -15,10 +15,10 @@ Methodology:
 Note: The spaCy model (en_core_web_lg) must be available in the environment.
       In CI the Docker image installs it at build time (ADR-010).
 """
+
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import NamedTuple
 
@@ -31,9 +31,7 @@ RECALL_THRESHOLD: float = 0.90
 ENTITY_CLASSES: list[str] = ["EMAIL_ADDRESS", "API_KEY", "PERSON"]
 
 # Path to corpus relative to this file
-_CORPUS_PATH = (
-    Path(__file__).parent.parent / "fixtures" / "corpus" / "corpus.json"
-)
+_CORPUS_PATH = Path(__file__).parent.parent / "fixtures" / "corpus" / "corpus.json"
 
 
 # ---------------------------------------------------------------------------
@@ -164,9 +162,7 @@ def corpus_loaded() -> list[dict]:
         "Run from the workers/ directory or check PYTHONPATH."
     )
     samples = _load_corpus()
-    assert len(samples) >= 30, (
-        f"Corpus must have ≥30 samples, found {len(samples)}"
-    )
+    assert len(samples) >= 30, f"Corpus must have ≥30 samples, found {len(samples)}"
     return samples
 
 
@@ -196,9 +192,7 @@ def test_corpus_has_minimum_samples_per_class(corpus_loaded: list[dict]) -> None
                 class_counts[et] += 1
 
     for cls, count in class_counts.items():
-        assert count >= 10, (
-            f"Class {cls} has only {count} annotated samples; need ≥10"
-        )
+        assert count >= 10, f"Class {cls} has only {count} annotated samples; need ≥10"
 
 
 def test_no_null_findings_from_detector() -> None:

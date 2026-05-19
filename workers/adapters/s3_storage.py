@@ -3,6 +3,7 @@
 ADR-008: WORM semantics — objects are written once and never overwritten.
 The digest returned by put() is recorded in the artifacts table for audit.
 """
+
 from __future__ import annotations
 
 import hashlib

@@ -10,6 +10,7 @@ WORM semantics (ADR-008):
   Digest is recorded in the artifacts table with worm_locked=True.
   Objects are never overwritten or deleted by application code.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,7 +43,10 @@ async def _process_audit_async(operation_id: str) -> None:
     from workers.adapters.s3_storage import S3StorageAdapter
 
     import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api"))
+
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
+    )
 
     from db.models.operation import Operation
     from db.models.artifact import Artifact
@@ -63,15 +67,15 @@ async def _process_audit_async(operation_id: str) -> None:
         async with get_session() as session:
             # ── Idempotency: check if artifact already exists ─────────────────
             existing = await session.execute(
-                select(Artifact).where(
+                select(Artifact)
+                .where(
                     Artifact.operation_id == op_uuid,
                     Artifact.artifact_type == "original",
-                ).limit(1)
+                )
+                .limit(1)
             )
             if existing.scalar_one_or_none() is not None:
-                logger.info(
-                    "auditor_agent.skip_idempotent id=%s", operation_id
-                )
+                logger.info("auditor_agent.skip_idempotent id=%s", operation_id)
                 TASKS_TOTAL.labels(agent="auditor", status="skipped").inc()
                 return
 

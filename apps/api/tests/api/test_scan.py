@@ -4,19 +4,19 @@ Tests for POST /v1/scan and GET /health.
 All DB and broker interactions are mocked so no real infrastructure is needed.
 """
 
-import uuid
-from typing import Any, AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
 # ---------------------------------------------------------------------------
 # Environment stubs — must be set BEFORE importing app modules that call
 # Settings() at import time.
 # ---------------------------------------------------------------------------
 import os
+import uuid
+from collections.abc import AsyncGenerator
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/test")
 os.environ.setdefault("MINIO_ACCESS_KEY", "minioadmin")
@@ -29,10 +29,10 @@ os.environ["MCP_AUTH_TOKEN"] = "test-token"  # must match header below
 # ---------------------------------------------------------------------------
 from main import app  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
@@ -56,7 +56,6 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     async def _fake_get_db() -> AsyncGenerator[Any, None]:
         yield mock_session
 
-    from api.v1 import scan as scan_module
     from db import session as session_module
 
     with (
@@ -76,6 +75,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         app.state.broker = mock_broker
         # Sync settings token with test header value
         from config import settings as _settings
+
         _settings.mcp_auth_token = "test-token"
 
         async with AsyncClient(

@@ -3,6 +3,7 @@
 Polls OPA every POLICY_POLL_INTERVAL seconds and caches the active policy.
 Workers call get_policy() to get the current policy without restart.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -105,9 +106,7 @@ class OPAClient:
                 if policy_resp.status_code == 200:
                     self._policy_cache["base"] = policy_resp.json().get("result", {})
 
-                log.debug(
-                    "opa_client.policy_refreshed", version=self._policy_version
-                )
+                log.debug("opa_client.policy_refreshed", version=self._policy_version)
 
     @staticmethod
     def _default_policy() -> dict:

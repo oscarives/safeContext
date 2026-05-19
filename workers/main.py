@@ -14,6 +14,7 @@ Usage:
 
 Or via the Docker CMD defined in workers/Dockerfile.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -62,11 +63,11 @@ dramatiq.set_broker(broker)
 # Import all actor modules — Dramatiq actor discovery
 # ---------------------------------------------------------------------------
 
-import workers.agents.detector_agent  # noqa: F401
-import workers.agents.sanitizer_agent  # noqa: F401
-import workers.agents.classifier_agent  # noqa: F401
-import workers.agents.auditor_agent  # noqa: F401
-import workers.agents.reviewer_agent  # noqa: F401
+import workers.agents.detector_agent  # noqa: E402, F401
+import workers.agents.sanitizer_agent  # noqa: E402, F401
+import workers.agents.classifier_agent  # noqa: E402, F401
+import workers.agents.auditor_agent  # noqa: E402, F401
+import workers.agents.reviewer_agent  # noqa: E402, F401
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics HTTP server (optional)
@@ -78,6 +79,7 @@ def _start_metrics_server() -> None:
     port: int = int(os.environ.get("METRICS_PORT", "9090"))
     try:
         from prometheus_client import start_http_server
+
         start_http_server(port)
         logger.info("metrics_server.started port=%d", port)
     except Exception as exc:  # noqa: BLE001
@@ -95,6 +97,7 @@ def _start_outbox_relay() -> None:
 
     def _run() -> None:
         from workers.outbox_relay import run_relay_loop
+
         asyncio.run(run_relay_loop())
 
     thread = threading.Thread(target=_run, daemon=True, name="outbox-relay")
@@ -121,6 +124,7 @@ def _handle_sigterm(*_: object) -> None:
     # Signal background tasks to stop (best-effort; process exits shortly)
     try:
         from workers.core.opa_client import opa_client
+
         # Schedule stop in the background event loop if one is running
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -153,15 +157,14 @@ async def _startup_background_tasks() -> None:
 
 def _start_background_tasks() -> None:
     """Run the async startup in a dedicated daemon thread with its own event loop."""
+
     def _run() -> None:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(_startup_background_tasks())
         loop.run_forever()  # keep the loop alive so the tasks continue running
 
-    thread = threading.Thread(
-        target=_run, daemon=True, name="background-tasks"
-    )
+    thread = threading.Thread(target=_run, daemon=True, name="background-tasks")
     thread.start()
     logger.info("background_tasks.thread_started")
 
@@ -181,7 +184,5 @@ if os.environ.get("START_BACKGROUND_TASKS", "true").lower() == "true":
 
 logger.info(
     "workers.main.ready redis_url=%s",
-    _redis_url.replace(
-        _redis_url.split("@")[-1] if "@" in _redis_url else "", "***"
-    ),
+    _redis_url.replace(_redis_url.split("@")[-1] if "@" in _redis_url else "", "***"),
 )

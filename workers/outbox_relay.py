@@ -12,10 +12,10 @@ Transactional guarantee:
 
 Run this as a single-process service alongside the Dramatiq workers.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 
@@ -24,7 +24,11 @@ from sqlalchemy import select, update
 
 from workers.db import get_session
 from workers.adapters.redis_broker import RedisBrokerAdapter
-from workers.core.metrics import OUTBOX_EVENTS_RELAYED, OUTBOX_RELAY_ERRORS, OUTBOX_LAG_EVENTS
+from workers.core.metrics import (
+    OUTBOX_EVENTS_RELAYED,
+    OUTBOX_RELAY_ERRORS,
+    OUTBOX_LAG_EVENTS,
+)
 
 # Bootstrap structlog for structured JSON output
 structlog.configure(
@@ -43,20 +47,18 @@ logger = structlog.get_logger(__name__)
 # Event type → Dramatiq queue name mapping
 _EVENT_TO_QUEUE: dict[str, str] = {
     # API writes these event types (without "document." prefix)
-    "scan_requested":     "safecontext_scan",
+    "scan_requested": "safecontext_scan",
     "sanitize_requested": "safecontext_sanitize",
     "classify_requested": "safecontext_classify",
-    "audit_requested":    "safecontext_audit",
-    "review_requested":   "safecontext_review",
+    "audit_requested": "safecontext_audit",
+    "review_requested": "safecontext_review",
     # legacy prefixed variants
-    "document.scan_requested":     "safecontext_scan",
+    "document.scan_requested": "safecontext_scan",
     "document.sanitize_requested": "safecontext_sanitize",
     "document.classify_requested": "safecontext_classify",
 }
 
-_POLL_INTERVAL_SECONDS: float = float(
-    os.environ.get("OUTBOX_POLL_INTERVAL", "1.0")
-)
+_POLL_INTERVAL_SECONDS: float = float(os.environ.get("OUTBOX_POLL_INTERVAL", "1.0"))
 _BATCH_SIZE: int = int(os.environ.get("OUTBOX_BATCH_SIZE", "10"))
 
 
@@ -66,6 +68,7 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
     Returns the number of events relayed in this batch.
     """
     import sys
+
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "api"))
     from db.models.outbox import Outbox
 
@@ -93,9 +96,7 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                 )
                 # Mark as processed to avoid infinite retry on unknown types
                 await session.execute(
-                    update(Outbox)
-                    .where(Outbox.id == event.id)
-                    .values(processed=True)
+                    update(Outbox).where(Outbox.id == event.id).values(processed=True)
                 )
                 continue
 
@@ -107,7 +108,9 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                 if actor is None:
                     logger.warning("outbox_relay.no_actor", queue=queue_name)
                     await session.execute(
-                        update(Outbox).where(Outbox.id == event.id).values(processed=True)
+                        update(Outbox)
+                        .where(Outbox.id == event.id)
+                        .values(processed=True)
                     )
                     continue
                 actor.send(operation_id)
@@ -123,9 +126,7 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
 
             # Mark processed AFTER successful enqueue
             await session.execute(
-                update(Outbox)
-                .where(Outbox.id == event.id)
-                .values(processed=True)
+                update(Outbox).where(Outbox.id == event.id).values(processed=True)
             )
 
             OUTBOX_EVENTS_RELAYED.labels(event_type=event.event_type).inc()
@@ -148,12 +149,13 @@ def _get_actor(queue_name: str):  # type: ignore[return]
     from workers.agents.classifier_agent import process_classify
     from workers.agents.auditor_agent import process_audit
     from workers.agents.reviewer_agent import process_review
+
     return {
-        "safecontext_scan":     process_scan,
+        "safecontext_scan": process_scan,
         "safecontext_sanitize": process_sanitize,
         "safecontext_classify": process_classify,
-        "safecontext_audit":    process_audit,
-        "safecontext_review":   process_review,
+        "safecontext_audit": process_audit,
+        "safecontext_review": process_review,
     }.get(queue_name)
 
 

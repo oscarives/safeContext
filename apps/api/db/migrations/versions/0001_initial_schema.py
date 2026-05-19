@@ -4,24 +4,29 @@ Revision ID: 0001
 Revises:
 Create Date: 2026-05-17
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     # ── operations ────────────────────────────────────────────────────────────
     op.create_table(
         "operations",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("trace_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("actor_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("actor_type", sa.String(20), nullable=False),
@@ -29,8 +34,12 @@ def upgrade() -> None:
         sa.Column("artifact_digest", sa.Text, nullable=False),
         sa.Column("policy_version", sa.String(50), nullable=False),
         sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
             "actor_type IN ('human', 'mcp_agent', 'pipeline')",
@@ -58,10 +67,18 @@ def upgrade() -> None:
     # ── findings ──────────────────────────────────────────────────────────────
     op.create_table(
         "findings",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text("gen_random_uuid()")),
-        sa.Column("operation_id", postgresql.UUID(as_uuid=True),
-                  sa.ForeignKey("operations.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
+        sa.Column(
+            "operation_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("operations.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("detector", sa.Text, nullable=False),
         sa.Column("rule_id", sa.Text, nullable=False),
         sa.Column("span_start", sa.Integer, nullable=False),
@@ -86,16 +103,32 @@ def upgrade() -> None:
     # ── redactions ────────────────────────────────────────────────────────────
     op.create_table(
         "redactions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text("gen_random_uuid()")),
-        sa.Column("finding_id", postgresql.UUID(as_uuid=True),
-                  sa.ForeignKey("findings.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("operation_id", postgresql.UUID(as_uuid=True),
-                  sa.ForeignKey("operations.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
+        sa.Column(
+            "finding_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("findings.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "operation_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("operations.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("redaction_type", sa.String(20), nullable=False),
         sa.Column("policy_version", sa.String(50), nullable=False),
-        sa.Column("applied_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.text("now()")),
+        sa.Column(
+            "applied_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("approved_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("approval_trace_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.CheckConstraint(
@@ -110,16 +143,28 @@ def upgrade() -> None:
     # ── artifacts ─────────────────────────────────────────────────────────────
     op.create_table(
         "artifacts",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text("gen_random_uuid()")),
-        sa.Column("operation_id", postgresql.UUID(as_uuid=True),
-                  sa.ForeignKey("operations.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
+        sa.Column(
+            "operation_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("operations.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("artifact_type", sa.String(20), nullable=False),
         sa.Column("minio_key", sa.Text, nullable=False),
         sa.Column("digest", sa.Text, nullable=False),
         sa.Column("worm_locked", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint(
             "artifact_type IN ('original', 'sanitized', 'audit_export')",
             name="ck_artifacts_type",
@@ -132,23 +177,39 @@ def upgrade() -> None:
     # ── outbox ────────────────────────────────────────────────────────────────
     op.create_table(
         "outbox",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
-                  server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            postgresql.UUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("event_type", sa.Text, nullable=False),
         sa.Column("payload", postgresql.JSONB, nullable=False),
         sa.Column("processed", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
     )
     op.execute("ALTER TABLE outbox ENABLE ROW LEVEL SECURITY")
     op.execute("ALTER TABLE outbox FORCE ROW LEVEL SECURITY")
     op.execute("CREATE POLICY tenant_isolation ON outbox USING (true)")
 
     # ── indexes ───────────────────────────────────────────────────────────────
-    op.create_index("idx_operations_trace_id", "operations", ["trace_id"], postgresql_concurrently=False)
-    op.create_index("idx_operations_actor_id", "operations", ["actor_id"], postgresql_concurrently=False)
-    op.create_index("idx_findings_operation_id", "findings", ["operation_id"], postgresql_concurrently=False)
-    op.create_index("idx_artifacts_operation_id", "artifacts", ["operation_id"], postgresql_concurrently=False)
+    op.create_index(
+        "idx_operations_trace_id", "operations", ["trace_id"], postgresql_concurrently=False
+    )
+    op.create_index(
+        "idx_operations_actor_id", "operations", ["actor_id"], postgresql_concurrently=False
+    )
+    op.create_index(
+        "idx_findings_operation_id", "findings", ["operation_id"], postgresql_concurrently=False
+    )
+    op.create_index(
+        "idx_artifacts_operation_id", "artifacts", ["operation_id"], postgresql_concurrently=False
+    )
     op.create_index(
         "idx_outbox_processed",
         "outbox",

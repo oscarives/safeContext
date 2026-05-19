@@ -38,8 +38,8 @@ class ArtifactAuditSchema(BaseModel):
 class AuditExportResponse(BaseModel):
     trace_id: UUID
     exported_at: datetime
-    operation: dict[str, Any]   # all fields from Operation
+    operation: dict[str, Any]  # all fields from Operation
     findings: list[FindingAuditSchema]
     redactions: list[RedactionAuditSchema]
     artifacts: list[ArtifactAuditSchema]
-    hmac_signature: str          # HMAC-SHA256 of serialized payload
+    hmac_signature: str  # HMAC-SHA256 of serialized payload

@@ -3,6 +3,7 @@
 ADR-011: This is the ONLY module in workers/ that imports redis.
 Queues follow the naming convention  safecontext:<queue_name>.
 """
+
 from __future__ import annotations
 
 import json

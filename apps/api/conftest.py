@@ -1,4 +1,5 @@
 """Root conftest.py — set required environment variables before any import."""
+
 import os
 
 # Minimal env vars required by Settings() to avoid ValidationError in tests

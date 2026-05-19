@@ -7,7 +7,8 @@ Criterios verificados:
 - safecontext.approve con tool_version=1.0.0 → 400
 - safecontext.approve con finding escalado → approved_by_agent_id poblado
 """
-from unittest.mock import AsyncMock, MagicMock, patch
+
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -54,25 +55,27 @@ def override_db(mock_db):
 def valid_token(monkeypatch):
     monkeypatch.setenv("MCP_AUTH_TOKEN", "test-token-abc")
     from config import settings
+
     settings.mcp_auth_token = "test-token-abc"
     return "test-token-abc"
 
 
 # ── E4.5 Versioned dispatch ───────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_dispatch_scan_v100(valid_token, mock_db):
     """POST /v1/mcp/call with tool_version=1.0.0 returns same result as direct endpoint."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/v1/mcp/call",
-                headers={"Authorization": f"Bearer {valid_token}"},
-                json={
-                    "tool": "safecontext.scan",
-                    "tool_version": "1.0.0",
-                    "input": {"document": "hello world", "policy_name": "base"},
-                },
-            )
+        resp = await client.post(
+            "/v1/mcp/call",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={
+                "tool": "safecontext.scan",
+                "tool_version": "1.0.0",
+                "input": {"document": "hello world", "policy_name": "base"},
+            },
+        )
     assert resp.status_code == 200
     body = resp.json()
     assert body["tool"] == "safecontext.scan"
@@ -84,15 +87,15 @@ async def test_dispatch_scan_v100(valid_token, mock_db):
 async def test_dispatch_scan_v110(valid_token, mock_db):
     """POST /v1/mcp/call with tool_version=1.1.0 returns same result."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/v1/mcp/call",
-                headers={"Authorization": f"Bearer {valid_token}"},
-                json={
-                    "tool": "safecontext.scan",
-                    "tool_version": "1.1.0",
-                    "input": {"document": "hello world", "policy_name": "base"},
-                },
-            )
+        resp = await client.post(
+            "/v1/mcp/call",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={
+                "tool": "safecontext.scan",
+                "tool_version": "1.1.0",
+                "input": {"document": "hello world", "policy_name": "base"},
+            },
+        )
     assert resp.status_code == 200
     body = resp.json()
     assert body["tool"] == "safecontext.scan"
@@ -103,15 +106,15 @@ async def test_dispatch_scan_v110(valid_token, mock_db):
 async def test_dispatch_unknown_version(valid_token, mock_db):
     """tool_version=99.0.0 → 400 Unsupported tool version."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/v1/mcp/call",
-                headers={"Authorization": f"Bearer {valid_token}"},
-                json={
-                    "tool": "safecontext.scan",
-                    "tool_version": "99.0.0",
-                    "input": {"document": "hello", "policy_name": "base"},
-                },
-            )
+        resp = await client.post(
+            "/v1/mcp/call",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={
+                "tool": "safecontext.scan",
+                "tool_version": "99.0.0",
+                "input": {"document": "hello", "policy_name": "base"},
+            },
+        )
     assert resp.status_code == 400
     assert "99.0.0" in resp.json()["detail"]
 
@@ -133,24 +136,25 @@ async def test_dispatch_without_token_returns_401(mock_db):
 
 # ── E4.6 safecontext.approve ──────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_approve_requires_v110(valid_token, mock_db):
     """safecontext.approve with tool_version=1.0.0 → 400."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/v1/mcp/call",
-                headers={"Authorization": f"Bearer {valid_token}"},
-                json={
-                    "tool": "safecontext.approve",
-                    "tool_version": "1.0.0",
-                    "input": {
-                        "finding_id": str(uuid4()),
-                        "decision": "approve",
-                        "justification": "Approved by automated agent review",
-                        "agent_client_id": "agent-001",
-                    },
+        resp = await client.post(
+            "/v1/mcp/call",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={
+                "tool": "safecontext.approve",
+                "tool_version": "1.0.0",
+                "input": {
+                    "finding_id": str(uuid4()),
+                    "decision": "approve",
+                    "justification": "Approved by automated agent review",
+                    "agent_client_id": "agent-001",
                 },
-            )
+            },
+        )
     assert resp.status_code == 400
     assert "1.1.0" in resp.json()["detail"]
 
@@ -177,7 +181,7 @@ async def test_approve_records_agent_id(valid_token, mock_db):
     mock_operation.policy_version = "1.0.0"
 
     # Configure mock_db.execute to return finding then operation
-    execute_results = []
+    _execute_results = []
 
     finding_result = MagicMock()
     finding_result.scalar_one_or_none.return_value = mock_finding
@@ -195,16 +199,16 @@ async def test_approve_records_agent_id(valid_token, mock_db):
     mock_db.add = capture_add
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/v1/mcp/tools/safecontext.approve",
-                headers={"Authorization": f"Bearer {valid_token}"},
-                json={
-                    "finding_id": str(finding_id),
-                    "decision": "approve",
-                    "justification": "Automated agent review approved this finding",
-                    "agent_client_id": "agent-pipeline-001",
-                },
-            )
+        resp = await client.post(
+            "/v1/mcp/tools/safecontext.approve",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={
+                "finding_id": str(finding_id),
+                "decision": "approve",
+                "justification": "Automated agent review approved this finding",
+                "agent_client_id": "agent-pipeline-001",
+            },
+        )
 
     assert resp.status_code == 200
     body = resp.json()
@@ -216,6 +220,7 @@ async def test_approve_records_agent_id(valid_token, mock_db):
 
     # Verify a Redaction was added with approved_by_agent_id populated
     from db.models.redaction import Redaction
+
     redactions = [r for r in captured_redactions if isinstance(r, Redaction)]
     assert len(redactions) == 1
     assert redactions[0].approved_by_agent_id is not None
@@ -230,16 +235,16 @@ async def test_approve_finding_not_found(valid_token, mock_db):
     mock_db.execute = AsyncMock(return_value=not_found_result)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/v1/mcp/tools/safecontext.approve",
-                headers={"Authorization": f"Bearer {valid_token}"},
-                json={
-                    "finding_id": str(uuid4()),
-                    "decision": "approve",
-                    "justification": "Automated agent approval",
-                    "agent_client_id": "agent-001",
-                },
-            )
+        resp = await client.post(
+            "/v1/mcp/tools/safecontext.approve",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={
+                "finding_id": str(uuid4()),
+                "decision": "approve",
+                "justification": "Automated agent approval",
+                "agent_client_id": "agent-001",
+            },
+        )
     assert resp.status_code == 404
 
 
@@ -269,14 +274,14 @@ async def test_approve_operation_not_escalated(valid_token, mock_db):
     mock_db.execute = AsyncMock(side_effect=[finding_result, operation_result])
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/v1/mcp/tools/safecontext.approve",
-                headers={"Authorization": f"Bearer {valid_token}"},
-                json={
-                    "finding_id": str(finding_id),
-                    "decision": "approve",
-                    "justification": "Automated agent approval",
-                    "agent_client_id": "agent-001",
-                },
-            )
+        resp = await client.post(
+            "/v1/mcp/tools/safecontext.approve",
+            headers={"Authorization": f"Bearer {valid_token}"},
+            json={
+                "finding_id": str(finding_id),
+                "decision": "approve",
+                "justification": "Automated agent approval",
+                "agent_client_id": "agent-001",
+            },
+        )
     assert resp.status_code == 409

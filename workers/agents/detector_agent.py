@@ -7,6 +7,7 @@ Idempotency guarantee:
   If the operation's status is not 'pending', the task exits immediately
   without side-effects. Re-delivery is therefore safe.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -64,14 +65,16 @@ def process_scan(operation_id: str) -> None:
 async def _process_scan_async(operation_id: str) -> None:
     import httpx
     from sqlalchemy import select, update
-    from sqlalchemy.sql import func
 
     from workers.db import get_session
     from workers.ml.presidio_detector import PresidioDetector
 
     # Lazy imports of DB models to avoid circular deps at module load
-    import sys, importlib  # noqa: E401
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api"))
+    import sys  # noqa: E401
+
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
+    )
 
     from db.models.operation import Operation
     from db.models.finding import Finding as FindingModel
@@ -179,9 +182,7 @@ async def _process_scan_async(operation_id: str) -> None:
                             json={"input": {"findings": findings_payload}},
                         )
                         if resp.status_code == 200:
-                            requires_review = bool(
-                                resp.json().get("result", False)
-                            )
+                            requires_review = bool(resp.json().get("result", False))
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "detector_agent.opa_review_check_failed error=%s", exc
@@ -207,10 +208,12 @@ async def _process_scan_async(operation_id: str) -> None:
         # Enqueue sanitize outside of session (commit already happened)
         if not requires_review:
             from workers.agents.sanitizer_agent import process_sanitize
+
             process_sanitize.send(operation_id)
             logger.info("detector_agent.enqueued_sanitize id=%s", operation_id)
         else:
             from workers.agents.reviewer_agent import process_review
+
             process_review.send(operation_id)
             logger.info("detector_agent.enqueued_review id=%s", operation_id)
 

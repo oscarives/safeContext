@@ -3,6 +3,7 @@
 Follows SKILL-BACKEND pattern: DetectorInterface + Finding dataclass.
 No ML library is imported here — implementations live in workers/ml/.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -13,12 +14,12 @@ from dataclasses import dataclass, field
 class Finding:
     """Represents a single detected sensitive span in a document."""
 
-    detector: str       # e.g. "presidio.EMAIL_ADDRESS"
-    rule_id: str        # e.g. "presidio_email_address"
+    detector: str  # e.g. "presidio.EMAIL_ADDRESS"
+    rule_id: str  # e.g. "presidio_email_address"
     span_start: int
     span_end: int
-    confidence: float   # 0.0 – 1.0
-    severity: str       # "low" | "medium" | "high" | "critical"
+    confidence: float  # 0.0 – 1.0
+    severity: str  # "low" | "medium" | "high" | "critical"
     explanation: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:

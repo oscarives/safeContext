@@ -4,6 +4,7 @@ Polls Redis periodically to count messages in the Dramatiq dead-letter queue
 (``safecontext_dl``).  Runs as a background asyncio task alongside the worker
 process so the gauge is always current without any external cron job.
 """
+
 from __future__ import annotations
 
 import asyncio

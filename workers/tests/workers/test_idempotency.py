@@ -6,11 +6,10 @@ These tests use in-memory mocks for PostgreSQL and Redis so they run without
 any infrastructure. Each test sends the same operation_id twice and asserts
 that the second invocation is a no-op.
 """
+
 from __future__ import annotations
 
-import asyncio
 import uuid
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -331,9 +330,7 @@ class TestOutboxRelayIdempotency:
 
         # Second pass: event is already processed → skipped
         await fake_relay(events)
-        assert len(redis_queue) == 1, (
-            "Processed events must not be enqueued again"
-        )
+        assert len(redis_queue) == 1, "Processed events must not be enqueued again"
 
     @pytest.mark.asyncio
     async def test_relay_marks_processed_after_enqueue(self) -> None:

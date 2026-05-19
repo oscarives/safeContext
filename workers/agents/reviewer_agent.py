@@ -9,6 +9,7 @@ data and can send notifications (log-level for now).
 
 ADR-007: The reviewer_agent is intentionally thin; business logic lives in OPA.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -39,7 +40,10 @@ async def _process_review_async(operation_id: str) -> None:
     from workers.db import get_session
 
     import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api"))
+
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
+    )
 
     from db.models.operation import Operation
     from db.models.finding import Finding as FindingModel
@@ -89,9 +93,7 @@ async def _process_review_async(operation_id: str) -> None:
                     "findings_total": len(findings),
                     "critical_findings": len(critical_findings),
                     "high_findings": len(high_findings),
-                    "critical_detectors": [
-                        f.detector for f in critical_findings
-                    ],
+                    "critical_detectors": [f.detector for f in critical_findings],
                     "requires_human_review": True,
                     # NOTE: unblocking this operation requires a human action
                     # via the UI (E2.6). This worker DOES NOT change status.

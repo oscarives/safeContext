@@ -4,6 +4,7 @@ These abstract base classes define the boundaries between the worker domain
 logic and infrastructure concerns (broker, storage, cache). No infrastructure
 import is allowed here.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

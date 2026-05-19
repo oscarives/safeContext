@@ -13,10 +13,10 @@ is also surfaced on the Operation row via a hypothetical metadata JSONB column
 (future migration). For now it is persisted as a structured log entry and
 can be added to operations.metadata in a later migration.
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import uuid
@@ -59,7 +59,10 @@ async def _process_classify_async(operation_id: str) -> None:
     from workers.db import get_session
 
     import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api"))
+
+    sys.path.insert(
+        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
+    )
 
     from db.models.operation import Operation
     from db.models.finding import Finding as FindingModel
@@ -107,15 +110,9 @@ async def _process_classify_async(operation_id: str) -> None:
                     "critical_count": sum(
                         1 for f in findings if f.severity == "critical"
                     ),
-                    "high_count": sum(
-                        1 for f in findings if f.severity == "high"
-                    ),
-                    "medium_count": sum(
-                        1 for f in findings if f.severity == "medium"
-                    ),
-                    "low_count": sum(
-                        1 for f in findings if f.severity == "low"
-                    ),
+                    "high_count": sum(1 for f in findings if f.severity == "high"),
+                    "medium_count": sum(1 for f in findings if f.severity == "medium"),
+                    "low_count": sum(1 for f in findings if f.severity == "low"),
                 },
                 "policy_version": operation.policy_version,
             }

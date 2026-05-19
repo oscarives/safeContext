@@ -20,9 +20,7 @@ class Finding(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     operation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("operations.id", ondelete="CASCADE"),
@@ -38,4 +36,6 @@ class Finding(Base):
     explanation: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
     operation: Mapped["Operation"] = relationship(back_populates="findings")  # type: ignore[name-defined]  # noqa: F821
-    redactions: Mapped[list["Redaction"]] = relationship(back_populates="finding", cascade="all, delete-orphan")  # type: ignore[name-defined]  # noqa: F821
+    redactions: Mapped[list["Redaction"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        back_populates="finding", cascade="all, delete-orphan"
+    )
