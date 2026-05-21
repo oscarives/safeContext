@@ -1,183 +1,130 @@
-# WORKSPACE.md · SafeContext — Estructura y delegación
-**Versión**: 0.1.0 · **Fecha**: 2026-05-17
-**Propósito**: instrucciones para compartir esta carpeta con Claude Code y arrancar el proyecto.
+# WORKSPACE.md · SafeContext — Instrucciones para Claude Code
+**Versión**: 0.2.0 · **Fecha**: 2026-05-17 · **Actualizado**: 2026-05-21
+**Propósito**: instrucciones operacionales para agentes que trabajan en este repositorio.
 
 ---
 
-## Estructura del workspace
+## Estructura del workspace (estado actual)
 
 ```
 safecontext/
+├── README.md                    ← Introducción del proyecto para desarrolladores
 ├── AGENTS.md                    ← System prompt de Claude Code (leer primero)
 ├── WORKSPACE.md                 ← Este archivo
+├── docker-compose.yml           ← Levantar el stack completo: docker compose up
 │
 ├── docs/
-│   ├── DOC-0_UNIFIED.md         ← Fuente de verdad (leer antes que todo)
+│   ├── ROADMAP.md               ← ⭐ Estado actual del proyecto (leer aquí primero)
+│   ├── DOC-0_UNIFIED.md         ← Fuente de verdad: visión, principios, ADRs
 │   ├── DOC-1_PRD.md             ← Requisitos funcionales y no funcionales
-│   ├── DOC-2_SAD.md             ← Arquitectura, ADRs, modelo de datos
-│   ├── DOC-3_SPEC.md            ← Spec ejecutable — entrada al backlog
-│   ├── SKILLS.md                ← Habilidades por dominio de agente
-│   └── research/
-│       └── deep-research-report.md  ← Análisis de madurez (contexto y justificación)
+│   ├── DOC-2_SAD.md             ← Arquitectura, modelo de datos, seguridad
+│   ├── DOC-3_SPEC.md            ← Criterios de aceptación por fase (F1–F5 completadas)
+│   ├── GLOSSARY.md              ← Glosario canónico de términos
+│   ├── SKILLS.md                ← Guías técnicas por dominio (backend, frontend, infra)
+│   ├── adr/                     ← 11 Architecture Decision Records (ADR-001 a ADR-011)
+│   ├── manuals/                 ← Manuales: usuario, operación, integración, arquitectura
+│   ├── runbooks/                ← Runbooks operativos (DR, DLQ, rotación de claves)
+│   ├── drills/                  ← Templates de DR drills
+│   ├── research/                ← Análisis de madurez externo (deep-research-report.md)
+│   └── source/                  ← Documentos fuente (.docx, .pdf)
 │
 ├── apps/
 │   ├── api/                     ← FastAPI backend + MCP Server
-│   └── ui/                      ← Next.js frontend
+│   │   ├── api/v1/              ← Endpoints: scan, audit, review, health, operations
+│   │   ├── mcp/                 ← MCP Server (tools, schemas, auth)
+│   │   ├── core/                ← Auth OIDC, logging, métricas, tracing, ports
+│   │   ├── db/                  ← Modelos SQLAlchemy, migraciones Alembic, sesión
+│   │   ├── schemas/             ← Pydantic schemas (scan, audit, health)
+│   │   ├── adapters/            ← Redis broker adapter (ADR-011)
+│   │   └── tests/               ← Tests API, DB, MCP
+│   │
+│   └── ui/                      ← Next.js 14 frontend (TypeScript + Tailwind)
+│       └── src/
+│           ├── app/             ← Pages: scan, review, audit, dashboard, login
+│           ├── app/api/auth/    ← Route handlers OIDC: session, token, logout
+│           ├── app/auth/        ← OIDC callback handler
+│           ├── components/      ← SeverityBadge, FindingCard, ConfirmModal, Toast, etc.
+│           ├── hooks/           ← useSession
+│           ├── lib/             ← session.ts, api-client.ts
+│           └── middleware.ts    ← Protección de rutas
 │
 ├── workers/                     ← Dramatiq workers (agentes internos)
-│   ├── detector/
-│   ├── sanitizer/
-│   ├── classifier/
-│   ├── auditor/
-│   └── reviewer/
+│   ├── agents/                  ← detector_agent, sanitizer_agent, classifier_agent,
+│   │                               auditor_agent, reviewer_agent
+│   ├── core/                    ← DetectorInterface, OPA client, métricas, ports
+│   ├── ml/                      ← presidio_detector, model_loader, recall_evaluator
+│   ├── adapters/                ← Redis broker, S3 storage (ADR-011)
+│   └── tests/                   ← Tests workers, ML, idempotencia, OPA hot-reload
 │
-├── policies/                    ← Políticas OPA/Rego
-│   ├── base.rego
-│   └── tests/
+├── policies/
+│   └── base/                    ← safecontext.rego + safecontext_test.rego
 │
 ├── infra/
-│   ├── docker-compose.yml       ← Stack completo F1-F2
-│   ├── kubernetes/              ← Manifiestos K8s F3+
-│   ├── minio/                   ← Configuración MinIO
-│   └── otel/                    ← OTel Collector config
-│
-├── migrations/                  ← Alembic migrations
-│
-├── tests/
-│   ├── fixtures/
-│   │   └── corpus/              ← Corpus etiquetado para evaluación de detectores
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
+│   ├── compose/                 ← Config: Grafana, Keycloak, PostgreSQL, Prometheus,
+│   │                               MinIO, Vault, Harbor, Nginx, OTel Collector
+│   ├── k8s/                     ← 30 manifiestos Kubernetes
+│   ├── github-action/           ← GitHub Action oficial (uses: safecontext/action@v1)
+│   └── scripts/                 ← bundle.sh, install-bundle.sh, rollback.sh (air-gapped)
 │
 └── .github/
-    └── workflows/               ← GitHub Actions (pipeline gate, CI/CD)
+    └── workflows/               ← ci.yml, build-sign.yml, ci-selfhosted.yml, deploy.yml
 ```
 
 ---
 
-## Cómo delegar a Claude Code
+## Orden de lectura para nuevos agentes
 
-### Paso 1: Compartir la carpeta
+```
+1. docs/ROADMAP.md          ← Estado actual, qué está hecho, qué falta
+2. docs/DOC-0_UNIFIED.md    ← Por qué existe, principios no negociables
+3. AGENTS.md                ← Rol del agente, autonomía, límites
+4. docs/SKILLS.md           ← Patrones técnicos por dominio
+```
 
-En Claude Code, ejecuta:
+**No implementes nada sin leer ROADMAP.md. Contiene los flags de qué está desarrollado y qué está probado.**
+
+---
+
+## Arrancar el proyecto localmente
+
 ```bash
-# Desde el directorio donde descargaste el workspace
-claude --context ./safecontext/
-```
+# 1. Variables de entorno
+cp .env.example .env
 
-O si usas la integración de carpeta:
-- Abre Claude Code
-- Selecciona "Open folder" → selecciona la carpeta `safecontext/`
-- Claude Code indexará todos los archivos
+# 2. Stack completo (API + UI + Workers + PG + Redis + MinIO + OTel + Grafana)
+docker compose up
 
-### Paso 2: Instrucción de arranque
-
-Copia y pega este prompt como primer mensaje a Claude Code:
-
-```
-Lee los siguientes documentos en este orden antes de cualquier acción:
-1. AGENTS.md
-2. docs/DOC-0_UNIFIED.md
-3. docs/DOC-1_PRD.md
-4. docs/DOC-2_SAD.md
-5. docs/DOC-3_SPEC.md
-6. docs/SKILLS.md
-
-Una vez leídos, genera el plan completo de desarrollo de SafeContext:
-- Roadmap por fases con fechas estimadas
-- Historias de usuario y tareas técnicas por cada entregable de DOC-3
-- Identificación de dependencias y paralelismo
-- Número de agentes especializados por fase y su asignación
-- Orden de ejecución optimizado para maximizar paralelismo sin conflictos
-
-No generes código todavía. Primero presenta el plan para revisión.
-```
-
-### Paso 3: Revisión del plan
-
-Claude Code presentará el plan. Revisá:
-- Que todos los entregables de DOC-3 estén cubiertos
-- Que el orden de fases sea correcto (F1 completo antes de F2)
-- Que los agentes asignados sean coherentes con AGENTS.md
-- Que las dependencias estén correctamente identificadas
-
-Una vez aprobado el plan:
-```
-El plan está aprobado. Inicia la ejecución de F1.
-Comienza por E1.1 (repositorio y estructura) y E1.2 (schema de base de datos) en paralelo.
+# 3. UI en http://localhost:8088
+# 4. API en http://localhost:8000/docs
+# 5. Grafana en http://localhost:3001
+# 6. Keycloak en http://localhost:8080
 ```
 
 ---
 
-## Reglas de trabajo con Claude Code
+## Reglas de trabajo para Claude Code
 
-### Lo que Claude Code hace autónomamente
-- Lee y analiza todos los documentos del workspace
-- Genera código, tests y configuración
-- Ejecuta tests y reporta resultados
-- Propone cambios con análisis de impacto
+### Puede hacer sin confirmar
+- Leer cualquier archivo
+- Escribir código, tests y configuración en rutas existentes
+- Ejecutar `ruff check`, `npm test`, `pytest` localmente
+- Crear archivos nuevos en rutas definidas en la estructura
 
-### Lo que Claude Code te consulta antes de hacer
-- Cambios a schemas de base de datos
-- Cambios a interfaces públicas (API, MCP tools)
-- Cambios a políticas OPA en producción
-- Uso de sub-agentes no planificados en la fase actual
-
-### Cómo mantener el contexto entre sesiones
-
-Al inicio de cada sesión nueva con Claude Code:
-```
-Resumen del estado actual del proyecto:
-- Fase activa: F{n}
-- Último entregable completado: E{n}.{m}
-- Gates de fase cumplidos: [lista]
-- Pendiente en la sesión actual: [descripción]
-```
-
-Claude Code puede generar este resumen al final de cada sesión para que lo uses en la siguiente.
+### Debe confirmar antes
+- Cambios a schemas de base de datos (nuevas migraciones Alembic)
+- Cambios a interfaces públicas (endpoints REST, tool schemas MCP)
+- Cambios a políticas OPA en `policies/`
+- Cambios a workflows de CI/CD en `.github/workflows/`
 
 ---
 
-## Cómo agregar el informe de madurez como contexto
+## Estado del proyecto
 
-El archivo `docs/research/deep-research-report.md` debe estar en la carpeta compartida con Claude Code. Este archivo:
-- Justifica las decisiones en los ADRs
-- Explica los riesgos y sus mitigaciones
-- Provee contexto para preguntas que no están respondidas en los documentos de definición
+**F1–F5 completadas. Madurez: 3.5–4/5.**
+Para el detalle completo ver `docs/ROADMAP.md`.
 
-Claude Code lo consulta cuando necesita entender el "por qué" de una decisión, no el "qué".
+Tareas pendientes priorizadas (T1–T10) están documentadas en `docs/ROADMAP.md §7`.
 
 ---
 
-## Métricas de progreso del proyecto
-
-Claude Code mantiene este registro actualizado al completar cada entregable:
-
-| Entregable | Estado | Evidencia | Fecha |
-|---|---|---|---|
-| E1.1 Repositorio | ⬜ Pendiente | — | — |
-| E1.2 Schema DB | ⬜ Pendiente | — | — |
-| E1.3 Backend API | ⬜ Pendiente | — | — |
-| E1.4 MCP Server | ⬜ Pendiente | — | — |
-| E1.5 Workers | ⬜ Pendiente | — | — |
-| E1.6 Policy Engine | ⬜ Pendiente | — | — |
-| E1.7 Observabilidad | ⬜ Pendiente | — | — |
-| E1.8 Pipeline Gate | ⬜ Pendiente | — | — |
-| E1.9 Infra Compose | ⬜ Pendiente | — | — |
-| **Gate F1** | ⬜ Pendiente | — | — |
-| E2.1 Auditoría | ⬜ Pendiente | — | — |
-| E2.2 MinIO WORM | ⬜ Pendiente | — | — |
-| E2.3 Workers resilientes | ⬜ Pendiente | — | — |
-| E2.4 Backup/DR | ⬜ Pendiente | — | — |
-| E2.5 Cache distribuido | ⬜ Pendiente | — | — |
-| E2.6 Revisión humana UI | ⬜ Pendiente | — | — |
-| E2.7 MCP tools adicionales | ⬜ Pendiente | — | — |
-| **Gate F2** | ⬜ Pendiente | — | — |
-
-*(Claude Code actualiza esta tabla con ✅ y la evidencia al completar cada ítem)*
-
----
-
-*Este workspace está listo para ser delegado a Claude Code.*
-*Todo lo necesario para arrancar el proyecto está en esta carpeta.*
+*Actualizado: 2026-05-21*
