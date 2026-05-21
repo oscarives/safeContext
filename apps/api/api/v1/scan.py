@@ -5,6 +5,7 @@ from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -24,17 +25,19 @@ logger = get_logger(__name__)
 _FALLBACK_POLICY_VERSION = "1.0.0"
 
 
-async def _get_policy_version(policy_name: str) -> str:
-    """Query OPA for the current policy version; fall back gracefully."""
+async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> str:
+    """Query OPA for the current policy version; fall back gracefully.
+
+    Uses the shared AsyncClient from app.state to avoid a new TCP connection
+    per scan request.
+    """
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            # Correct OPA path: /v1/data/safecontext/policy/policy_version
-            url = f"{settings.opa_url}/v1/data/safecontext/policy/policy_version"
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                data = resp.json()
-                version = data.get("result", _FALLBACK_POLICY_VERSION)
-                return str(version)
+        url = f"{settings.opa_url}/v1/data/safecontext/policy/policy_version"
+        resp = await client.get(url)
+        if resp.status_code == 200:
+            data = resp.json()
+            version = data.get("result", _FALLBACK_POLICY_VERSION)
+            return str(version)
     except Exception as exc:
         logger.warning("scan.opa_version.error", error=str(exc))
     return _FALLBACK_POLICY_VERSION
@@ -72,7 +75,10 @@ async def scan(
         artifact_digest = hashlib.sha256(body.document.encode()).hexdigest()
 
         # --- policy version ---
-        policy_version = body.policy_version or await _get_policy_version(body.policy_name)
+        http_client: httpx.AsyncClient = request.app.state.http_client
+        policy_version = body.policy_version or await _get_policy_version(
+            body.policy_name, http_client
+        )
 
         # --- outbox pattern: single transaction ---
         operation_id = uuid.uuid4()

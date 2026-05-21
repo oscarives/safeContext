@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 
@@ -31,11 +32,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("lifespan.broker.connect_failed", error=str(exc))
     app.state.broker = broker
 
+    # Shared HTTP client for outbound calls (OPA, Keycloak, etc.).
+    # Reusing one AsyncClient avoids creating a new TCP connection per request.
+    app.state.http_client = httpx.AsyncClient(timeout=5.0)
+
     logger.info("safecontext_api.started", service=settings.otel_service_name)
 
     yield
 
     # --- shutdown ---
+    await app.state.http_client.aclose()
     await broker.disconnect()
     logger.info("safecontext_api.stopped")
 
