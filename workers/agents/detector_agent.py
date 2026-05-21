@@ -66,7 +66,7 @@ async def _process_scan_async(operation_id: str) -> None:
     import httpx
     from sqlalchemy import select, update
 
-    from workers.db import get_session
+    from workers.core.db import get_session
     from workers.ml.presidio_detector import PresidioDetector
 
     # Lazy imports of DB models to avoid circular deps at module load

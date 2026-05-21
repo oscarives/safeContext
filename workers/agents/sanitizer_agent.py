@@ -40,7 +40,7 @@ def process_sanitize(operation_id: str) -> None:
 async def _process_sanitize_async(operation_id: str) -> None:
     from sqlalchemy import select
 
-    from workers.db import get_session
+    from workers.core.db import get_session
 
     import sys
 

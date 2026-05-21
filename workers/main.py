@@ -96,7 +96,7 @@ def _start_outbox_relay() -> None:
     import asyncio
 
     def _run() -> None:
-        from workers.outbox_relay import run_relay_loop
+        from workers.core.outbox_relay import run_relay_loop
 
         asyncio.run(run_relay_loop())
 
@@ -146,7 +146,7 @@ signal.signal(signal.SIGINT, _handle_sigterm)
 async def _startup_background_tasks() -> None:
     """Launch OPA polling, DLQ monitoring and recall evaluation as background tasks."""
     from workers.core.opa_client import opa_client
-    from workers.dlq_monitor import monitor_dlq
+    from workers.core.dlq_monitor import monitor_dlq
     from workers.ml.recall_evaluator import run_recall_loop
 
     asyncio.create_task(opa_client.start_polling(), name="opa-hot-reload")

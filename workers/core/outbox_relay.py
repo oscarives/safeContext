@@ -22,7 +22,7 @@ import os
 import structlog
 from sqlalchemy import select, update
 
-from workers.db import get_session
+from workers.core.db import get_session
 from workers.adapters.redis_broker import RedisBrokerAdapter
 from workers.core.metrics import (
     OUTBOX_EVENTS_RELAYED,

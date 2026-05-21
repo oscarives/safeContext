@@ -37,7 +37,7 @@ def process_review(operation_id: str) -> None:
 async def _process_review_async(operation_id: str) -> None:
     from sqlalchemy import select
 
-    from workers.db import get_session
+    from workers.core.db import get_session
 
     import sys
 

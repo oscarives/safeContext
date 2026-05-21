@@ -206,7 +206,7 @@ class TestDLQMonitorUpdatesGauge:
                 # Patch sleep to raise after one iteration so the loop ends
                 mock_sleep.side_effect = asyncio.CancelledError()
                 try:
-                    from workers import dlq_monitor as mod
+                    from workers.core import dlq_monitor as mod
 
                     # Reset the module so patched from_url is used
                     with patch.object(mod, "DLQ_KEY", "dramatiq:safecontext_dl.DQ"):
@@ -235,7 +235,7 @@ class TestDLQMonitorUpdatesGauge:
             ):
                 mock_sleep.side_effect = asyncio.CancelledError()
                 try:
-                    from workers import dlq_monitor as mod
+                    from workers.core import dlq_monitor as mod
 
                     await mod.monitor_dlq()
                 except asyncio.CancelledError:
@@ -260,7 +260,7 @@ class TestDLQMonitorUpdatesGauge:
             ):
                 mock_sleep.side_effect = asyncio.CancelledError()
                 try:
-                    from workers import dlq_monitor as mod
+                    from workers.core import dlq_monitor as mod
 
                     await mod.monitor_dlq()
                 except asyncio.CancelledError:

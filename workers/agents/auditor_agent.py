@@ -39,7 +39,7 @@ async def _process_audit_async(operation_id: str) -> None:
     from sqlalchemy import select, update
     from sqlalchemy.sql import func
 
-    from workers.db import get_session
+    from workers.core.db import get_session
     from workers.adapters.s3_storage import S3StorageAdapter
 
     import sys
