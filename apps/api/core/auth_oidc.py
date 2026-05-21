@@ -7,9 +7,9 @@ Provides role-based access control via JWT realm_access.roles.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections import defaultdict
-from functools import lru_cache
 from typing import Annotated
 
 import httpx
@@ -20,11 +20,9 @@ from jose import JWTError, jwt
 
 from config import settings
 
-log = structlog.get_logger()
+log = structlog.get_logger(__name__)
 _bearer = HTTPBearer(auto_error=False)
 
-# Read from the shared Settings object (picks up .env + type validation)
-# instead of raw os.environ.get which bypasses Pydantic validation.
 KEYCLOAK_URL = settings.keycloak_url
 KEYCLOAK_REALM = settings.keycloak_realm
 KEYCLOAK_CLIENT_ID = settings.keycloak_client_id
@@ -33,20 +31,51 @@ KEYCLOAK_CLIENT_ID = settings.keycloak_client_id
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 MCP_RATE_LIMIT_RPM = settings.mcp_rate_limit_rpm
 
+# ── JWKS cache ────────────────────────────────────────────────────────────────
+# Fetched async, cached for _JWKS_TTL seconds, refreshed on expiry so key
+# rotations (standard in production Keycloak) are picked up without restarts.
+# asyncio.Lock prevents thundering-herd on simultaneous cache misses.
 
-@lru_cache(maxsize=1)
-def _get_jwks() -> dict:
-    """Fetch JWKS from Keycloak (cached, refreshed on cache miss)."""
-    url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
-    resp = httpx.get(url, timeout=5.0)
-    resp.raise_for_status()
-    return resp.json()
+_jwks_cache: dict = {}
+_jwks_fetched_at: float = 0.0
+_jwks_lock = asyncio.Lock()
+_JWKS_TTL: float = 900.0   # 15 minutes
 
 
-def _decode_token(token: str) -> dict:
+async def _get_jwks() -> dict:
+    """Fetch JWKS from Keycloak, cached with a 15-minute TTL.
+
+    Uses an asyncio.Lock with double-checked locking so that concurrent
+    requests on a cold cache only issue one HTTP call instead of N.
+    Replaces the previous lru_cache + httpx.get() which blocked the event loop.
+    """
+    global _jwks_cache, _jwks_fetched_at
+
+    now = time.time()
+    if _jwks_cache and now - _jwks_fetched_at < _JWKS_TTL:
+        return _jwks_cache
+
+    async with _jwks_lock:
+        # Re-check inside the lock (another coroutine may have refreshed first)
+        now = time.time()
+        if _jwks_cache and now - _jwks_fetched_at < _JWKS_TTL:
+            return _jwks_cache
+
+        url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            _jwks_cache = resp.json()
+            _jwks_fetched_at = time.time()
+            log.debug("auth_oidc.jwks_refreshed")
+
+    return _jwks_cache
+
+
+async def _decode_token(token: str) -> dict:
     """Decode and validate a Keycloak JWT. Raises HTTPException on failure."""
     try:
-        jwks = _get_jwks()
+        jwks = await _get_jwks()
         payload = jwt.decode(
             token,
             jwks,
@@ -84,7 +113,7 @@ def get_roles(payload: dict) -> list[str]:
 def require_role(role: str):
     """Dependency factory: require a specific role."""
 
-    def _check(payload: dict = Depends(require_auth)) -> dict:
+    async def _check(payload: dict = Depends(require_auth)) -> dict:
         if role not in get_roles(payload):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -95,7 +124,7 @@ def require_role(role: str):
     return _check
 
 
-def require_auth(
+async def require_auth(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> dict:
     """Validate Bearer token and enforce MFA."""
@@ -105,16 +134,15 @@ def require_auth(
             detail="Missing authorization header",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    payload = _decode_token(credentials.credentials)
+    payload = await _decode_token(credentials.credentials)
     _require_mfa(payload)
     return payload
 
 
 def check_rate_limit(client_id: str) -> None:
     """Rate limit by client_id: MCP_RATE_LIMIT_RPM requests per minute.
-    Raises 429 if exceeded.
 
-    Note: this store is in-memory and not shared across worker processes.
+    Note: in-memory, not shared across worker processes.
     For multi-replica deployments, replace with a Redis sliding-window counter (F4).
     """
     now = time.time()
@@ -130,21 +158,20 @@ def check_rate_limit(client_id: str) -> None:
     _rate_limit_store[client_id] = timestamps
 
     # Evict idle clients to prevent unbounded memory growth.
-    # Only run cleanup occasionally (when store grows large) to avoid O(n) on every request.
     if len(_rate_limit_store) > 10_000:
         stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < window_start]
         for k in stale:
             del _rate_limit_store[k]
 
 
-def require_reviewer(payload: dict = Depends(require_auth)) -> dict:
+async def require_reviewer(payload: dict = Depends(require_auth)) -> dict:
     """Shortcut dependency for reviewer role."""
     if "reviewer" not in get_roles(payload) and "admin" not in get_roles(payload):
         raise HTTPException(status_code=403, detail="Reviewer or Admin role required")
     return payload
 
 
-def require_admin(payload: dict = Depends(require_auth)) -> dict:
+async def require_admin(payload: dict = Depends(require_auth)) -> dict:
     if "admin" not in get_roles(payload):
         raise HTTPException(status_code=403, detail="Admin role required")
     return payload
