@@ -30,6 +30,10 @@ class RedisCache {
 
   async set(key, data, ctx) {
     try {
+      // Never cache auth routes — they must render fresh on every request
+      if (key === '/login' || key.startsWith('/auth') || key.startsWith('/api/auth')) return
+      // Never cache 404 responses — stale not-found entries poison the cache
+      if (data && data.status === 404) return
       const c = await getClient()
       if (!c) return
       const ttl = typeof ctx?.revalidate === 'number' ? ctx.revalidate : 3600

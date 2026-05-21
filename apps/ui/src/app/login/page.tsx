@@ -1,5 +1,10 @@
 'use client'
 
+// Prevent Next.js from caching this page — the custom Redis cache handler
+// can misinterpret the RSC payload for 'use client' pages and cache a 404.
+// Auth pages must always render fresh.
+export const dynamic = 'force-dynamic'
+
 export default function LoginPage() {
   const handleLogin = () => {
     const keycloakUrl = process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? 'http://localhost:8080'
