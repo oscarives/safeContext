@@ -8,6 +8,10 @@ const nextConfig = {
   // Required for Docker multi-stage build (copies only what's needed)
   output: 'standalone',
 
+  // ESLint runs in CI (lint-python job). Skip during Docker build to avoid
+  // dependency resolution differences between environments.
+  eslint: { ignoreDuringBuilds: true },
+
   // Use Redis as cache backend (ADR-002: Redis as ephemeral cache, not disk)
   // cache-handler.js is CommonJS — required by Next.js cacheHandler (runs in Node.js context).
   cacheHandler: require.resolve('./cache-handler'),
