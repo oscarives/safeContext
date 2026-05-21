@@ -9,3 +9,9 @@
 # spaCy / thinc / cymem / murmurhash — sin fix en versiones actuales
 # Se revisan en F3 al actualizar el stack de dependencias ML.
 # (Añadir CVEs específicos cuando Trivy los reporte en CI)
+
+# python-jose — sin mantenimiento activo desde 2021, sin fix upstream disponible
+# Usado para validación de JWT Keycloak en auth_oidc.py
+# Migración a PyJWT planificada en T8 (OAuth 2.1 + PKCE para MCP)
+CVE-2024-33663
+CVE-2024-33664
