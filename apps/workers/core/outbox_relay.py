@@ -17,29 +17,22 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-import sys
 
 import structlog
 from sqlalchemy import func, select, update
 
-# Resolve the API package path once at module load — not on every relay call.
-# Both this module and all agents reach into apps/api for the shared DB models.
-# Long-term fix: extract models into a shared safecontext-db package.
-_api_path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
-)
-if _api_path not in sys.path:
-    sys.path.insert(0, _api_path)
+# DB models are available via PYTHONPATH=/workspace in Docker
+# (Dockerfile: COPY apps/api/db/ ./db/).
+# For local dev: export PYTHONPATH=<repo>/apps/api:$PYTHONPATH
+from db.models.outbox import Outbox
 
-from db.models.outbox import Outbox  # noqa: E402 (must follow sys.path setup)
-
-from workers.core.db import get_session
 from workers.adapters.redis_broker import RedisBrokerAdapter
+from workers.config import settings
+from workers.core.db import get_session
 from workers.core.metrics import (
     OUTBOX_EVENTS_RELAYED,
-    OUTBOX_RELAY_ERRORS,
     OUTBOX_LAG_EVENTS,
+    OUTBOX_RELAY_ERRORS,
 )
 
 # Bootstrap structlog for structured JSON output
@@ -58,7 +51,6 @@ logger = structlog.get_logger(__name__)
 
 # Event type → Dramatiq queue name mapping
 _EVENT_TO_QUEUE: dict[str, str] = {
-    # API writes these event types (without "document." prefix)
     "scan_requested": "safecontext_scan",
     "sanitize_requested": "safecontext_sanitize",
     "classify_requested": "safecontext_classify",
@@ -69,9 +61,6 @@ _EVENT_TO_QUEUE: dict[str, str] = {
     "document.sanitize_requested": "safecontext_sanitize",
     "document.classify_requested": "safecontext_classify",
 }
-
-_POLL_INTERVAL_SECONDS: float = float(os.environ.get("OUTBOX_POLL_INTERVAL", "1.0"))
-_BATCH_SIZE: int = int(os.environ.get("OUTBOX_BATCH_SIZE", "10"))
 
 
 async def relay_once(broker: RedisBrokerAdapter) -> int:
@@ -92,7 +81,7 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
             select(Outbox)
             .where(Outbox.processed == False)  # noqa: E712
             .order_by(Outbox.created_at)
-            .limit(_BATCH_SIZE)
+            .limit(settings.outbox_batch_size)
             .with_for_update(skip_locked=True)
         )
         events = result.scalars().all()
@@ -106,8 +95,6 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                     outbox_id=str(event.id),
                 )
                 # Do NOT mark as processed — leave for operator inspection.
-                # The OUTBOX_LAG_EVENTS gauge and an alert on stale unprocessed rows
-                # will surface this. Silently discarding breaks the audit trail.
                 OUTBOX_RELAY_ERRORS.inc()
                 continue
 
@@ -121,7 +108,6 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                         queue=queue_name,
                         outbox_id=str(event.id),
                     )
-                    # Do NOT mark as processed — configuration error, needs operator fix.
                     OUTBOX_RELAY_ERRORS.inc()
                     continue
                 actor.send(operation_id)
@@ -135,7 +121,6 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                 OUTBOX_RELAY_ERRORS.inc()
                 raise
 
-            # Mark processed AFTER successful enqueue
             await session.execute(
                 update(Outbox).where(Outbox.id == event.id).values(processed=True)
             )
@@ -172,10 +157,9 @@ def _get_actor(queue_name: str):  # type: ignore[return]
 
 async def run_relay_loop() -> None:
     """Main relay loop: poll → relay → sleep, forever."""
-    redis_url: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-    broker = RedisBrokerAdapter(url=redis_url)
+    broker = RedisBrokerAdapter(url=settings.redis_url)
 
-    logger.info("outbox_relay.starting", redis_url=redis_url)
+    logger.info("outbox_relay.starting", redis_url=settings.redis_url)
     await broker.connect()
 
     try:
@@ -188,7 +172,7 @@ async def run_relay_loop() -> None:
                 logger.error("outbox_relay.loop_error", error=str(exc))
                 OUTBOX_RELAY_ERRORS.inc()
 
-            await asyncio.sleep(_POLL_INTERVAL_SECONDS)
+            await asyncio.sleep(settings.outbox_poll_interval)
     finally:
         await broker.disconnect()
         logger.info("outbox_relay.stopped")

@@ -7,14 +7,13 @@ Workers call get_policy() to get the current policy without restart.
 from __future__ import annotations
 
 import asyncio
-import os
 
 import httpx
 import structlog
 
-log = structlog.get_logger()
+from workers.config import settings
 
-POLL_INTERVAL: int = int(os.environ.get("POLICY_POLL_INTERVAL", "30"))
+log = structlog.get_logger(__name__)
 
 
 class OPAClient:
@@ -67,13 +66,13 @@ class OPAClient:
         propagated — the cache simply retains the last successful value.
         """
         self._running = True
-        log.info("opa_client.polling_started", interval_s=POLL_INTERVAL, url=self._url)
+        log.info("opa_client.polling_started", interval_s=settings.policy_poll_interval, url=self._url)
         while self._running:
             try:
                 await self._refresh()
             except Exception as exc:  # noqa: BLE001
                 log.warning("opa_client.poll_failed", error=str(exc))
-            await asyncio.sleep(POLL_INTERVAL)
+            await asyncio.sleep(settings.policy_poll_interval)
 
     async def stop(self) -> None:
         """Stop the polling loop gracefully."""
@@ -127,4 +126,4 @@ class OPAClient:
 # Module-level singleton — imported by workers
 # ---------------------------------------------------------------------------
 
-opa_client = OPAClient(os.environ.get("OPA_URL", "http://opa:8181"))
+opa_client = OPAClient(settings.opa_url)

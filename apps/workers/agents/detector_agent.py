@@ -11,35 +11,42 @@ Idempotency guarantee:
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import uuid
 from typing import Any
 
 import dramatiq
+import structlog
 from dramatiq.brokers.redis import RedisBroker
+from sqlalchemy import select, update
 
+# DB models are available via PYTHONPATH=/workspace in Docker
+# (Dockerfile: COPY apps/api/db/ ./db/).
+# For local dev: export PYTHONPATH=<repo>/apps/api:$PYTHONPATH
+from db.models.finding import Finding as FindingModel
+from db.models.operation import Operation
+from db.models.outbox import Outbox
+
+from workers.config import settings
+from workers.core.db import get_session
 from workers.core.metrics import FINDINGS_TOTAL, TASKS_TOTAL, TASK_DURATION_SECONDS
+from workers.ml.presidio_detector import PresidioDetector
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Broker setup — configured once per process via REDIS_URL env var.
+# Broker setup — configured once per process via settings.
 # When loaded via workers.main, the broker is already set. When this module
 # is imported standalone (e.g. during tests), we initialise a default broker.
 # ---------------------------------------------------------------------------
 
-_redis_url: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-
 try:
     _current_broker = dramatiq.get_broker()
-    # Only replace if it's the default StubBroker (no real broker configured)
     if _current_broker.__class__.__name__ == "StubBroker":
-        broker = RedisBroker(url=_redis_url)
-        dramatiq.set_broker(broker)
+        _broker = RedisBroker(url=settings.redis_url)
+        dramatiq.set_broker(_broker)
 except Exception:
-    broker = RedisBroker(url=_redis_url)
-    dramatiq.set_broker(broker)
+    _broker = RedisBroker(url=settings.redis_url)
+    dramatiq.set_broker(_broker)
 
 
 # ---------------------------------------------------------------------------
@@ -54,31 +61,12 @@ except Exception:
     max_backoff=30_000,
 )
 def process_scan(operation_id: str) -> None:
-    """Detect PII/secrets in the document linked to *operation_id*.
-
-    Runs the synchronous wrapper around the async implementation so that
-    Dramatiq (which is thread-based) can execute async code correctly.
-    """
+    """Detect PII/secrets in the document linked to *operation_id*."""
     asyncio.run(_process_scan_async(operation_id))
 
 
 async def _process_scan_async(operation_id: str) -> None:
     import httpx
-    from sqlalchemy import select, update
-
-    from workers.core.db import get_session
-    from workers.ml.presidio_detector import PresidioDetector
-
-    # Lazy imports of DB models to avoid circular deps at module load
-    import sys  # noqa: E401
-
-    sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
-    )
-
-    from db.models.operation import Operation
-    from db.models.finding import Finding as FindingModel
-    from db.models.outbox import Outbox
 
     op_uuid = uuid.UUID(operation_id)
 
@@ -91,15 +79,15 @@ async def _process_scan_async(operation_id: str) -> None:
             operation: Operation | None = result.scalar_one_or_none()
 
             if operation is None:
-                logger.error("detector_agent.operation_not_found id=%s", operation_id)
+                logger.error("detector_agent.operation_not_found", id=operation_id)
                 TASKS_TOTAL.labels(agent="detector", status="failure").inc()
                 return
 
             if operation.status != "pending":
                 logger.info(
-                    "detector_agent.skip_idempotent id=%s status=%s",
-                    operation_id,
-                    operation.status,
+                    "detector_agent.skip_idempotent",
+                    id=operation_id,
+                    status=operation.status,
                 )
                 TASKS_TOTAL.labels(agent="detector", status="skipped").inc()
                 return
@@ -113,7 +101,7 @@ async def _process_scan_async(operation_id: str) -> None:
             outbox_entry: Outbox | None = outbox_result.scalars().first()
 
             if outbox_entry is None:
-                logger.error("detector_agent.outbox_not_found id=%s", operation_id)
+                logger.error("detector_agent.outbox_not_found", id=operation_id)
                 TASKS_TOTAL.labels(agent="detector", status="failure").inc()
                 return
 
@@ -121,30 +109,27 @@ async def _process_scan_async(operation_id: str) -> None:
             document_text: str = payload.get("document_text", "")
 
             # ── 3. Obtain OPA policy for this operation ──────────────────────
-            opa_url: str = os.environ.get("OPA_URL", "http://opa:8181")
             policy: dict[str, Any] = {}
             try:
                 async with httpx.AsyncClient(timeout=5.0) as http:
                     resp = await http.get(
-                        f"{opa_url}/v1/data/safecontext/policy",
+                        f"{settings.opa_url}/v1/data/safecontext/policy",
                         params={"input": "{}"},
                     )
                     if resp.status_code == 200:
                         policy = resp.json().get("result", {})
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
-                    "detector_agent.opa_unavailable error=%s using_defaults=true", exc
+                    "detector_agent.opa_unavailable",
+                    error=str(exc),
+                    using_defaults=True,
                 )
 
             # ── 4. Run detector ──────────────────────────────────────────────
             detector = PresidioDetector()
             findings = await detector.detect(document_text, policy)
 
-            logger.info(
-                "detector_agent.findings id=%s count=%d",
-                operation_id,
-                len(findings),
-            )
+            logger.info("detector_agent.findings", id=operation_id, count=len(findings))
 
             # ── 5. Persist findings ──────────────────────────────────────────
             for f in findings:
@@ -178,14 +163,14 @@ async def _process_scan_async(operation_id: str) -> None:
                 try:
                     async with httpx.AsyncClient(timeout=5.0) as http:
                         resp = await http.post(
-                            f"{opa_url}/v1/data/safecontext/policy/operation_requires_review",
+                            f"{settings.opa_url}/v1/data/safecontext/policy/operation_requires_review",
                             json={"input": {"findings": findings_payload}},
                         )
                         if resp.status_code == 200:
                             requires_review = bool(resp.json().get("result", False))
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
-                        "detector_agent.opa_review_check_failed error=%s", exc
+                        "detector_agent.opa_review_check_failed", error=str(exc)
                     )
                     # Conservative: escalate if OPA is unavailable
                     requires_review = any(f.severity == "critical" for f in findings)
@@ -208,13 +193,11 @@ async def _process_scan_async(operation_id: str) -> None:
         # Enqueue sanitize outside of session (commit already happened)
         if not requires_review:
             from workers.agents.sanitizer_agent import process_sanitize
-
             process_sanitize.send(operation_id)
-            logger.info("detector_agent.enqueued_sanitize id=%s", operation_id)
+            logger.info("detector_agent.enqueued_sanitize", id=operation_id)
         else:
             from workers.agents.reviewer_agent import process_review
-
             process_review.send(operation_id)
-            logger.info("detector_agent.enqueued_review id=%s", operation_id)
+            logger.info("detector_agent.enqueued_review", id=operation_id)
 
     TASKS_TOTAL.labels(agent="detector", status="success").inc()

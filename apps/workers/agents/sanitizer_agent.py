@@ -6,25 +6,25 @@ Pipeline position: 2nd stage.
 Idempotency guarantee:
   Checks whether redactions already exist for this operation before writing.
   Re-delivery is therefore safe — existing redactions are not duplicated.
-
-Redaction strategy (from finding.severity / policy):
-  mask    → replace span with [REDACTED]
-  remove  → delete the span entirely
-  replace → substitute with a placeholder token
 """
 
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import uuid
 
 import dramatiq
+import structlog
+from sqlalchemy import select
 
+from db.models.finding import Finding as FindingModel
+from db.models.operation import Operation
+from db.models.redaction import Redaction
+
+from workers.core.db import get_session
 from workers.core.metrics import TASKS_TOTAL, TASK_DURATION_SECONDS
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dramatiq.actor(
@@ -38,20 +38,6 @@ def process_sanitize(operation_id: str) -> None:
 
 
 async def _process_sanitize_async(operation_id: str) -> None:
-    from sqlalchemy import select
-
-    from workers.core.db import get_session
-
-    import sys
-
-    sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
-    )
-
-    from db.models.operation import Operation
-    from db.models.finding import Finding as FindingModel
-    from db.models.redaction import Redaction
-
     op_uuid = uuid.UUID(operation_id)
 
     with TASK_DURATION_SECONDS.labels(agent="sanitizer").time():
@@ -61,7 +47,7 @@ async def _process_sanitize_async(operation_id: str) -> None:
                 select(Redaction).where(Redaction.operation_id == op_uuid).limit(1)
             )
             if existing.scalar_one_or_none() is not None:
-                logger.info("sanitizer_agent.skip_idempotent id=%s", operation_id)
+                logger.info("sanitizer_agent.skip_idempotent", id=operation_id)
                 TASKS_TOTAL.labels(agent="sanitizer", status="skipped").inc()
                 return
 
@@ -72,7 +58,7 @@ async def _process_sanitize_async(operation_id: str) -> None:
             operation: Operation | None = op_result.scalar_one_or_none()
 
             if operation is None:
-                logger.error("sanitizer_agent.operation_not_found id=%s", operation_id)
+                logger.error("sanitizer_agent.operation_not_found", id=operation_id)
                 TASKS_TOTAL.labels(agent="sanitizer", status="failure").inc()
                 return
 
@@ -83,42 +69,35 @@ async def _process_sanitize_async(operation_id: str) -> None:
 
             if not findings:
                 logger.info(
-                    "sanitizer_agent.no_findings id=%s proceeding_to_audit",
-                    operation_id,
+                    "sanitizer_agent.no_findings",
+                    id=operation_id,
+                    proceeding_to="audit",
                 )
             else:
-                # ── Apply redactions ──────────────────────────────────────────
-                policy_version: str = operation.policy_version
-
                 for f in findings:
-                    # Determine redaction type by severity
                     redaction_type = _severity_to_redaction_type(f.severity)
-
                     redaction = Redaction(
                         finding_id=f.id,
                         operation_id=op_uuid,
                         redaction_type=redaction_type,
-                        policy_version=policy_version,
+                        policy_version=operation.policy_version,
                     )
                     session.add(redaction)
-
                     logger.debug(
-                        "sanitizer_agent.redaction finding_id=%s type=%s",
-                        f.id,
-                        redaction_type,
+                        "sanitizer_agent.redaction",
+                        finding_id=str(f.id),
+                        type=redaction_type,
                     )
 
             logger.info(
-                "sanitizer_agent.done id=%s redactions=%d",
-                operation_id,
-                len(findings),
+                "sanitizer_agent.done",
+                id=operation_id,
+                redactions=len(findings),
             )
 
-    # Enqueue audit stage outside of session
     from workers.agents.auditor_agent import process_audit
-
     process_audit.send(operation_id)
-    logger.info("sanitizer_agent.enqueued_audit id=%s", operation_id)
+    logger.info("sanitizer_agent.enqueued_audit", id=operation_id)
     TASKS_TOTAL.labels(agent="sanitizer", status="success").inc()
 
 

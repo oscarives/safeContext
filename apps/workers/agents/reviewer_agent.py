@@ -13,15 +13,19 @@ ADR-007: The reviewer_agent is intentionally thin; business logic lives in OPA.
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import uuid
 
 import dramatiq
+import structlog
+from sqlalchemy import select
 
+from db.models.finding import Finding as FindingModel
+from db.models.operation import Operation
+
+from workers.core.db import get_session
 from workers.core.metrics import TASKS_TOTAL, TASK_DURATION_SECONDS
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dramatiq.actor(
@@ -35,19 +39,6 @@ def process_review(operation_id: str) -> None:
 
 
 async def _process_review_async(operation_id: str) -> None:
-    from sqlalchemy import select
-
-    from workers.core.db import get_session
-
-    import sys
-
-    sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
-    )
-
-    from db.models.operation import Operation
-    from db.models.finding import Finding as FindingModel
-
     op_uuid = uuid.UUID(operation_id)
 
     with TASK_DURATION_SECONDS.labels(agent="reviewer").time():
@@ -58,16 +49,15 @@ async def _process_review_async(operation_id: str) -> None:
             operation: Operation | None = op_result.scalar_one_or_none()
 
             if operation is None:
-                logger.error("reviewer_agent.operation_not_found id=%s", operation_id)
+                logger.error("reviewer_agent.operation_not_found", id=operation_id)
                 TASKS_TOTAL.labels(agent="reviewer", status="failure").inc()
                 return
 
-            # Verify operation is actually escalated (idempotency / safety)
             if operation.status != "escalated":
                 logger.info(
-                    "reviewer_agent.unexpected_status id=%s status=%s",
-                    operation_id,
-                    operation.status,
+                    "reviewer_agent.unexpected_status",
+                    id=operation_id,
+                    status=operation.status,
                 )
                 TASKS_TOTAL.labels(agent="reviewer", status="skipped").inc()
                 return
@@ -83,21 +73,17 @@ async def _process_review_async(operation_id: str) -> None:
             # Structured audit log — consumed by OTel collector / SIEM
             logger.warning(
                 "reviewer_agent.escalated_operation",
-                extra={
-                    "event": "operation_escalated",
-                    "operation_id": operation_id,
-                    "actor_id": str(operation.actor_id),
-                    "actor_type": operation.actor_type,
-                    "document_id": str(operation.document_id),
-                    "policy_version": operation.policy_version,
-                    "findings_total": len(findings),
-                    "critical_findings": len(critical_findings),
-                    "high_findings": len(high_findings),
-                    "critical_detectors": [f.detector for f in critical_findings],
-                    "requires_human_review": True,
-                    # NOTE: unblocking this operation requires a human action
-                    # via the UI (E2.6). This worker DOES NOT change status.
-                },
+                event="operation_escalated",
+                operation_id=operation_id,
+                actor_id=str(operation.actor_id),
+                actor_type=operation.actor_type,
+                document_id=str(operation.document_id),
+                policy_version=operation.policy_version,
+                findings_total=len(findings),
+                critical_findings=len(critical_findings),
+                high_findings=len(high_findings),
+                critical_detectors=[f.detector for f in critical_findings],
+                requires_human_review=True,
             )
 
     TASKS_TOTAL.labels(agent="reviewer", status="success").inc()

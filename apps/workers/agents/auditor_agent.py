@@ -14,15 +14,23 @@ WORM semantics (ADR-008):
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import uuid
 
 import dramatiq
+import structlog
+from sqlalchemy import select, update
+from sqlalchemy.sql import func
 
+from db.models.artifact import Artifact
+from db.models.operation import Operation
+from db.models.outbox import Outbox
+
+from workers.adapters.s3_storage import S3StorageAdapter
+from workers.config import settings
+from workers.core.db import get_session
 from workers.core.metrics import TASKS_TOTAL, TASK_DURATION_SECONDS
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @dramatiq.actor(
@@ -36,32 +44,15 @@ def process_audit(operation_id: str) -> None:
 
 
 async def _process_audit_async(operation_id: str) -> None:
-    from sqlalchemy import select, update
-    from sqlalchemy.sql import func
-
-    from workers.core.db import get_session
-    from workers.adapters.s3_storage import S3StorageAdapter
-
-    import sys
-
-    sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
-    )
-
-    from db.models.operation import Operation
-    from db.models.artifact import Artifact
-    from db.models.outbox import Outbox
-
     op_uuid = uuid.UUID(operation_id)
 
     with TASK_DURATION_SECONDS.labels(agent="auditor").time():
-        # ── Build storage adapter from env ───────────────────────────────────
         storage = S3StorageAdapter(
-            endpoint_url=os.environ.get("MINIO_ENDPOINT", "minio:9000"),
-            access_key=os.environ.get("MINIO_ACCESS_KEY", "minioadmin"),
-            secret_key=os.environ.get("MINIO_SECRET_KEY", "minioadmin"),
-            bucket=os.environ.get("MINIO_BUCKET_ARTIFACTS", "safecontext-artifacts"),
-            use_ssl=os.environ.get("MINIO_USE_SSL", "false").lower() == "true",
+            endpoint_url=settings.minio_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            bucket=settings.minio_bucket_artifacts,
+            use_ssl=settings.minio_use_ssl,
         )
 
         async with get_session() as session:
@@ -75,7 +66,7 @@ async def _process_audit_async(operation_id: str) -> None:
                 .limit(1)
             )
             if existing.scalar_one_or_none() is not None:
-                logger.info("auditor_agent.skip_idempotent id=%s", operation_id)
+                logger.info("auditor_agent.skip_idempotent", id=operation_id)
                 TASKS_TOTAL.labels(agent="auditor", status="skipped").inc()
                 return
 
@@ -86,7 +77,7 @@ async def _process_audit_async(operation_id: str) -> None:
             operation: Operation | None = op_result.scalar_one_or_none()
 
             if operation is None:
-                logger.error("auditor_agent.operation_not_found id=%s", operation_id)
+                logger.error("auditor_agent.operation_not_found", id=operation_id)
                 TASKS_TOTAL.labels(agent="auditor", status="failure").inc()
                 return
 
@@ -117,7 +108,9 @@ async def _process_audit_async(operation_id: str) -> None:
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.error(
-                    "auditor_agent.storage_error id=%s error=%s", operation_id, exc
+                    "auditor_agent.storage_error",
+                    id=operation_id,
+                    error=str(exc),
                 )
                 TASKS_TOTAL.labels(agent="auditor", status="failure").inc()
                 raise
@@ -136,17 +129,14 @@ async def _process_audit_async(operation_id: str) -> None:
             await session.execute(
                 update(Operation)
                 .where(Operation.id == op_uuid)
-                .values(
-                    status="completed",
-                    completed_at=func.now(),
-                )
+                .values(status="completed", completed_at=func.now())
             )
 
             logger.info(
-                "auditor_agent.done id=%s digest=%s key=%s",
-                operation_id,
-                digest,
-                minio_key,
+                "auditor_agent.done",
+                id=operation_id,
+                digest=digest,
+                key=minio_key,
             )
 
     TASKS_TOTAL.labels(agent="auditor", status="success").inc()

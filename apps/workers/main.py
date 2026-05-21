@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
+import os  # kept for METRICS_PORT, START_* feature flags
 import signal
 import sys
 import threading
@@ -29,17 +29,17 @@ import structlog
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.middleware import AgeLimit, Retries, TimeLimit
 
-logger = logging.getLogger(__name__)
-log = structlog.get_logger()
+from workers.config import settings
+
+logger = structlog.get_logger(__name__)
+log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Broker + Middleware configuration
 # ---------------------------------------------------------------------------
 
-_redis_url: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-
 broker = RedisBroker(
-    url=_redis_url,
+    url=settings.redis_url,
     # Dead-Letter Queue — messages that exceed max_retries go to safecontext_dl
     middleware=[
         AgeLimit(),
@@ -76,7 +76,7 @@ import workers.agents.reviewer_agent  # noqa: E402, F401
 
 def _start_metrics_server() -> None:
     """Start Prometheus metrics server on METRICS_PORT (default 9090)."""
-    port: int = int(os.environ.get("METRICS_PORT", "9090"))
+    port: int = int(os.environ.get("METRICS_PORT", "9090"))  # not in WorkerSettings — optional override
     try:
         from prometheus_client import start_http_server
 
@@ -182,7 +182,7 @@ if os.environ.get("START_OUTBOX_RELAY", "true").lower() == "true":
 if os.environ.get("START_BACKGROUND_TASKS", "true").lower() == "true":
     _start_background_tasks()
 
-logger.info(
-    "workers.main.ready redis_url=%s",
-    _redis_url.replace(_redis_url.split("@")[-1] if "@" in _redis_url else "", "***"),
+_safe_url = settings.redis_url.replace(
+    settings.redis_url.split("@")[-1] if "@" in settings.redis_url else "", "***"
 )
+logger.info("workers.main.ready", redis_url=_safe_url)

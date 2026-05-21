@@ -7,25 +7,24 @@ Classification logic (mirrors NIST / common DLP conventions):
   high finding      → "confidential"
   medium finding    → "internal"
   low / no finding  → "public"
-
-The classification result is stored as a structured JSON audit log entry; it
-is also surfaced on the Operation row via a hypothetical metadata JSONB column
-(future migration). For now it is persisted as a structured log entry and
-can be added to operations.metadata in a later migration.
 """
 
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import uuid
 
 import dramatiq
+import structlog
+from sqlalchemy import select
 
+from db.models.finding import Finding as FindingModel
+from db.models.operation import Operation
+
+from workers.core.db import get_session
 from workers.core.metrics import TASKS_TOTAL, TASK_DURATION_SECONDS
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Severity → classification level
 _SEVERITY_TO_LEVEL: dict[str, str] = {
@@ -33,13 +32,6 @@ _SEVERITY_TO_LEVEL: dict[str, str] = {
     "high": "confidential",
     "medium": "internal",
     "low": "public",
-}
-
-_LEVEL_RANK: dict[str, int] = {
-    "restricted": 4,
-    "confidential": 3,
-    "internal": 2,
-    "public": 1,
 }
 
 
@@ -54,19 +46,6 @@ def process_classify(operation_id: str) -> None:
 
 
 async def _process_classify_async(operation_id: str) -> None:
-    from sqlalchemy import select
-
-    from workers.core.db import get_session
-
-    import sys
-
-    sys.path.insert(
-        0, os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
-    )
-
-    from db.models.operation import Operation
-    from db.models.finding import Finding as FindingModel
-
     op_uuid = uuid.UUID(operation_id)
 
     with TASK_DURATION_SECONDS.labels(agent="classifier").time():
@@ -77,7 +56,7 @@ async def _process_classify_async(operation_id: str) -> None:
             operation: Operation | None = op_result.scalar_one_or_none()
 
             if operation is None:
-                logger.error("classifier_agent.operation_not_found id=%s", operation_id)
+                logger.error("classifier_agent.operation_not_found", id=operation_id)
                 TASKS_TOTAL.labels(agent="classifier", status="failure").inc()
                 return
 
@@ -87,43 +66,25 @@ async def _process_classify_async(operation_id: str) -> None:
             findings = findings_result.scalars().all()
 
             # Determine highest severity
-            highest_severity: str = "low"
-            highest_rank: int = 0
-            for f in findings:
-                rank = {"critical": 4, "high": 3, "medium": 2, "low": 1}.get(
-                    f.severity, 0
-                )
-                if rank > highest_rank:
-                    highest_rank = rank
-                    highest_severity = f.severity
-
-            classification_level: str = _SEVERITY_TO_LEVEL.get(
-                highest_severity, "public"
+            _RANK: dict[str, int] = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+            highest_severity = max(
+                (f.severity for f in findings),
+                key=lambda s: _RANK.get(s, 0),
+                default="low",
             )
-
-            structured_result = {
-                "operation_id": operation_id,
-                "classification_level": classification_level,
-                "justification": {
-                    "highest_severity": highest_severity,
-                    "findings_count": len(findings),
-                    "critical_count": sum(
-                        1 for f in findings if f.severity == "critical"
-                    ),
-                    "high_count": sum(1 for f in findings if f.severity == "high"),
-                    "medium_count": sum(1 for f in findings if f.severity == "medium"),
-                    "low_count": sum(1 for f in findings if f.severity == "low"),
-                },
-                "policy_version": operation.policy_version,
-            }
+            classification_level = _SEVERITY_TO_LEVEL.get(highest_severity, "public")
 
             logger.info(
-                "classifier_agent.classified id=%s level=%s highest_severity=%s",
-                operation_id,
-                classification_level,
-                highest_severity,
-                extra={"classification": structured_result},
+                "classifier_agent.classified",
+                id=operation_id,
+                level=classification_level,
+                highest_severity=highest_severity,
+                findings_count=len(findings),
+                critical_count=sum(1 for f in findings if f.severity == "critical"),
+                high_count=sum(1 for f in findings if f.severity == "high"),
+                medium_count=sum(1 for f in findings if f.severity == "medium"),
+                low_count=sum(1 for f in findings if f.severity == "low"),
+                policy_version=operation.policy_version,
             )
 
     TASKS_TOTAL.labels(agent="classifier", status="success").inc()
-    return structured_result

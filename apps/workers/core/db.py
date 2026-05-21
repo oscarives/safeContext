@@ -3,15 +3,24 @@
 Workers are called by Dramatiq in threads that each call asyncio.run(),
 creating a NEW event loop per task. We must create the engine INSIDE
 each asyncio.run() context to avoid "Future attached to different loop" errors.
+
+Why NOT threading.local for the engine:
+  asyncpg binds connections to the asyncio event loop at creation time.
+  asyncio.run() creates and closes a new loop per task, so a cached engine
+  from the previous call would hold connections bound to a dead loop.
+  pool_pre_ping would reconnect, but the engine object itself also holds
+  internal loop references that become stale. Creating a fresh engine per
+  task is the safe, documented approach for this architecture.
 """
 
 from __future__ import annotations
 
-import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from workers.config import settings
 
 
 @asynccontextmanager
@@ -23,9 +32,8 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     get_session() repeatedly — each call opens exactly 1 connection and
     closes it when the context manager exits.
     """
-    url = os.environ["DATABASE_URL"]
     engine = create_async_engine(
-        url,
+        settings.database_url,
         echo=False,
         pool_pre_ping=True,
         pool_size=1,       # 1 connection per task — no pool accumulation
