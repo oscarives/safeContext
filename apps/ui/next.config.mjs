@@ -1,12 +1,15 @@
-import type { NextConfig } from 'next'
+// next.config.mjs — ES module format, compatible with Next.js 14+ without TypeScript runtime.
+// Source of truth for Next.js configuration. next.config.ts removed for Docker build compatibility.
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   // Required for Docker multi-stage build (copies only what's needed)
   output: 'standalone',
 
   // Use Redis as cache backend (ADR-002: Redis as ephemeral cache, not disk)
   // cache-handler.js is CommonJS — required by Next.js cacheHandler (runs in Node.js context).
-  // cache-handler.ts was removed; .js is the authoritative runtime version.
   cacheHandler: require.resolve('./cache-handler'),
   cacheMaxMemorySize: 0,  // disable in-memory cache entirely for multi-instance
 
