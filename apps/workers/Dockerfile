@@ -1,5 +1,5 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
-# Build context: project root (.) — gives access to workers/ and apps/api/db/
+# Build context: project root (.) — gives access to apps/workers/ and apps/api/db/
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies (from workers/requirements.txt)
-COPY workers/requirements.txt .
+# Install dependencies (from apps/workers/requirements.txt)
+COPY apps/workers/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ADR-010 / E5.3: bake ML models into image at build time
@@ -37,8 +37,8 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages \
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /models /models
 
-# Copy worker source
-COPY workers/ ./workers/
+# Copy worker source (destination ./workers/ keeps Python imports as "from workers.xxx")
+COPY apps/workers/ ./workers/
 
 # Copy SQLAlchemy models from API (shared schema)
 COPY apps/api/db/ ./db/

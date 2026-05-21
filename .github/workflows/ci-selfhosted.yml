@@ -35,7 +35,7 @@ jobs:
       - name: Run OPA tests (OPA binary pre-installed on runner)
         run: |
           if command -v opa &>/dev/null; then
-            opa test policies/ -v
+            opa test apps/policies/ -v
           else
             echo "OPA not available on runner — install at: /usr/local/bin/opa"
           fi

@@ -27,8 +27,8 @@ jobs:
             context: ./apps/api
             dockerfile: ./apps/api/Dockerfile
           - component: worker
-            context: ./workers
-            dockerfile: ./workers/Dockerfile
+            context: ./apps/workers
+            dockerfile: ./apps/workers/Dockerfile
           - component: ui
             context: ./apps/ui
             dockerfile: ./apps/ui/Dockerfile

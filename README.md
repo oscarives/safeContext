@@ -73,21 +73,16 @@ open http://localhost:8000/docs
 safecontext/
 ├── apps/
 │   ├── api/          FastAPI backend + MCP Server
-│   └── ui/           Next.js frontend (OIDC, review, audit, scan)
-├── workers/          Dramatiq workers (Detector, Sanitizador, Clasificador, Auditor, Revisor)
-├── policies/         Políticas OPA/Rego (policy-as-code, versionadas)
-├── infra/
-│   ├── compose/      Configuración Docker Compose (Grafana, Keycloak, PostgreSQL, etc.)
-│   ├── k8s/          Manifiestos Kubernetes (30 recursos, NetworkPolicy, HPA)
-│   └── scripts/      Scripts de bundle, instalación y rollback offline
-├── docs/
-│   ├── ROADMAP.md    ← Estado actual del proyecto (leer aquí primero)
-│   ├── DOC-0_UNIFIED.md   Fuente de verdad: visión, principios, ADRs
-│   ├── adr/          11 Architecture Decision Records
-│   ├── manuals/      Manuales de usuario, operación e integración
-│   └── runbooks/     Runbooks operativos (DR, DLQ, rotación de claves)
-└── .github/
-    └── workflows/    CI/CD (lint, tests, SBOM, firma Cosign, deploy gate)
+│   ├── ui/           Next.js frontend (OIDC, review, audit, scan)
+│   ├── workers/      Dramatiq workers (Detector, Sanitizador, Clasificador, Auditor, Revisor)
+│   ├── policies/     Políticas OPA/Rego (policy-as-code, versionadas)
+│   ├── docs/         Documentación (ROADMAP, ADRs, manuales, runbooks)
+│   └── infra/        Infraestructura (Docker Compose, Kubernetes, scripts)
+├── .github/
+│   └── workflows/    CI/CD (lint, tests, SBOM, firma Cosign, deploy gate)
+├── README.md
+├── docker-compose.yml
+└── .env.example
 ```
 
 ---
@@ -102,7 +97,6 @@ Revisión humana (si crítico) → Audit trail exportable con HMAC
 
 **Desde un agente LLM (MCP):**
 ```python
-# El agente verifica el documento antes de procesarlo
 result = await mcp_client.call_tool("safecontext.scan", {
     "document": content,
     "policy_name": "default"
@@ -133,7 +127,7 @@ result = await mcp_client.call_tool("safecontext.scan", {
 | Kubernetes + Observabilidad | ✅ |
 | Offline / Air-gapped | ✅ |
 
-Para el estado detallado y las tareas pendientes ver [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Para el estado detallado y las tareas pendientes ver [`apps/docs/ROADMAP.md`](apps/docs/ROADMAP.md).
 
 ---
 
@@ -141,12 +135,12 @@ Para el estado detallado y las tareas pendientes ver [`docs/ROADMAP.md`](docs/RO
 
 | Documento | Contenido |
 |---|---|
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Estado actual, fases, tareas pendientes |
-| [`docs/DOC-0_UNIFIED.md`](docs/DOC-0_UNIFIED.md) | Visión, principios no negociables, ADRs |
-| [`docs/manuals/03_USUARIO.md`](docs/manuals/03_USUARIO.md) | Manual de usuario |
-| [`docs/manuals/04_INTEGRACION_MCP_API.md`](docs/manuals/04_INTEGRACION_MCP_API.md) | Integración MCP y API |
-| [`docs/manuals/06_GUIA_DESARROLLADOR.md`](docs/manuals/06_GUIA_DESARROLLADOR.md) | Guía del desarrollador |
-| [`docs/runbooks/`](docs/runbooks/) | Runbooks operativos |
+| [`apps/docs/ROADMAP.md`](apps/docs/ROADMAP.md) | Estado actual, fases, tareas pendientes |
+| [`apps/docs/DOC-0_UNIFIED.md`](apps/docs/DOC-0_UNIFIED.md) | Visión, principios no negociables, ADRs |
+| [`apps/docs/manuals/03_USUARIO.md`](apps/docs/manuals/03_USUARIO.md) | Manual de usuario |
+| [`apps/docs/manuals/04_INTEGRACION_MCP_API.md`](apps/docs/manuals/04_INTEGRACION_MCP_API.md) | Integración MCP y API |
+| [`apps/docs/manuals/06_GUIA_DESARROLLADOR.md`](apps/docs/manuals/06_GUIA_DESARROLLADOR.md) | Guía del desarrollador |
+| [`apps/docs/runbooks/`](apps/docs/runbooks/) | Runbooks operativos |
 
 ---
 

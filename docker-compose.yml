@@ -1,14 +1,14 @@
 # SafeContext — Docker Compose stack (development)
 # Services: api, worker, ui, postgres, redis, minio, otel, prometheus, grafana, nginx, keycloak, vault (12 total)
 # Run: docker compose up
-# Prerequisites: Run infra/compose/generate-certs.sh before first start.
+# Prerequisites: Run apps/infra/compose/generate-certs.sh before first start.
 #
 # Air-gapped / Harbor registry overlay:
-#   docker compose -f docker-compose.yml -f infra/compose/harbor/docker-compose.harbor.yml up
+#   docker compose -f docker-compose.yml -f apps/infra/compose/harbor/docker-compose.harbor.yml up
 # Sync images to Harbor (once, with internet):
-#   ./infra/scripts/sync-images.sh
+#   ./apps/infra/scripts/sync-images.sh
 # Generate offline bundle:
-#   ./infra/scripts/bundle.sh <version>
+#   ./apps/infra/scripts/bundle.sh <version>
 
 x-common: &common
   restart: unless-stopped
@@ -29,7 +29,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/compose/postgres/init-pgaudit.sql:/docker-entrypoint-initdb.d/01-init-pgaudit.sql:ro
+      - ./apps/infra/compose/postgres/init-pgaudit.sql:/docker-entrypoint-initdb.d/01-init-pgaudit.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -88,7 +88,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./infra/compose/minio-init.sh:/minio-init.sh:ro
+      - ./apps/infra/compose/minio-init.sh:/minio-init.sh:ro
     environment:
       MINIO_URL: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
@@ -113,7 +113,7 @@ services:
       KC_HTTP_ENABLED: "true"
     command: ["start-dev", "--import-realm"]
     volumes:
-      - ./infra/compose/keycloak/realm-safecontext.json:/opt/keycloak/data/import/realm-safecontext.json:ro
+      - ./apps/infra/compose/keycloak/realm-safecontext.json:/opt/keycloak/data/import/realm-safecontext.json:ro
     ports:
       - "8080:8080"
     depends_on:
@@ -164,7 +164,7 @@ services:
       - "--ignore=*_test.rego"
       - "/policies"
     volumes:
-      - ./policies:/policies:ro
+      - ./apps/policies:/policies:ro
     ports:
       - "8181:8181"
     healthcheck:
@@ -255,7 +255,7 @@ services:
     <<: *common
     build:
       context: .
-      dockerfile: workers/Dockerfile
+      dockerfile: apps/workers/Dockerfile
       target: runtime
     image: safecontext/worker:dev
     environment:
@@ -349,7 +349,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.96.0
     command: ["--config=/etc/otel-collector.yaml"]
     volumes:
-      - ./infra/compose/otel-collector.yaml:/etc/otel-collector.yaml:ro
+      - ./apps/infra/compose/otel-collector.yaml:/etc/otel-collector.yaml:ro
     ports:
       - "4317:4317"    # OTLP gRPC
       - "4318:4318"    # OTLP HTTP
@@ -377,9 +377,9 @@ services:
       - "--web.console.templates=/etc/prometheus/consoles"
       - "--web.enable-lifecycle"
     volumes:
-      - ./infra/compose/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./infra/compose/prometheus-alerts.yml:/etc/prometheus/alerts/alerts.yml:ro
-      - ./infra/compose/prometheus-slo-rules.yml:/etc/prometheus/alerts/slo-rules.yml:ro
+      - ./apps/infra/compose/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./apps/infra/compose/prometheus-alerts.yml:/etc/prometheus/alerts/alerts.yml:ro
+      - ./apps/infra/compose/prometheus-slo-rules.yml:/etc/prometheus/alerts/slo-rules.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -407,7 +407,7 @@ services:
       GF_SERVER_DOMAIN: localhost
       GF_SERVER_ROOT_URL: "https://localhost/grafana"
     volumes:
-      - ./infra/compose/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./apps/infra/compose/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     ports:
       - "3001:3000"
@@ -430,7 +430,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./infra/compose/postgres/pg-backup.sh:/pg-backup.sh:ro
+      - ./apps/infra/compose/postgres/pg-backup.sh:/pg-backup.sh:ro
       - pg_backups:/backups/postgres
     environment:
       POSTGRES_HOST: postgres
@@ -448,7 +448,7 @@ services:
     <<: *common
     image: nginx:1.25.4-alpine
     volumes:
-      - ./infra/compose/nginx-dev.conf:/etc/nginx/nginx.conf:ro
+      - ./apps/infra/compose/nginx-dev.conf:/etc/nginx/nginx.conf:ro
     ports:
       - "8088:80"    # 80 requires admin on Windows; use localhost:8088 in dev
     depends_on:
@@ -477,7 +477,7 @@ volumes:
     driver: local
   pg_backups:
     driver: local
-  # harbor_data is declared in infra/compose/harbor/docker-compose.harbor.yml
+  # harbor_data is declared in apps/infra/compose/harbor/docker-compose.harbor.yml
   # and only created when the Harbor overlay is active.
 
 # ── Networks ───────────────────────────────────────────────────────────────────

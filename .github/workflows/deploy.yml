@@ -25,9 +25,9 @@ jobs:
 
       - name: Verify all image signatures + SBOM attestations
         run: |
-          chmod +x infra/compose/verify-signatures.sh
+          chmod +x apps/infra/compose/verify-signatures.sh
           REGISTRY=ghcr.io/${{ github.repository_owner }} \
-          ./infra/compose/verify-signatures.sh ${{ github.sha }}
+          ./apps/infra/compose/verify-signatures.sh ${{ github.sha }}
         # Exit 1 if any signature or SBOM is missing — blocks deploy
 
   scan-images:

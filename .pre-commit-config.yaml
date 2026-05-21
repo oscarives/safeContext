@@ -13,16 +13,16 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        files: ^(apps/api|workers)/
+        files: ^apps/(api|workers)/
       - id: ruff-format
-        files: ^(apps/api|workers)/
+        files: ^apps/(api|workers)/
 
   # ── Python: mypy (type checking) ─────────────────────────────────────────────
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.0
     hooks:
       - id: mypy
-        files: ^(apps/api|workers)/
+        files: ^apps/(api|workers)/
         additional_dependencies:
           - pydantic>=2.0
           - sqlalchemy[asyncio]>=2.0

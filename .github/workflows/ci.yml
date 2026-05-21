@@ -34,9 +34,9 @@ jobs:
       - name: Install ruff and mypy
         run: pip install ruff mypy pydantic
       - name: Ruff lint
-        run: ruff check apps/api/ workers/
+        run: ruff check apps/
       - name: Ruff format check
-        run: ruff format --check apps/api/ workers/
+        run: ruff format --check apps/
 
   test-api:
     name: API tests
@@ -99,10 +99,10 @@ jobs:
           curl -L -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
           chmod +x /usr/local/bin/opa
       - name: Run OPA tests
-        run: opa test policies/ -v --coverage
+        run: opa test apps/policies/ -v --coverage
       - name: Verify coverage >= 80%
         run: |
-          COVERAGE=$(opa test policies/ --coverage --format json 2>/dev/null | python3 -c "
+          COVERAGE=$(opa test apps/policies/ --coverage --format json 2>/dev/null | python3 -c "
           import sys, json
           data = json.load(sys.stdin)
           files = data.get('coverage', {}).get('files', {})
@@ -128,7 +128,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: SafeContext scan
-        uses: ./infra/github-action
+        uses: ./apps/infra/github-action
         with:
           api-url: ${{ vars.SAFECONTEXT_API_URL }}
           token: ${{ secrets.SAFECONTEXT_TOKEN }}
