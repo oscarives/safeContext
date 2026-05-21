@@ -187,7 +187,7 @@ export default function AuditPage() {
 
       {/* ── No result yet (and not loading) ── */}
       {!loading && !error && !result && (
-        <EmptyState message="Introduce un trace_id para exportar el registro de auditoría." />
+        <EmptyState title="Buscar por Trace ID" description="Introduce un trace_id para exportar el registro de auditoría." />
       )}
 
       {/* ── Results ── */}
