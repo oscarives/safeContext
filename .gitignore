@@ -42,12 +42,13 @@ yarn-error.log*
 # Docker
 *.tar
 
-# IDE
+# IDE & AI coding tools
 .vscode/
 .idea/
 *.swp
 *.swo
 .DS_Store
+.claude/
 
 # Build artifacts
 *.whl
