@@ -7,7 +7,6 @@ Provides role-based access control via JWT realm_access.roles.
 
 from __future__ import annotations
 
-import os
 import time
 from collections import defaultdict
 from functools import lru_cache
@@ -19,16 +18,20 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
+from config import settings
+
 log = structlog.get_logger()
 _bearer = HTTPBearer(auto_error=False)
 
-KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://keycloak:8080")
-KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "safecontext")
-KEYCLOAK_CLIENT_ID = os.environ.get("KEYCLOAK_CLIENT_ID", "safecontext-api")
+# Read from the shared Settings object (picks up .env + type validation)
+# instead of raw os.environ.get which bypasses Pydantic validation.
+KEYCLOAK_URL = settings.keycloak_url
+KEYCLOAK_REALM = settings.keycloak_realm
+KEYCLOAK_CLIENT_ID = settings.keycloak_client_id
 
 # Rate limiting state (per client_id, in-memory for single instance; Redis in F4 HA)
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
-MCP_RATE_LIMIT_RPM = int(os.environ.get("MCP_RATE_LIMIT_RPM", "100"))
+MCP_RATE_LIMIT_RPM = settings.mcp_rate_limit_rpm
 
 
 @lru_cache(maxsize=1)
@@ -110,19 +113,28 @@ def require_auth(
 def check_rate_limit(client_id: str) -> None:
     """Rate limit by client_id: MCP_RATE_LIMIT_RPM requests per minute.
     Raises 429 if exceeded.
+
+    Note: this store is in-memory and not shared across worker processes.
+    For multi-replica deployments, replace with a Redis sliding-window counter (F4).
     """
     now = time.time()
     window_start = now - 60.0
-    requests = _rate_limit_store[client_id]
-    # Remove timestamps outside the 1-minute window
-    _rate_limit_store[client_id] = [t for t in requests if t > window_start]
-    if len(_rate_limit_store[client_id]) >= MCP_RATE_LIMIT_RPM:
+    timestamps = [t for t in _rate_limit_store.get(client_id, []) if t > window_start]
+    if len(timestamps) >= MCP_RATE_LIMIT_RPM:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Rate limit exceeded: {MCP_RATE_LIMIT_RPM} requests/minute",
             headers={"Retry-After": "60"},
         )
-    _rate_limit_store[client_id].append(now)
+    timestamps.append(now)
+    _rate_limit_store[client_id] = timestamps
+
+    # Evict idle clients to prevent unbounded memory growth.
+    # Only run cleanup occasionally (when store grows large) to avoid O(n) on every request.
+    if len(_rate_limit_store) > 10_000:
+        stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < window_start]
+        for k in stale:
+            del _rate_limit_store[k]
 
 
 def require_reviewer(payload: dict = Depends(require_auth)) -> dict:

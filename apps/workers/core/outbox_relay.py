@@ -18,9 +18,21 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+
+# Resolve the API package path once at module load — not on every relay call.
+# Both this module and all agents reach into apps/api for the shared DB models.
+# Long-term fix: extract models into a shared safecontext-db package.
+_api_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "apps", "api")
+)
+if _api_path not in sys.path:
+    sys.path.insert(0, _api_path)
+
+from db.models.outbox import Outbox  # noqa: E402 (must follow sys.path setup)
 
 from workers.core.db import get_session
 from workers.adapters.redis_broker import RedisBrokerAdapter
@@ -67,14 +79,15 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
 
     Returns the number of events relayed in this batch.
     """
-    import sys
-
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "apps", "api"))
-    from db.models.outbox import Outbox
-
     relayed = 0
 
     async with get_session() as session:
+        # Report true backlog, not just the current batch size.
+        total_lag = (await session.execute(
+            select(func.count()).select_from(Outbox).where(Outbox.processed == False)  # noqa: E712
+        )).scalar_one()
+        OUTBOX_LAG_EVENTS.set(total_lag)
+
         result = await session.execute(
             select(Outbox)
             .where(Outbox.processed == False)  # noqa: E712
@@ -84,34 +97,32 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
         )
         events = result.scalars().all()
 
-        OUTBOX_LAG_EVENTS.set(len(events))
-
         for event in events:
             queue_name = _EVENT_TO_QUEUE.get(event.event_type)
             if queue_name is None:
-                logger.warning(
+                logger.error(
                     "outbox_relay.unknown_event_type",
                     event_type=event.event_type,
                     outbox_id=str(event.id),
                 )
-                # Mark as processed to avoid infinite retry on unknown types
-                await session.execute(
-                    update(Outbox).where(Outbox.id == event.id).values(processed=True)
-                )
+                # Do NOT mark as processed — leave for operator inspection.
+                # The OUTBOX_LAG_EVENTS gauge and an alert on stale unprocessed rows
+                # will surface this. Silently discarding breaks the audit trail.
+                OUTBOX_RELAY_ERRORS.inc()
                 continue
 
             operation_id: str = event.payload.get("operation_id", "")
 
-            # Use Dramatiq actor.send() directly — correct key naming (dramatiq:<queue>)
             try:
                 actor = _get_actor(queue_name)
                 if actor is None:
-                    logger.warning("outbox_relay.no_actor", queue=queue_name)
-                    await session.execute(
-                        update(Outbox)
-                        .where(Outbox.id == event.id)
-                        .values(processed=True)
+                    logger.error(
+                        "outbox_relay.no_actor_for_queue",
+                        queue=queue_name,
+                        outbox_id=str(event.id),
                     )
+                    # Do NOT mark as processed — configuration error, needs operator fix.
+                    OUTBOX_RELAY_ERRORS.inc()
                     continue
                 actor.send(operation_id)
             except Exception as exc:  # noqa: BLE001

@@ -7,7 +7,6 @@ POST /v1/review/{finding_id}/reject  — reject a finding, mark operation reject
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -15,11 +14,12 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.auth_oidc import require_reviewer
+from core.constants import SENTINEL_ACTOR_ID
 from db.models.finding import Finding
 from db.models.operation import Operation
 from db.models.outbox import Outbox
@@ -57,19 +57,60 @@ class PendingReviewResponse(BaseModel):
     items: list[PendingFindingResponse]
 
 
-# ── Helper ────────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-async def _load_document_preview(operation_id: UUID, db: AsyncSession) -> str:
-    """Return first 200 chars of the document stored in the outbox payload."""
+async def _load_escalated_finding(
+    finding_id: UUID,
+    db: AsyncSession,
+) -> tuple[Finding, Operation]:
+    """Load a Finding and its Operation, asserting the operation is escalated.
+
+    Raises 404 if the finding doesn't exist, 409 if the operation is not
+    in 'escalated' state.  Extracted to eliminate the identical 13-line guard
+    that previously appeared in both approve_finding and reject_finding.
+    """
     result = await db.execute(
-        select(Outbox).where(Outbox.payload["operation_id"].as_string() == str(operation_id))
+        select(Finding)
+        .where(Finding.id == finding_id)
+        .options(selectinload(Finding.operation))
     )
-    outbox_entry = result.scalar_one_or_none()
-    if outbox_entry is None:
-        return ""
-    doc: str = outbox_entry.payload.get("document", "")
-    return doc[:200]
+    finding: Finding | None = result.scalar_one_or_none()
+    if finding is None:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    operation = finding.operation
+    if operation.status != "escalated":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Operation status is '{operation.status}', expected 'escalated'",
+        )
+    return finding, operation
+
+
+async def _load_document_previews(
+    operation_ids: list[UUID],
+    db: AsyncSession,
+) -> dict[str, str]:
+    """Bulk-load document previews for a list of operation IDs.
+
+    Single query replaces the previous N+1 pattern in get_pending_reviews.
+    Returns a mapping of operation_id (str) → first-200-chars of document text.
+    """
+    if not operation_ids:
+        return {}
+
+    str_ids = [str(oid) for oid in operation_ids]
+    result = await db.execute(
+        select(Outbox).where(
+            Outbox.payload["operation_id"].as_string().in_(str_ids)
+        )
+    )
+    rows = result.scalars().all()
+    return {
+        row.payload.get("operation_id", ""): row.payload.get("document_text", "")[:200]
+        for row in rows
+    }
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -88,9 +129,12 @@ async def get_pending_reviews(
     )
     operations = ops_result.scalars().all()
 
+    # Bulk-load all previews in a single query (replaces N+1 pattern)
+    preview_map = await _load_document_previews([op.id for op in operations], db)
+
     items: list[PendingFindingResponse] = []
     for op in operations:
-        preview = await _load_document_preview(op.id, db)
+        preview = preview_map.get(str(op.id), "")
         for finding in op.findings:
             items.append(
                 PendingFindingResponse(
@@ -120,56 +164,48 @@ async def approve_finding(
     actor: dict = Depends(require_reviewer),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Approve a finding: create a Redaction, advance operation if fully reviewed."""
-    # Load finding and its operation
-    finding_result = await db.execute(
-        select(Finding).where(Finding.id == finding_id).options(selectinload(Finding.operation))
-    )
-    finding: Finding | None = finding_result.scalar_one_or_none()
-    if finding is None:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    """Approve a finding: create a Redaction, advance operation if fully reviewed.
 
-    operation = finding.operation
-    if operation.status != "escalated":
-        raise HTTPException(
-            status_code=409,
-            detail=f"Operation status is '{operation.status}', expected 'escalated'",
-        )
+    All reads and writes happen in a single atomic transaction with a row-level
+    lock on the Operation to prevent concurrent approval races.
+    """
+    finding, operation = await _load_escalated_finding(finding_id, db)
 
-    # Use a fixed reviewer UUID for now (replaced by real identity in F4)
-    reviewer_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
-
-    redaction = Redaction(
-        finding_id=finding.id,
-        operation_id=operation.id,
-        redaction_type="mask",
-        policy_version=operation.policy_version,
-        approved_by=reviewer_id,
-        approval_trace_id=operation.trace_id,
-    )
+    # F4: replace with uuid.UUID(actor["sub"]) once real OIDC auth is wired.
+    reviewer_id = SENTINEL_ACTOR_ID
 
     async with db.begin():
+        # Lock the operation row to prevent concurrent approval races
+        locked_op_result = await db.execute(
+            select(Operation)
+            .where(Operation.id == operation.id)
+            .with_for_update()
+        )
+        operation = locked_op_result.scalar_one()
+
+        redaction = Redaction(
+            finding_id=finding.id,
+            operation_id=operation.id,
+            redaction_type="mask",
+            policy_version=operation.policy_version,
+            approved_by=reviewer_id,
+            approval_trace_id=operation.trace_id,
+        )
         db.add(redaction)
+        await db.flush()  # get the new row into the session snapshot
 
-    # Reload all findings for this operation to check completion
-    all_findings_result = await db.execute(
-        select(Finding).where(Finding.operation_id == operation.id)
-    )
-    all_findings = all_findings_result.scalars().all()
-    all_finding_ids = {f.id for f in all_findings}
+        # Check completion: count findings vs redactions in the same transaction
+        total_findings = (await db.execute(
+            select(func.count()).select_from(Finding)
+            .where(Finding.operation_id == operation.id)
+        )).scalar_one()
 
-    # Check existing redactions
-    from db.models.redaction import Redaction as RedactionModel
+        total_redactions = (await db.execute(
+            select(func.count()).select_from(Redaction)
+            .where(Redaction.operation_id == operation.id)
+        )).scalar_one()
 
-    redactions_result = await db.execute(
-        select(RedactionModel).where(RedactionModel.operation_id == operation.id)
-    )
-    existing_redactions = redactions_result.scalars().all()
-    redacted_finding_ids = {r.finding_id for r in existing_redactions}
-
-    # If all findings have a redaction → mark completed
-    if all_finding_ids.issubset(redacted_finding_ids):
-        async with db.begin():
+        if total_redactions >= total_findings:
             operation.status = "completed"
             operation.completed_at = datetime.now(UTC)
             db.add(operation)
@@ -193,21 +229,10 @@ async def reject_finding(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Reject a finding: mark the operation as 'rejected'."""
-    finding_result = await db.execute(
-        select(Finding).where(Finding.id == finding_id).options(selectinload(Finding.operation))
-    )
-    finding: Finding | None = finding_result.scalar_one_or_none()
-    if finding is None:
-        raise HTTPException(status_code=404, detail="Finding not found")
+    finding, operation = await _load_escalated_finding(finding_id, db)
 
-    operation = finding.operation
-    if operation.status != "escalated":
-        raise HTTPException(
-            status_code=409,
-            detail=f"Operation status is '{operation.status}', expected 'escalated'",
-        )
-
-    reviewer_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    # F4: replace with uuid.UUID(actor["sub"]) once real OIDC auth is wired.
+    reviewer_id = SENTINEL_ACTOR_ID
 
     async with db.begin():
         operation.status = "rejected"

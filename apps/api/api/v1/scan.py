@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
+from core.constants import SENTINEL_ACTOR_ID
 from core.logging import get_logger
 from core.metrics import operations_total, scan_duration
 from core.tracing import get_trace_id, tracer
@@ -77,9 +78,8 @@ async def scan(
         operation_id = uuid.uuid4()
         document_id = uuid.uuid4()
 
-        # Use a fixed sentinel actor_id for API-originated requests;
-        # real auth middleware will replace this.
-        actor_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+        # F4: replace with the real sub from the JWT once OIDC auth is wired.
+        actor_id = SENTINEL_ACTOR_ID
 
         operation = Operation(
             id=operation_id,

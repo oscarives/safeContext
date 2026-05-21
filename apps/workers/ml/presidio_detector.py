@@ -10,6 +10,7 @@ volume-mounted) without internet access at runtime.
 from __future__ import annotations
 
 import logging
+import threading
 
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, RecognizerResult
 from presidio_analyzer import Pattern
@@ -157,20 +158,28 @@ def _build_analyzer() -> AnalyzerEngine:
     return analyzer
 
 
+_analyzer_lock = threading.Lock()
+
+
 class PresidioDetector(DetectorInterface):
     """DetectorInterface backed by Microsoft Presidio + spaCy.
 
     The AnalyzerEngine is instantiated lazily on first use and shared across
-    calls (thread-safe after initialisation per Presidio docs).
+    calls via a class-level singleton.  Double-checked locking with a
+    threading.Lock prevents duplicate model loads when two Dramatiq worker
+    threads race on the first call (model load takes ~10 s and several GB RAM).
     """
 
     _analyzer: AnalyzerEngine | None = None
 
     def _get_analyzer(self) -> AnalyzerEngine:
         if PresidioDetector._analyzer is None:
-            logger.info("presidio_detector.init loading spaCy model")
-            PresidioDetector._analyzer = _build_analyzer()
-            logger.info("presidio_detector.init ready")
+            with _analyzer_lock:
+                # Second check inside the lock (double-checked locking pattern)
+                if PresidioDetector._analyzer is None:
+                    logger.info("presidio_detector.init loading spaCy model")
+                    PresidioDetector._analyzer = _build_analyzer()
+                    logger.info("presidio_detector.init ready")
         return PresidioDetector._analyzer
 
     async def detect(self, text: str, policy: dict) -> list[Finding]:

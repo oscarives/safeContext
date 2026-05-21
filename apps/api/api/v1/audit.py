@@ -11,13 +11,14 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from config import settings
+from core.auth_oidc import require_auth
 from core.logging import get_logger
 from db.models.finding import Finding
 from db.models.operation import Operation
@@ -196,16 +197,17 @@ async def verification_key() -> VerificationKeyResponse:
 @router.get("/audit/{trace_id}", response_model=AuditExportResponse, tags=["audit"])
 async def audit_export_endpoint(
     trace_id: UUID,
-    request: Request,
+    actor: Annotated[dict, Depends(require_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> AuditExportResponse:
     """
     Return full audit evidence for the operation identified by trace_id.
 
+    Requires a valid Bearer token (any authenticated user).
     The response payload is signed with HMAC-SHA256 so consumers can verify
     integrity without trusting the transport layer.
     """
-    actor_id: str = str(getattr(request.state, "actor_id", "anonymous"))
+    actor_id: str = str(actor.get("sub", "unknown"))
     result = await get_audit_export(trace_id, db, actor_id=actor_id)
     if result is None:
         raise HTTPException(status_code=404, detail="trace_id not found")

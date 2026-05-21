@@ -209,31 +209,4 @@ MCP_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
-    {
-        "name": "safecontext.approve",
-        "version": "1.1.0",
-        "description": "Agent-delegated approval or rejection of a finding. Requires delegated permission.",  # noqa: E501
-        "input_schema": {
-            "type": "object",
-            "required": ["finding_id", "decision", "justification", "agent_client_id"],
-            "properties": {
-                "finding_id": {"type": "string", "format": "uuid"},
-                "decision": {"type": "string", "enum": ["approve", "reject"]},
-                "justification": {"type": "string", "minLength": 10},
-                "agent_client_id": {
-                    "type": "string",
-                    "description": "Identity of the delegated agent",
-                },
-            },
-        },
-        "output_schema": {
-            "type": "object",
-            "properties": {
-                "finding_id": {"type": "string", "format": "uuid"},
-                "decision": {"type": "string"},
-                "trace_id": {"type": "string", "format": "uuid"},
-                "recorded_by": {"type": "string"},
-            },
-        },
-    },
 ]
