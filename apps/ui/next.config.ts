@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   output: 'standalone',
 
   // Use Redis as cache backend (ADR-002: Redis as ephemeral cache, not disk)
+  // cache-handler.js is CommonJS — required by Next.js cacheHandler (runs in Node.js context).
+  // cache-handler.ts was removed; .js is the authoritative runtime version.
   cacheHandler: require.resolve('./cache-handler'),
   cacheMaxMemorySize: 0,  // disable in-memory cache entirely for multi-instance
 

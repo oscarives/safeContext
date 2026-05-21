@@ -4,7 +4,9 @@
  * Simula dos instancias de Next.js apuntando al mismo Redis.
  * Verifica que una escritura de instancia A es visible desde instancia B.
  */
-import RedisCache from '../../cache-handler'
+// Integration test — requires a running Redis instance (REDIS_URL env var)
+// Skipped in unit test runs without Redis. Run with: npm test -- --testPathPattern=integration
+import RedisCache from '../../../cache-handler'
 
 describe('RedisCache multi-instance consistency', () => {
   const instanceA = new RedisCache()
