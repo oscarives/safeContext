@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api-client'
 import type { AuditExportResponse, FindingAudit } from '@/lib/api-client'
@@ -8,6 +8,7 @@ import {
   LoadingSpinner,
   FindingCard,
   DocumentViewer,
+  CopyButton,
 } from '@/components'
 import type { Finding as FindingCardFinding } from '@/components'
 
@@ -55,7 +56,6 @@ export default function ScanPage() {
   const [policyName] = useState('default')
   const [result, setResult] = useState<ScanResult | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
-  const [copied, setCopied] = useState(false)
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollStartRef = useRef<number>(0)
@@ -77,6 +77,7 @@ export default function ScanPage() {
   }
 
   function startPolling(traceId: string, docText: string) {
+    stopPolling() // prevent interval leak if called while a previous poll is running
     pollStartRef.current = Date.now()
 
     pollIntervalRef.current = setInterval(async () => {
@@ -154,18 +155,16 @@ export default function ScanPage() {
     setDocumentText('')
     setResult(null)
     setErrorMessage('')
-    setCopied(false)
   }
 
-  async function handleCopyTraceId(traceId: string) {
-    try {
-      await navigator.clipboard.writeText(traceId)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Clipboard API not available — silently ignore
-    }
-  }
+  // Memoize mapped findings so toFindingCardShape doesn't allocate on every re-render
+  const findingCards = useMemo(
+    () =>
+      result?.findings.map((f) =>
+        toFindingCardShape(f, result.documentText, result.traceId)
+      ) ?? [],
+    [result]
+  )
 
   const isScanning = pageState === 'scanning'
 
@@ -309,13 +308,10 @@ export default function ScanPage() {
             <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">
               {result.traceId}
             </code>
-            <button
-              onClick={() => handleCopyTraceId(result.traceId)}
+            <CopyButton
+              text={result.traceId}
               className="text-xs text-blue-600 hover:text-blue-800 underline transition-colors"
-              title="Copiar trace ID"
-            >
-              {copied ? 'Copiado' : 'Copiar'}
-            </button>
+            />
             <span className="text-gray-400">·</span>
             <span className="font-medium text-gray-700">Política:</span>
             <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">
@@ -345,11 +341,8 @@ export default function ScanPage() {
               Hallazgos ({result.findings.length})
             </h2>
             <div className="space-y-3">
-              {result.findings.map((f) => (
-                <FindingCard
-                  key={f.id}
-                  finding={toFindingCardShape(f, result.documentText, result.traceId)}
-                />
+              {findingCards.map((f) => (
+                <FindingCard key={f.finding_id} finding={f} />
               ))}
             </div>
           </div>

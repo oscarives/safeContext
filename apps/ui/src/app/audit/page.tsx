@@ -2,59 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { apiClient, type AuditExportResponse } from '@/lib/api-client'
+import { apiClient, NotFoundError, type AuditExportResponse, type OperationItem } from '@/lib/api-client'
 import {
   SeverityBadge,
   StatusBadge,
   LoadingSpinner,
   EmptyState,
+  CopyButton,
 } from '@/components'
+import { truncateDigest, formatDate, processingTime } from '@/lib/format'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-function truncateDigest(digest: string): string {
-  return digest.slice(0, 16) + '...'
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('es-ES', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  })
-}
-
-function processingTime(created: string, completed: string | null): string {
-  if (!completed) return '—'
-  const ms = new Date(completed).getTime() - new Date(created).getTime()
-  if (ms < 0) return '—'
-  if (ms < 1000) return `${ms} ms`
-  const s = (ms / 1000).toFixed(1)
-  return `${s} s`
-}
+// Operation detail extends OperationItem with the document_id field from the audit export.
+type OperationDetail = OperationItem & { document_id?: string }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-
-  function handleCopy() {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="ml-2 text-xs px-1.5 py-0.5 border rounded text-gray-500 hover:text-brand hover:border-brand transition-colors"
-      title="Copiar al portapapeles"
-    >
-      {copied ? '✓' : 'Copiar'}
-    </button>
-  )
-}
 
 function SectionHeader({
   title,
@@ -89,10 +52,16 @@ export default function AuditPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // Collapsible panel state
-  const [findingsExpanded, setFindingsExpanded] = useState(true)
-  const [redactionsExpanded, setRedactionsExpanded] = useState(true)
-  const [artifactsExpanded, setArtifactsExpanded] = useState(true)
+  // Collapsible panel state — Set of section keys that are collapsed.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  function toggleSection(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -105,10 +74,10 @@ export default function AuditPage() {
       const data = await apiClient.getAuditExport(id)
       setResult(data)
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
+      if (err instanceof NotFoundError) {
         setError('Trace ID no encontrado')
       } else {
+        const msg = err instanceof Error ? err.message : String(err)
         setError(`Error al buscar: ${msg}`)
       }
     } finally {
@@ -126,23 +95,11 @@ export default function AuditPage() {
     a.href = url
     a.download = `safecontext_audit_${result.trace_id}.json`
     a.click()
-    URL.revokeObjectURL(url)
+    // Revoke after a short delay so the browser has time to initiate the download.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  const op = result
-    ? (result.operation as {
-        id: string
-        trace_id: string
-        actor_id: string
-        actor_type: string
-        document_id: string
-        artifact_digest: string
-        policy_version: string
-        status: string
-        created_at: string
-        completed_at: string | null
-      })
-    : null
+  const op = result ? (result.operation as OperationDetail) : null
 
   // Build a set of finding_ids that have at least one redaction
   const redactedFindingIds = new Set(
@@ -250,10 +207,10 @@ export default function AuditPage() {
               <SectionHeader
                 title="Hallazgos detectados"
                 count={result.findings.length}
-                expanded={findingsExpanded}
-                onToggle={() => setFindingsExpanded((v) => !v)}
+                expanded={!collapsed.has('findings')}
+                onToggle={() => toggleSection('findings')}
               />
-              {findingsExpanded && (
+              {!collapsed.has('findings') && (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -306,10 +263,10 @@ export default function AuditPage() {
               <SectionHeader
                 title="Redacciones aplicadas"
                 count={result.redactions.length}
-                expanded={redactionsExpanded}
-                onToggle={() => setRedactionsExpanded((v) => !v)}
+                expanded={!collapsed.has('redactions')}
+                onToggle={() => toggleSection('redactions')}
               />
-              {redactionsExpanded && (
+              {!collapsed.has('redactions') && (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -354,10 +311,10 @@ export default function AuditPage() {
               <SectionHeader
                 title="Artefactos"
                 count={result.artifacts.length}
-                expanded={artifactsExpanded}
-                onToggle={() => setArtifactsExpanded((v) => !v)}
+                expanded={!collapsed.has('artifacts')}
+                onToggle={() => toggleSection('artifacts')}
               />
-              {artifactsExpanded && (
+              {!collapsed.has('artifacts') && (
                 <ul className="space-y-2">
                   {result.artifacts.map((a) => (
                     <li

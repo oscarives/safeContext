@@ -40,8 +40,12 @@ export function middleware(request: NextRequest) {
   const cookieValue = request.cookies.get(SESSION_COOKIE_NAME)?.value
 
   if (!cookieValue || !isSessionValid(cookieValue)) {
-    // Preserve the original URL as a query param so login can redirect back
-    const loginUrl = new URL('/login', request.url)
+    // Use request.nextUrl.clone() — NOT request.url — to build the redirect.
+    // request.url uses the server's internal bind address (0.0.0.0:3000 in Docker).
+    // request.nextUrl is correctly rewritten with the public host/protocol by Next.js.
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    loginUrl.search = ''
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
   }

@@ -14,18 +14,38 @@ const KEYCLOAK_URL =
 const REALM = process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? 'safecontext'
 const CLIENT_ID = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? 'safecontext-ui'
 
+/**
+ * Reconstruct the public-facing origin from request headers.
+ *
+ * In Next.js standalone (Docker), request.url uses the internal bind
+ * address (http://0.0.0.0:3000). We must use the Host header instead
+ * so that redirect_uri matches what the browser originally sent to Keycloak,
+ * and so error redirects go back to the browser-accessible URL.
+ */
+function getPublicOrigin(request: Request): string {
+  const host =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    'localhost:3000'
+  const proto =
+    request.headers.get('x-forwarded-proto') ||
+    (host.includes('localhost') ? 'http' : 'https')
+  return `${proto}://${host}`
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
+  const publicOrigin = getPublicOrigin(request)
 
   if (!code) {
     // Keycloak returned an error or the user cancelled — send back to login
-    return NextResponse.redirect(new URL('/login?error=auth_cancelled', request.url))
+    return NextResponse.redirect(`${publicOrigin}/login?error=auth_cancelled`)
   }
 
-  // The redirect_uri must exactly match what was sent in the initial auth request
-  const origin = url.origin
-  const redirectUri = `${origin}/auth/callback`
+  // The redirect_uri must exactly match what was sent in the initial auth request.
+  // It is built from the public origin so it matches the browser's URL.
+  const redirectUri = `${publicOrigin}/auth/callback`
 
   try {
     const tokenUrl = `${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token`
@@ -44,7 +64,7 @@ export async function GET(request: Request) {
     if (!tokenResponse.ok) {
       const detail = await tokenResponse.text()
       console.error('[auth/callback] Token exchange failed:', tokenResponse.status, detail)
-      return NextResponse.redirect(new URL('/login?error=auth_failed', request.url))
+      return NextResponse.redirect(`${publicOrigin}/login?error=auth_failed`)
     }
 
     const tokens = (await tokenResponse.json()) as {
@@ -54,12 +74,12 @@ export async function GET(request: Request) {
 
     const sessionCookie = createSessionCookie(tokens.access_token, tokens.refresh_token)
 
-    const response = NextResponse.redirect(new URL('/dashboard', request.url))
+    const response = NextResponse.redirect(`${publicOrigin}/dashboard`)
     response.cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.options)
 
     return response
   } catch (err) {
     console.error('[auth/callback] Unexpected error:', err)
-    return NextResponse.redirect(new URL('/login?error=auth_failed', request.url))
+    return NextResponse.redirect(`${publicOrigin}/login?error=auth_failed`)
   }
 }

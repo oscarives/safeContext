@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ConfirmModal,
   EmptyState,
@@ -10,6 +10,7 @@ import {
 } from '@/components'
 import { apiClient, ForbiddenError, type PendingFinding } from '@/lib/api-client'
 import { useSession } from '@/hooks/useSession'
+import { pluralHallazgos } from '@/lib/format'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,6 @@ export default function ReviewPage() {
   const { user } = useSession()
 
   const [findings, setFindings] = useState<PendingFinding[]>([])
-  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filterText, setFilterText] = useState('')
@@ -38,7 +38,6 @@ export default function ReviewPage() {
     try {
       const data = await apiClient.getPendingReviews()
       setFindings(data.items ?? [])
-      setTotal(data.total ?? data.items?.length ?? 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -52,11 +51,11 @@ export default function ReviewPage() {
 
   // ── Derived: filtered list ────────────────────────────────────────────────
 
-  const filteredFindings = filterText.trim()
-    ? findings.filter((f) =>
-        f.trace_id.toLowerCase().includes(filterText.trim().toLowerCase())
-      )
-    : findings
+  const filteredFindings = useMemo(() => {
+    const q = filterText.trim().toLowerCase()
+    if (!q) return findings
+    return findings.filter((f) => f.trace_id.toLowerCase().includes(q))
+  }, [findings, filterText])
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -81,12 +80,7 @@ export default function ReviewPage() {
     try {
       await apiClient.postReviewDecision(findingId, action, justification)
 
-      // Remove from local list and update counter
-      setFindings((prev) => {
-        const next = prev.filter((f) => f.finding_id !== findingId)
-        setTotal(next.length)
-        return next
-      })
+      setFindings((prev) => prev.filter((f) => f.finding_id !== findingId))
 
       const label = action === 'approve' ? 'aprobado' : 'rechazado'
       showToast(`Hallazgo ${label} correctamente.`, 'success')
@@ -162,8 +156,7 @@ export default function ReviewPage() {
       {/* Header */}
       <h1 className="text-2xl font-bold mb-1">Revisión humana pendiente</h1>
       <p className="text-gray-500 mb-6">
-        {total} hallazgo{total !== 1 ? 's' : ''} pendiente{total !== 1 ? 's' : ''} de
-        revisión
+        {pluralHallazgos(findings.length)} pendiente{findings.length !== 1 ? 's' : ''} de revisión
         {user ? (
           <span className="ml-2 text-xs text-gray-400">
             (usuario: <code className="bg-gray-100 px-1 rounded">{user.sub}</code>)
@@ -182,9 +175,7 @@ export default function ReviewPage() {
         />
         {filterText.trim() && (
           <p className="mt-1 text-xs text-gray-400">
-            {filteredFindings.length} de {findings.length} hallazgo
-            {findings.length !== 1 ? 's' : ''} coincide
-            {filteredFindings.length !== 1 ? 'n' : ''}
+            {pluralHallazgos(filteredFindings.length)} de {pluralHallazgos(findings.length)} coincide{filteredFindings.length !== 1 ? 'n' : ''}
           </p>
         )}
       </div>

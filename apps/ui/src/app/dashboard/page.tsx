@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { apiClient, NotImplementedError } from '@/lib/api-client'
 import { useSession } from '@/hooks/useSession'
-import { StatusBadge, LoadingSpinner, EmptyState } from '@/components'
+import { StatusBadge, LoadingSpinner, EmptyState, RelativeTime } from '@/components'
+import { truncateDigest } from '@/lib/format'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,18 +33,12 @@ interface OperationRow {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Maps a roles array to a display label.
- * Priority: admin (all) > policy_editor > reviewer > viewer
- */
+// Admin = has all three operational roles assigned in Keycloak.
+// If a company wants to restrict admin from something → remove the role in Keycloak.
+const ADMIN_ROLES = ['reviewer', 'policy_editor', 'viewer'] as const
+
 function roleLabel(roles: string[]): string {
-  if (
-    roles.includes('reviewer') &&
-    roles.includes('policy_editor') &&
-    roles.includes('viewer')
-  ) {
-    return 'Admin'
-  }
+  if (ADMIN_ROLES.every((r) => roles.includes(r))) return 'Admin'
   if (roles.includes('policy_editor')) return 'Policy Editor'
   if (roles.includes('reviewer')) return 'Reviewer'
   return 'Viewer'
@@ -70,16 +65,6 @@ function statusBg(s: string): string {
   return s === 'ok' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
 }
 
-function secondsAgo(ts: number): string {
-  const delta = Math.floor((Date.now() - ts) / 1000)
-  if (delta < 5) return 'ahora mismo'
-  if (delta < 60) return `hace ${delta} seg`
-  return `hace ${Math.floor(delta / 60)} min`
-}
-
-function truncateDigest(digest: string): string {
-  return digest.length > 16 ? `${digest.slice(0, 8)}...${digest.slice(-4)}` : digest
-}
 
 const GRAFANA_URL =
   process.env.NEXT_PUBLIC_GRAFANA_URL ?? 'http://localhost:3001'
@@ -182,7 +167,8 @@ export default function DashboardPage() {
   const [healthLoading, setHealthLoading] = useState(true)
   const [healthError, setHealthError] = useState(false)
   const [healthTimestamp, setHealthTimestamp] = useState<number | null>(null)
-  const [, setTick] = useState(0) // forces re-render for "hace X seg"
+  // Note: "hace X seg" timestamp is rendered by <RelativeTime> which has its own
+  // internal tick — removing the page-level tick prevents full dashboard re-renders.
 
   // Operations state
   const [stats, setStats] = useState<OperationStats | null>(null)
@@ -212,41 +198,32 @@ export default function DashboardPage() {
     return () => clearInterval(interval)
   }, [fetchHealth])
 
-  // Tick every second to keep "hace X seg" fresh
-  useEffect(() => {
-    const t = setInterval(() => setTick(n => n + 1), 1000)
-    return () => clearInterval(t)
-  }, [])
-
   // ── Operations fetch ──────────────────────────────────────────────────────
 
   useEffect(() => {
+    let cancelled = false
     async function fetchOps() {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const data: any = await apiClient.getOperations()
-        // If the endpoint ever returns real data, map it here
-        setStats({
-          total: data.total ?? 0,
-          approved: data.approved ?? 0,
-          pending: data.pending ?? 0,
-          rejected: data.rejected ?? 0,
-        })
-        setOperations(data.items ?? [])
-        setOpsNotAvailable(false)
-      } catch (err) {
-        if (err instanceof NotImplementedError) {
-          setOpsNotAvailable(true)
+        if (!cancelled) {
+          setStats({
+            total: data.total ?? 0,
+            approved: data.approved ?? 0,
+            pending: data.pending ?? 0,
+            rejected: data.rejected ?? 0,
+          })
+          setOperations(data.items ?? [])
+          setOpsNotAvailable(false)
         }
-        // Other errors: also treat as not available to avoid crashes
-        else {
-          setOpsNotAvailable(true)
-        }
+      } catch {
+        if (!cancelled) setOpsNotAvailable(true)
       } finally {
-        setOpsLoading(false)
+        if (!cancelled) setOpsLoading(false)
       }
     }
     fetchOps()
+    return () => { cancelled = true }
   }, [])
 
   // ── Derived values ────────────────────────────────────────────────────────
@@ -287,7 +264,7 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold text-gray-800">Estado del sistema</h2>
           <div className="text-xs text-gray-400 flex items-center gap-2">
             {healthTimestamp && (
-              <span>Actualizado {secondsAgo(healthTimestamp)}</span>
+              <span>Actualizado <RelativeTime ts={healthTimestamp} /></span>
             )}
             <button
               onClick={fetchHealth}

@@ -2,6 +2,7 @@
 // No business logic here — only transport.
 // The access token is fetched server-side via /api/auth/token and cached
 // in module memory. It is never written to localStorage or the DOM.
+import { decodeJwt } from 'jose'
 
 // En browser las llamadas van por Next.js rewrites (relativas).
 // En SSR/Node van directamente al backend.
@@ -22,6 +23,13 @@ export class NotImplementedError extends Error {
   constructor(message = 'This feature is not yet available') {
     super(message)
     this.name = 'NotImplementedError'
+  }
+}
+
+export class NotFoundError extends Error {
+  constructor(message = 'Resource not found') {
+    super(message)
+    this.name = 'NotFoundError'
   }
 }
 
@@ -189,14 +197,11 @@ async function getToken(): Promise<string> {
 
   const data: { token: string } = await res.json()
 
-  // Decode exp from the JWT payload (it's a base64url-encoded JSON object)
+  // Decode exp from the JWT payload using jose (already a project dependency).
   let exp = now + 8 * 60 * 60 // default: 8 hours if we can't parse
   try {
-    const payloadB64 = data.token.split('.')[1]
-    if (payloadB64) {
-      const json = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')))
-      if (typeof json.exp === 'number') exp = json.exp
-    }
+    const payload = decodeJwt(data.token)
+    if (typeof payload.exp === 'number') exp = payload.exp
   } catch {
     // Non-fatal: keep the default expiry
   }
@@ -281,6 +286,7 @@ export const apiClient = {
 
   async getAuditExport(traceId: string): Promise<AuditExportResponse> {
     const res = await apiFetch(`/api/audit/${encodeURIComponent(traceId)}`)
+    if (res.status === 404) throw new NotFoundError(`Trace ID not found: ${traceId}`)
     if (!res.ok) {
       const detail = await res.text()
       throw new Error(`Audit export failed (${res.status}): ${detail}`)
