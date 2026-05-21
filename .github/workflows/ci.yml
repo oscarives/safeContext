@@ -83,6 +83,7 @@ jobs:
       - name: Run tests
         run: pytest apps/api/tests/ -v --tb=short
         env:
+          PYTHONPATH: apps/api
           DATABASE_URL: postgresql+asyncpg://test:test@localhost/test
           REDIS_URL: redis://localhost:6379/0
           MCP_AUTH_TOKEN: test-token
@@ -95,9 +96,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install OPA
-        run: |
-          curl -L -o /usr/local/bin/opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
-          chmod +x /usr/local/bin/opa
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
       - name: Run OPA tests
         run: opa test apps/policies/ -v --coverage
       - name: Verify coverage >= 80%
@@ -125,6 +126,9 @@ jobs:
     name: SafeContext security gate
     runs-on: ubuntu-latest
     needs: [detect-secrets]
+    # Solo corre si SAFECONTEXT_API_URL está configurada en el repo
+    # (requiere instancia desplegada — no aplica en desarrollo)
+    if: ${{ vars.SAFECONTEXT_API_URL != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: SafeContext scan
