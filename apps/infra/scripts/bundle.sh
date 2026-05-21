@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bundle.sh — Generate autonomous SafeContext deployment bundle
 # The bundle contains everything needed to deploy/update without internet.
-# Usage: ./infra/scripts/bundle.sh <version>
+# Usage: ./apps/infra/scripts/bundle.sh <version>
 # Output: ./dist/safecontext-bundle-<version>.tar.gz
 set -euo pipefail
 
@@ -39,19 +39,19 @@ done
 echo "Copying configuration..."
 cp docker-compose.yml "$BUNDLE_DIR/configs/"
 cp .env.example "$BUNDLE_DIR/configs/"
-cp -r infra/compose/ "$BUNDLE_DIR/configs/infra/"
-cp -r infra/k8s/ "$BUNDLE_DIR/configs/k8s/" 2>/dev/null || true
+cp -r apps/infra/compose/ "$BUNDLE_DIR/configs/infra/"
+cp -r apps/infra/k8s/ "$BUNDLE_DIR/configs/k8s/" 2>/dev/null || true
 
 # ── 3. Copy policies ─────────────────────────────────────────────────────────
-cp -r policies/ "$BUNDLE_DIR/policies/"
+cp -r apps/policies/ "$BUNDLE_DIR/policies/"
 
 # ── 4. Copy scripts ──────────────────────────────────────────────────────────
-cp infra/scripts/install-bundle.sh "$BUNDLE_DIR/scripts/"
-cp infra/scripts/rollback.sh "$BUNDLE_DIR/scripts/"
+cp apps/infra/scripts/install-bundle.sh "$BUNDLE_DIR/scripts/"
+cp apps/infra/scripts/rollback.sh "$BUNDLE_DIR/scripts/"
 
 # ── 5. Copy documentation ────────────────────────────────────────────────────
-cp docs/runbooks/airgapped-install.md "$BUNDLE_DIR/docs/"
-cp docs/runbooks/airgapped-update.md "$BUNDLE_DIR/docs/"
+cp apps/docs/runbooks/airgapped-install.md "$BUNDLE_DIR/docs/"
+cp apps/docs/runbooks/airgapped-update.md "$BUNDLE_DIR/docs/"
 
 # ── 6. Write bundle manifest ─────────────────────────────────────────────────
 cat > "$BUNDLE_DIR/MANIFEST.json" << EOF
