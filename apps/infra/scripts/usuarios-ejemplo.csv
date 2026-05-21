@@ -1,0 +1,5 @@
+username,email,first_name,last_name,role
+juan.perez,juan.perez@empresa.com,Juan,Pérez,viewer
+ana.garcia,ana.garcia@empresa.com,Ana,García,reviewer
+carlos.lopez,carlos.lopez@empresa.com,Carlos,López,viewer
+maria.martinez,maria.martinez@empresa.com,María,Martínez,policy_editor

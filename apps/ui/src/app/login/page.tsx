@@ -12,12 +12,14 @@ export default function LoginPage() {
     const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? 'safecontext-ui'
     const redirectUri = encodeURIComponent(`${window.location.origin}/auth/callback`)
 
+    const forceMfa = process.env.NEXT_PUBLIC_KEYCLOAK_FORCE_MFA === 'true'
+
     window.location.href = `${keycloakUrl}/realms/${realm}/protocol/openid-connect/auth` +
       `?client_id=${clientId}` +
       `&redirect_uri=${redirectUri}` +
       `&response_type=code` +
       `&scope=openid profile email` +
-      `&kc_action=CONFIGURE_TOTP`  // force MFA setup on first login
+      (forceMfa ? `&kc_action=CONFIGURE_TOTP` : '')
   }
 
   return (

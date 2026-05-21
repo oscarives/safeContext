@@ -25,8 +25,8 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "authorizationServicesEnabled": false,
-      "redirectUris": ["https://localhost/*", "https://safecontext.example.com/*"],
-      "webOrigins": ["https://localhost", "https://safecontext.example.com"]
+      "redirectUris": ["https://safecontext.example.com/*"],
+      "webOrigins": ["https://safecontext.example.com"]
     },
     {
       "clientId": "safecontext-ui",
@@ -35,8 +35,8 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["https://localhost/*"],
-      "webOrigins": ["https://localhost"]
+      "redirectUris": ["https://safecontext.example.com/*"],
+      "webOrigins": ["https://safecontext.example.com"]
     }
   ],
   "requiredActions": [

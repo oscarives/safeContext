@@ -243,7 +243,7 @@ export const apiClient = {
   },
 
   async postScan(req: ScanRequest): Promise<ScanResponse> {
-    const res = await apiFetch('/v1/scan', {
+    const res = await apiFetch('/api/scan', {
       method: 'POST',
       body: JSON.stringify(req),
     })
@@ -255,7 +255,7 @@ export const apiClient = {
   },
 
   async getPendingReviews(): Promise<PendingReviewResponse> {
-    const res = await apiFetch('/v1/review/pending')
+    const res = await apiFetch('/api/review/pending')
     if (!res.ok) {
       const detail = await res.text()
       throw new Error(`Failed to fetch pending reviews (${res.status}): ${detail}`)
@@ -268,7 +268,7 @@ export const apiClient = {
     action: 'approve' | 'reject',
     justification: string
   ): Promise<ReviewDecisionResponse> {
-    const res = await apiFetch(`/v1/review/${encodeURIComponent(findingId)}/${action}`, {
+    const res = await apiFetch(`/api/review/${encodeURIComponent(findingId)}/${action}`, {
       method: 'POST',
       body: JSON.stringify({ justification }),
     })
@@ -280,7 +280,7 @@ export const apiClient = {
   },
 
   async getAuditExport(traceId: string): Promise<AuditExportResponse> {
-    const res = await apiFetch(`/v1/audit/${encodeURIComponent(traceId)}`)
+    const res = await apiFetch(`/api/audit/${encodeURIComponent(traceId)}`)
     if (!res.ok) {
       const detail = await res.text()
       throw new Error(`Audit export failed (${res.status}): ${detail}`)
@@ -297,7 +297,7 @@ export const apiClient = {
     if (query.to_date) params.set('to_date', query.to_date)
     if (query.actor_id) params.set('actor_id', query.actor_id)
     const qs = params.toString()
-    const res = await apiFetch(`/v1/operations${qs ? `?${qs}` : ''}`)
+    const res = await apiFetch(`/api/operations${qs ? `?${qs}` : ''}`)
     if (!res.ok) {
       const detail = await res.text()
       throw new Error(`Failed to fetch operations (${res.status}): ${detail}`)
@@ -310,3 +310,9 @@ export const apiClient = {
 export async function scanDocument(req: ScanRequest): Promise<ScanResponse> {
   return apiClient.postScan(req)
 }
+
+// ─── Path reference (for documentation) ──────────────────────────────────────
+// All API calls use /api/* prefix (client-side), which Next.js rewrites to
+// http://api:8000/v1/* (server-side proxy). This keeps a single origin for
+// both browser and SSR, avoiding CORS and cookie issues.
+// Exception: /health (no /v1 prefix on the backend).

@@ -113,7 +113,7 @@ services:
       KC_HTTP_ENABLED: "true"
     command: ["start-dev", "--import-realm"]
     volumes:
-      - ./apps/infra/compose/keycloak/realm-safecontext.json:/opt/keycloak/data/import/realm-safecontext.json:ro
+      - ./apps/infra/compose/keycloak/${KEYCLOAK_REALM_FILE:-realm-safecontext.dev.json}:/opt/keycloak/data/import/realm-safecontext.json:ro
     ports:
       - "8080:8080"
     depends_on:
@@ -323,6 +323,8 @@ services:
       NEXT_PUBLIC_KEYCLOAK_URL: ${NEXT_PUBLIC_KEYCLOAK_URL:-http://localhost:8080}
       NEXT_PUBLIC_KEYCLOAK_REALM: ${NEXT_PUBLIC_KEYCLOAK_REALM:-safecontext}
       NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: ${NEXT_PUBLIC_KEYCLOAK_CLIENT_ID:-safecontext-ui}
+      # Internal URL for server-side token exchange (Docker network DNS)
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       # Redis-backed Next.js custom cache handler for multi-instance consistency (ADR-011)
       REDIS_URL: ${REDIS_URL}
       CACHE_ADAPTER: ${CACHE_ADAPTER}

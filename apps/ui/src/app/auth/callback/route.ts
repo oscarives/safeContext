@@ -5,7 +5,12 @@
 import { NextResponse } from 'next/server'
 import { createSessionCookie } from '@/lib/session'
 
-const KEYCLOAK_URL = process.env.NEXT_PUBLIC_KEYCLOAK_URL ?? 'http://localhost:8080'
+// KEYCLOAK_INTERNAL_URL is used server-side (token exchange inside Docker network).
+// Falls back to the public URL for local dev without Docker.
+const KEYCLOAK_URL =
+  process.env.KEYCLOAK_INTERNAL_URL ??
+  process.env.NEXT_PUBLIC_KEYCLOAK_URL ??
+  'http://localhost:8080'
 const REALM = process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? 'safecontext'
 const CLIENT_ID = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? 'safecontext-ui'
 
