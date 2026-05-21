@@ -1,8 +1,10 @@
 # DOC-3 · SafeContext — Spec Ejecutable
-**Versión**: 0.1.0 · **Estado**: Draft · **Fecha**: 2026-05-17
-**Derivado de**: DOC-0 v0.1.0 + DOC-2 v0.1.0
+**Versión**: 0.2.0 · **Estado**: Activo · **Fecha**: 2026-05-17 · **Actualizado**: 2026-05-21
+**Derivado de**: DOC-0 v0.2.0 + DOC-2 v0.1.1
 **Audiencia**: Claude Code, Tech Lead, equipo de desarrollo
-**Uso**: Este documento es la entrada directa al backlog. Cada ítem tiene criterio de aceptación binario (pasa/no pasa). No hay "parcialmente cumplido".
+**Uso**: Este documento define los criterios de aceptación por fase. Para el estado actual de implementación (qué está hecho, qué está probado) ver `docs/ROADMAP.md`.
+
+> **Estado general**: F1–F5 completadas ✅. Las tareas pendientes (T1–T10 del replanteo) están en `docs/ROADMAP.md §7`.
 
 ---
 
@@ -19,7 +21,7 @@ Eres Claude Code. Este documento define el trabajo completo del proyecto SafeCon
 
 ---
 
-## F1 · Base segura (4–6 semanas)
+## F1 · Base segura ✅ COMPLETADA (4–6 semanas)
 
 **Objetivo**: estructura técnica correcta, observabilidad básica, pipeline gate funcional. Sin esta fase, nada de lo que sigue tiene base sólida.
 
@@ -129,19 +131,19 @@ Eres Claude Code. Este documento define el trabajo completo del proyecto SafeCon
 - `safecontext_detector_recall` (gauge, por clase)
 - `safecontext_operations_total` (counter, por status)
 
-### Gate de salida F1 → F2
+### Gate de salida F1 → F2 ✅ VERIFICADO
 
 **Todos** los siguientes deben ser verdaderos:
-- [ ] 100% de operaciones de scan generan `trace_id` + `artifact_digest` + `policy_version`
-- [ ] Redis no almacena ningún estado que no pueda perderse sin impacto
-- [ ] `docker compose up` produce despliegue completo y reproducible
-- [ ] GitHub Action funcional en repositorio de prueba
-- [ ] OPA con tests pasando
-- [ ] Recall ≥ 0.90 en corpus de prueba etiquetado (clases EMAIL, API_KEY, PII_NAME)
+- [x] 100% de operaciones de scan generan `trace_id` + `artifact_digest` + `policy_version`
+- [x] Redis no almacena ningún estado que no pueda perderse sin impacto
+- [x] `docker compose up` produce despliegue completo y reproducible
+- [x] GitHub Action funcional en repositorio de prueba
+- [x] OPA con tests pasando
+- [x] Recall ≥ 0.90 en corpus de prueba etiquetado (clases EMAIL, API_KEY, PII_NAME)
 
 ---
 
-## F2 · Producto endurecido (6–8 semanas)
+## F2 · Producto endurecido ✅ COMPLETADA (6–8 semanas)
 
 **Objetivo**: operación repetible, backup/restore probado, auditoría detallada, cache distribuido, jobs resilientes.
 
@@ -204,19 +206,19 @@ Eres Claude Code. Este documento define el trabajo completo del proyecto SafeCon
 | `safecontext.audit` implementado | Retorna evidencia completa de operación dado trace_id |
 | `safecontext.policy.get` implementado | Retorna política activa versionada |
 
-### Gate de salida F2 → F3
+### Gate de salida F2 → F3 ✅ VERIFICADO
 
 **Todos** los siguientes deben ser verdaderos:
-- [ ] Restore de PostgreSQL probado y exitoso en entorno aislado
-- [ ] pgAudit generando logs de escritura en todas las tablas críticas
-- [ ] Cache multiinstancia de Next.js consistente en test
-- [ ] WORM + SSE activos en MinIO
-- [ ] Jobs idempotentes verificados con test de re-entrega
-- [ ] Recall ≥ 0.95 en corpus etiquetado (clases críticas)
+- [x] Restore de PostgreSQL probado y exitoso en entorno aislado
+- [x] pgAudit generando logs de escritura en todas las tablas críticas
+- [x] Cache multiinstancia de Next.js consistente en test
+- [x] WORM + SSE activos en MinIO
+- [x] Jobs idempotentes verificados con test de re-entrega
+- [x] Recall ≥ 0.95 en corpus etiquetado (clases críticas)
 
 ---
 
-## F3 · Supply chain y gobierno (4–6 semanas)
+## F3 · Supply chain y gobierno ✅ COMPLETADA (4–6 semanas)
 
 **Objetivo**: cadena de suministro verificable, 0 secretos estáticos, deploy gate activo.
 
@@ -255,17 +257,17 @@ Eres Claude Code. Este documento define el trabajo completo del proyecto SafeCon
 | NetworkPolicy deny-all por defecto | Validación de NetworkPolicy en CI |
 | HPA configurado para API y workers | Escalado automático basado en métricas de cola |
 
-### Gate de salida F3 → F4
+### Gate de salida F3 → F4 ✅ VERIFICADO
 
 **Todos** los siguientes deben ser verdaderos:
-- [ ] 100% de imágenes firmadas con SBOM adjunto
-- [ ] 0 secretos estáticos en CI/CD
-- [ ] Deploy bloqueado si política o firma falla
-- [ ] Excepciones auditadas con aprobador registrado
+- [x] 100% de imágenes firmadas con SBOM adjunto
+- [x] 0 secretos estáticos en CI/CD
+- [x] Deploy bloqueado si política o firma falla
+- [x] Excepciones auditadas con aprobador registrado
 
 ---
 
-## F4 · Enterprise operativo (6–8 semanas)
+## F4 · Enterprise operativo ✅ COMPLETADA (6–8 semanas)
 
 **Objetivo**: SSO/MFA, segregación de funciones, SLOs con error budget, DR verificado, runbooks operativos.
 
@@ -317,18 +319,18 @@ Eres Claude Code. Este documento define el trabajo completo del proyecto SafeCon
 | Tool MCP de aprobación implementado | Agentes con permisos delegados pueden aprobar hallazgos |
 | Aprobación registrada con identidad del agente | `approved_by_agent_id` en `redactions` |
 
-### Gate de salida F4 → F5
+### Gate de salida F4 → F5 ✅ VERIFICADO
 
 **Todos** los siguientes deben ser verdaderos:
-- [ ] SSO/MFA habilitado y verificado
-- [ ] RTO < 15 min en DR drill
-- [ ] SLOs medidos con error budget activo
-- [ ] Revisión humana obligatoria para hallazgos críticos funcionando
-- [ ] Evidencia exportable para auditoría probada
+- [x] SSO/MFA habilitado y verificado
+- [x] RTO < 15 min en DR drill
+- [x] SLOs medidos con error budget activo
+- [x] Revisión humana obligatoria para hallazgos críticos funcionando
+- [x] Evidencia exportable para auditoría probada
 
 ---
 
-## F5 · Desconectado regulado (6–10 semanas)
+## F5 · Desconectado regulado ✅ COMPLETADA (6–10 semanas)
 
 **Objetivo**: instalación, operación, actualización y rollback completos sin internet.
 
@@ -369,13 +371,13 @@ Eres Claude Code. Este documento define el trabajo completo del proyecto SafeCon
 |---|---|
 | DR drill completo en entorno sin internet | Restore completo, RTO verificado, sin conexión externa |
 
-### Gate de salida F5 (certificación Enterprise air-gapped)
+### Gate de salida F5 ✅ VERIFICADO (certificación Enterprise air-gapped)
 
 **Todos** los siguientes deben ser verdaderos:
-- [ ] Instalación completa sin internet documentada y probada
-- [ ] Actualización y rollback offline probados
-- [ ] DR drill exitoso en entorno air-gapped
-- [ ] Recall ≥ 0.98 en clases críticas con modelos offline
+- [x] Instalación completa sin internet documentada y probada
+- [x] Actualización y rollback offline probados
+- [x] DR drill exitoso en entorno air-gapped
+- [x] Recall ≥ 0.98 en clases críticas con modelos offline
 
 ---
 
@@ -551,5 +553,6 @@ Eres Claude Code. Este documento define el trabajo completo del proyecto SafeCon
 
 ---
 
-*Derivado de DOC-0 v0.1.0 + DOC-2 v0.1.0*
-*Este documento es la entrada directa al backlog de Claude Code*
+*Derivado de DOC-0 v0.2.0 + DOC-2 v0.1.1*
+*Los criterios de aceptación siguen siendo válidos como referencia.*
+*Para estado de implementación y tareas pendientes ver `docs/ROADMAP.md`*

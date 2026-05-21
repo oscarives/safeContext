@@ -1,7 +1,10 @@
 # DOC-0 · SafeContext — Documento Unificado
-**Versión**: 0.1.0 · **Estado**: Draft · **Fecha**: 2026-05-17
+**Versión**: 0.2.0 · **Estado**: Activo · **Fecha**: 2026-05-17 · **Actualizado**: 2026-05-21
 **Autoridad**: Este documento es la fuente de verdad. PRD, SAD y Spec Ejecutable son derivados.
 Ante contradicción entre documentos derivados y este, este prevalece.
+
+> **Estado del proyecto (2026-05-21)**: F1–F5 completadas. Madurez actual: 3.5–4/5.
+> Para el estado detallado de implementación y tareas pendientes ver `docs/ROADMAP.md`.
 
 ---
 
@@ -187,15 +190,20 @@ Si limpio → Pipeline continúa con evidencia de escaneo adjunta
 
 ## 6. Fases de madurez
 
-| Fase | Duración | Estado de SafeContext | Criterio de graduación |
+| Fase | Duración | Estado actual | Criterio de graduación |
 |---|---|---|---|
-| **F1 · Base segura** | 4–6 sem | MVP estructurado | Toda operación genera trace_id + artifact_digest; Redis deja de ser fuente de verdad; despliegue reproducible |
-| **F2 · Producto endurecido** | 6–8 sem | Producto | Restore probado; auditoría detallada; caché multiinstancia; artefactos cifrados; jobs idempotentes |
-| **F3 · Supply chain y gobierno** | 4–6 sem | Producto seguro | 100% imágenes firmadas + SBOM; 0 secretos estáticos; deploy gate activo; excepciones auditadas |
-| **F4 · Enterprise operativo** | 6–8 sem | Enterprise | RTO/RPO verificados; revisión humana activa; SSO/MFA; evidencia exportable; runbooks operativos |
-| **F5 · Desconectado regulado** | 6–10 sem | Enterprise air-gapped | Instalación completa sin internet; actualización y rollback offline probados |
+| **F1 · Base segura** | 4–6 sem | ✅ Completada | Toda operación genera trace_id + artifact_digest; Redis deja de ser fuente de verdad; despliegue reproducible |
+| **F2 · Producto endurecido** | 6–8 sem | ✅ Completada | Restore probado; auditoría detallada; caché multiinstancia; artefactos cifrados; jobs idempotentes |
+| **F3 · Supply chain y gobierno** | 4–6 sem | ✅ Completada | 100% imágenes firmadas + SBOM; 0 secretos estáticos; deploy gate activo; excepciones auditadas |
+| **F4 · Enterprise operativo** | 6–8 sem | ✅ Completada | RTO/RPO verificados; revisión humana activa; SSO/MFA; evidencia exportable; runbooks operativos |
+| **F5 · Desconectado regulado** | 6–10 sem | ✅ Completada | Instalación completa sin internet; actualización y rollback offline probados |
 
 **Duración total estimada**: 26–38 semanas desde F1 hasta Enterprise air-gapped completo.
+**Duración real**: completado en el período definido por el roadmap.
+
+### Madurez actual: 3.5–4 / 5
+
+El análisis externo (`docs/research/deep-research-report.md`) define una escala 0–5. Con F1–F5 completadas, el proyecto está en nivel 3.5–4. Para alcanzar el 4/5 limpio quedan las tareas T1–T10 del replanteo (ver §9 y `docs/ROADMAP.md §7`).
 
 ---
 
@@ -230,8 +238,31 @@ Si limpio → Pipeline continúa con evidencia de escaneo adjunta
 | ADR-008 | MinIO con WORM + SSE para almacenamiento de artefactos | Cerrado |
 | ADR-009 | OpenTelemetry + Prometheus para observabilidad | Cerrado |
 | ADR-010 | Presidio + spaCy como detectores base, interfaz abstraída | Cerrado |
+| ADR-011 | Port & Adapter para Redis (BrokerPort/CachePort) y MinIO (StoragePort) | Cerrado |
+
+> **Nota ADR-008/ADR-011**: El repositorio público de MinIO fue archivado en abril 2026. ADR-011 abstrae el riesgo — el código nunca toca MinIO directamente. Swap a cualquier S3-compatible = solo cambio en `.env`. Pendiente: due diligence formal de alternativa antes del primer cliente enterprise (ver T10d en ROADMAP.md).
+
+---
+
+## 9. Gaps del replanteo (T1–T10)
+
+Surgieron del análisis externo de madurez realizado en mayo 2026. No invalidan el trabajo de F1–F5 — elevan el nivel de 3.5/5 a 4/5 limpio. Detalle completo con criterios de aceptación y esfuerzo en `docs/ROADMAP.md §7`.
+
+| ID | Tarea | Impacto | Estado |
+|---|---|---|---|
+| T1 | SARIF output | Integración enterprise con tooling estándar | ❌ Pendiente |
+| T2 | actor_id real desde JWT | Audit trail trazable por usuario | ❌ Pendiente |
+| T3 | Rescan post-sanitización | Verificar que no queden fugas tras redacción | ❌ Pendiente |
+| T4 | Capa de reglas determinísticas | Net de seguridad pre-ML | ❌ Pendiente |
+| T5 | Sistema de waivers/excepciones | Gobernanza operacional en enterprise | ❌ Pendiente |
+| T6 | Golden corpus formal con métricas en CI | Demostrar recall a cliente | ❌ Pendiente |
+| T7 | Particionado PostgreSQL | Escala y retención GDPR | ❌ Pendiente |
+| T8 | OAuth 2.1 + PKCE para MCP HTTP | MCP spec compliance enterprise | ❌ Pendiente |
+| T9 | Consent management en MCP | MCP spec compliance enterprise | ❌ Pendiente |
+| T10 | Actualización de versiones (Python, Next.js, PG, MinIO due diligence) | Mantenimiento y seguridad | ❌ Pendiente |
 
 ---
 
 *Documento generado a partir de: Madurez técnica de SafeContext (deep-research-report.md)*
-*Próxima revisión requerida: antes de iniciar F2*
+*Actualizado: 2026-05-21 — F1–F5 completadas, ADR-011 añadido, gaps T1–T10 documentados*
+*Próxima revisión requerida: al completar T1–T3 o antes del primer piloto enterprise*

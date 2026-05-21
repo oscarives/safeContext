@@ -67,6 +67,13 @@ Los siguientes drivers son no negociables y condicionan todas las decisiones de 
 - **Decisión**: los detectores implementan una interfaz común. Presidio/spaCy son la implementación por defecto, reemplazables por detector custom sin cambiar la capa de agentes.
 - **Consecuencia**: el Detector interno no sabe qué librería usa internamente. Esto permite sustituir o combinar detectores sin afectar el flujo.
 
+### ADR-011 · Port & Adapter para Redis (BrokerPort, CachePort) y MinIO (StoragePort)
+- **Contexto**: Redis 8 usa licencia tri-license con riesgo legal no resuelto. MinIO CE es AGPLv3 y su repositorio público fue archivado en abril 2026, lo que añade riesgo estratégico de mantenimiento.
+- **Decisión**: aislar Redis detrás de `BrokerPort` y `CachePort`; aislar MinIO detrás de `StoragePort` con boto3/S3 API. Toda la lógica de negocio habla con las interfaces, nunca con las implementaciones directamente.
+- **Consecuencia**: reemplazar Redis por RabbitMQ = cambiar el adapter + variables de entorno, sin tocar código de negocio. Reemplazar MinIO por cualquier S3-compatible (AIStor, Ceph, AWS S3) = solo cambio de endpoint/credenciales en `.env`.
+- **Implementación**: `workers/core/ports.py`, `workers/adapters/redis_broker.py`, `workers/adapters/s3_storage.py`, `apps/api/adapters/redis_broker.py`, `apps/api/core/ports.py`.
+- **Alternativa rechazada**: acoplar directamente a Redis y MinIO — el riesgo de licencia y de fin de mantenimiento justifica la abstracción desde F1.
+
 ---
 
 ## 3. Vista de componentes
@@ -322,4 +329,5 @@ services:
 ---
 
 *Derivado de DOC-0 v0.1.0*
-*Próxima revisión: antes de iniciar F2*
+*Actualizado: 2026-05-21 — añadido ADR-011*
+*Para estado actual de implementación ver `docs/ROADMAP.md`*
