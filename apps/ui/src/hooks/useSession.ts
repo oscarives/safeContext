@@ -31,8 +31,13 @@ export function useSession(): UseSessionResult {
         const res = await fetch('/api/auth/session', { credentials: 'same-origin' })
 
         if (res.status === 401) {
-          // Session expired or missing — redirect to login
-          window.location.href = '/login'
+          // Session expired or missing — redirect to login.
+          // Guard: don't redirect if already on /login (avoids infinite loop
+          // since login page has no session by definition).
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login'
+          }
+          if (!cancelled) setIsLoading(false)
           return
         }
 
