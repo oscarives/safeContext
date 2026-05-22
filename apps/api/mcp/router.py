@@ -155,7 +155,7 @@ async def tool_scan(
         # actor_type='mcp_agent' — ADR-004, E1.4 acceptance criterion
         operation = Operation(
             trace_id=trace_uuid,
-            actor_id=uuid.uuid4(),  # replaced by real agent identity in F4
+            actor_id=uuid.UUID(hashlib.sha256(_token.encode()).hexdigest()[:32]),
             actor_type="mcp_agent",
             document_id=uuid.uuid4(),
             artifact_digest=artifact_digest,
@@ -352,7 +352,7 @@ async def tool_classify(
         # Record operation for audit trail
         operation = Operation(
             trace_id=trace_uuid,
-            actor_id=uuid.uuid4(),
+            actor_id=uuid.UUID(hashlib.sha256(_token.encode()).hexdigest()[:32]),
             actor_type="mcp_agent",
             document_id=uuid.uuid4(),
             artifact_digest=hashlib.sha256(request.document.encode()).hexdigest(),

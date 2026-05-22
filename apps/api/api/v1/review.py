@@ -171,8 +171,10 @@ async def approve_finding(
     """
     finding, operation = await _load_escalated_finding(finding_id, db)
 
-    # F4: replace with uuid.UUID(actor["sub"]) once real OIDC auth is wired.
-    reviewer_id = SENTINEL_ACTOR_ID
+    # Use real reviewer UUID from the Keycloak JWT sub claim.
+    # Falls back to SENTINEL_ACTOR_ID only if sub is missing (shouldn't happen).
+    sub = actor.get("sub", "")
+    reviewer_id = uuid.UUID(sub) if sub else SENTINEL_ACTOR_ID
 
     async with db.begin():
         # Re-fetch the operation under a row-level lock.
@@ -239,8 +241,8 @@ async def reject_finding(
     """Reject a finding: mark the operation as 'rejected'."""
     finding, operation = await _load_escalated_finding(finding_id, db)
 
-    # F4: replace with uuid.UUID(actor["sub"]) once real OIDC auth is wired.
-    reviewer_id = SENTINEL_ACTOR_ID
+    sub = actor.get("sub", "")
+    reviewer_id = uuid.UUID(sub) if sub else SENTINEL_ACTOR_ID
 
     async with db.begin():
         operation.status = "rejected"
