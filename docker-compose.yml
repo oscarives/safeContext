@@ -411,7 +411,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${API_SECRET_KEY}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_DOMAIN: localhost
-      GF_SERVER_ROOT_URL: "https://localhost/grafana"
+      GF_SERVER_ROOT_URL: "http://localhost:3001"
     volumes:
       - ./apps/infra/compose/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
