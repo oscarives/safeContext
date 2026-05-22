@@ -12,14 +12,12 @@ const nextConfig = {
   // dependency resolution differences between environments.
   eslint: { ignoreDuringBuilds: true },
 
-  // Redis cache backend (ADR-002) — only in production (multi-instance deployments).
-  // In dev (single instance), the Redis cache handler misinterprets RSC payloads
-  // for 'use client' pages and can cache 404 responses, poisoning subsequent requests.
-  // Next.js built-in cache (memory/disk) is sufficient for single-instance dev.
-  ...(process.env.NODE_ENV === 'production' ? {
-    cacheHandler: require.resolve('./cache-handler'),
-    cacheMaxMemorySize: 0,  // disable in-memory cache entirely for multi-instance
-  } : {}),
+  // Redis cache backend (ADR-002) — activo en todos los entornos.
+  // Habilitado en dev para detectar bugs del handler de forma temprana,
+  // antes de que lleguen a producción. El bug original (caching de 404s y
+  // redirects) fue corregido en shouldCache() — el handler es ahora seguro.
+  cacheHandler: require.resolve('./cache-handler'),
+  cacheMaxMemorySize: 0,  // disable in-memory cache — Redis es la única fuente
 
   // API rewrites so UI can call /api/* → FastAPI
   async rewrites() {
