@@ -12,12 +12,12 @@ const nextConfig = {
   // dependency resolution differences between environments.
   eslint: { ignoreDuringBuilds: true },
 
-  // Redis cache backend (ADR-002) — activo en todos los entornos.
-  // Habilitado en dev para detectar bugs del handler de forma temprana,
-  // antes de que lleguen a producción. El bug original (caching de 404s y
-  // redirects) fue corregido en shouldCache() — el handler es ahora seguro.
-  cacheHandler: require.resolve('./cache-handler'),
-  cacheMaxMemorySize: 0,  // disable in-memory cache — Redis es la única fuente
+  // Redis cache backend (ADR-002) — DESHABILITADO temporalmente.
+  // El cache handler fue escrito para Next.js 14. Next.js 16 cambió
+  // el formato de los cache entries (nueva API de CacheHandler).
+  // Error: "Invariant app-page handler received invalid cache entry undefined"
+  // TODO: actualizar cache-handler.js a la nueva API de Next.js 16 (CacheHandler v2)
+  // antes de re-habilitar en producción multi-instancia.
 
   // API rewrites so UI can call /api/* → FastAPI
   async rewrites() {
