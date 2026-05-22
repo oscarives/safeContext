@@ -26,7 +26,7 @@ IMAGES=(
   "grafana/grafana:13.0.1-security-01"
   "nginx:1.28-alpine"
   "quay.io/keycloak/keycloak:26.2.0"
-  "hashicorp/vault:1.16.2"
+  "openbao/openbao:2.5.4"
 )
 
 for img in "${IMAGES[@]}"; do

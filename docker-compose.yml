@@ -136,7 +136,7 @@ services:
 
   # ── HashiCorp Vault (KMS — transit engine for MinIO SSE) ─────────────────────
   vault:
-    image: hashicorp/vault:1.16.2
+    image: openbao/openbao:2.5.4
     cap_add:
       - IPC_LOCK
     environment:
@@ -146,7 +146,7 @@ services:
       - "8200:8200"
     healthcheck:
       # vault status exits 2 when sealed (normal in dev) — check HTTP instead
-      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status 2>&1 | grep -q 'Initialized'"]
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 bao status 2>&1 | grep -q 'Initialized'"]
       interval: 10s
       timeout: 5s
       retries: 5
