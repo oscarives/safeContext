@@ -23,9 +23,10 @@ groups:
           sum(rate(safecontext_operations_total[1h]))
 
       # Latency SLI: ratio of fast requests (< 5s) over total
+      # Prometheus v3: le label values are normalized to float64 strings ("5" → "5.0")
       - record: safecontext:sli:latency_fast:rate5m
         expr: |
-          sum(rate(safecontext_scan_duration_seconds_bucket{le="5"}[5m]))
+          sum(rate(safecontext_scan_duration_seconds_bucket{le="5.0"}[5m]))
           /
           sum(rate(safecontext_scan_duration_seconds_count[5m]))
 

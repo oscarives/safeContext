@@ -22,7 +22,7 @@ IMAGES=(
   "redis:7.4-alpine"
   "minio/minio:RELEASE.2025-09-07T16-13-09Z"
   "otel/opentelemetry-collector-contrib:0.122.0"
-  "prom/prometheus:v2.55.1"
+  "prom/prometheus:v3.11.3"
   "grafana/grafana:11.5.2"
   "nginx:1.28-alpine"
   "quay.io/keycloak/keycloak:26.2.0"
