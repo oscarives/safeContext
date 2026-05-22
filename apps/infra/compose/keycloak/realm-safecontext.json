@@ -15,6 +15,44 @@
       {"name": "admin", "description": "Full access including user management"}
     ]
   },
+  "clientScopes": [
+    {
+      "name": "mcp:scan",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true"},
+      "description": "Permission to invoke the safecontext.scan MCP tool"
+    },
+    {
+      "name": "mcp:sanitize",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true"},
+      "description": "Permission to invoke the safecontext.sanitize MCP tool"
+    },
+    {
+      "name": "mcp:classify",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true"},
+      "description": "Permission to invoke the safecontext.classify MCP tool"
+    },
+    {
+      "name": "mcp:audit",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true"},
+      "description": "Permission to invoke the safecontext.audit MCP tool"
+    },
+    {
+      "name": "mcp:policy",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true"},
+      "description": "Permission to invoke the safecontext.policy.get MCP tool"
+    },
+    {
+      "name": "mcp:approve",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true"},
+      "description": "Permission to invoke the safecontext.approve MCP tool"
+    }
+  ],
   "clients": [
     {
       "clientId": "safecontext-api",
@@ -26,7 +64,16 @@
       "serviceAccountsEnabled": true,
       "authorizationServicesEnabled": false,
       "redirectUris": ["https://safecontext.example.com/*"],
-      "webOrigins": ["https://safecontext.example.com"]
+      "webOrigins": ["https://safecontext.example.com"],
+      "defaultClientScopes": ["openid", "profile", "email"],
+      "optionalClientScopes": [
+        "mcp:scan",
+        "mcp:sanitize",
+        "mcp:classify",
+        "mcp:audit",
+        "mcp:policy",
+        "mcp:approve"
+      ]
     },
     {
       "clientId": "safecontext-ui",

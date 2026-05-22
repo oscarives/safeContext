@@ -155,8 +155,15 @@ async def _process_sanitize_async(operation_id: str) -> None:
             )
 
     from workers.agents.auditor_agent import process_audit
+    from workers.agents.rescan_agent import rescan_operation
+
     process_audit.send(operation_id)
     logger.info("sanitizer_agent.enqueued_audit", id=operation_id)
+
+    # T3: Re-scan the sanitized text for residual PII before marking complete.
+    rescan_operation.send(operation_id)
+    logger.info("sanitizer_agent.enqueued_rescan", id=operation_id)
+
     TASKS_TOTAL.labels(agent="sanitizer", status="success").inc()
 
 

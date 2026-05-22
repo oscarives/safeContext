@@ -52,7 +52,9 @@ def valid_token(monkeypatch):
     from config import settings
 
     settings.mcp_auth_token = "test-token-abc"
-    return "test-token-abc"
+    settings.safecontext_env = "dev"
+    yield "test-token-abc"
+    settings.safecontext_env = "production"
 
 
 # ── Authentication ────────────────────────────────────────────────────────────

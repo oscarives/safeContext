@@ -1,16 +1,20 @@
-"""Recall evaluation tests for PresidioDetector.
+"""Recall evaluation tests for SafeContext detectors.
 
 AC E1.5-9: Recall ≥ 0.90 on the labelled corpus for EMAIL_ADDRESS,
            API_KEY, and PERSON entity classes.
 
+F2 gate: PII classes ≥ 0.95, critical secret classes ≥ 0.99.
+
 Methodology:
-  - For each sample in corpus.json, run PresidioDetector.detect().
+  - For each sample in corpus.json, run PresidioDetector.detect() and
+    RegexDetector.detect() and merge results.
   - A predicted span is a True Positive (TP) for an expected annotation if:
-      * entity_type matches, AND
+      * entity_type matches (using explanation["entity_type"] for Presidio
+        findings, or using f.detector for regex findings), AND
       * IoU (intersection over union) of the spans ≥ 0.5
         (i.e. there is meaningful overlap — exact match not required).
   - Recall = TP / (TP + FN) per class.
-  - Each class must achieve recall ≥ RECALL_THRESHOLD.
+  - Each class must achieve recall ≥ the class-specific threshold.
 
 Note: The spaCy model (en_core_web_lg) must be available in the environment.
       In CI the Docker image installs it at build time (ADR-010).
@@ -24,11 +28,48 @@ from typing import NamedTuple
 
 import pytest
 
-# Threshold from AC E1.5-9
+# ---------------------------------------------------------------------------
+# Thresholds — differentiated by risk category
+# ---------------------------------------------------------------------------
+
+# Legacy threshold (kept for backward compat with AC E1.5-9)
 RECALL_THRESHOLD: float = 0.90
 
-# Classes under evaluation
-ENTITY_CLASSES: list[str] = ["EMAIL_ADDRESS", "API_KEY", "PERSON"]
+# PII entities: recall ≥ 0.95 (F2 gate)
+PII_RECALL_THRESHOLD: float = 0.95
+
+# Critical secret entities: recall ≥ 0.99 (deterministic regex — should be near-perfect)
+SECRET_RECALL_THRESHOLD: float = 0.99
+
+# Entity classes under evaluation — grouped by threshold
+PII_ENTITY_CLASSES: list[str] = [
+    "EMAIL_ADDRESS",
+    "PERSON",
+    "SSN",
+    "CREDIT_CARD",
+    "IBAN_CODE",
+    "PHONE_NUMBER",
+]
+
+SECRET_ENTITY_CLASSES: list[str] = [
+    "API_KEY",
+    "REGEX_CONNECTION_STRING",
+    "REGEX_JWT_TOKEN",
+    "REGEX_PEM_PRIVATE_KEY",
+]
+
+# All classes (union — used for the minimum-samples check)
+ENTITY_CLASSES: list[str] = PII_ENTITY_CLASSES + SECRET_ENTITY_CLASSES
+
+# Regex-backed entity types (matched via f.detector, not explanation["entity_type"])
+_REGEX_ENTITY_TYPES: set[str] = {
+    "REGEX_CONNECTION_STRING",
+    "REGEX_JWT_TOKEN",
+    "REGEX_PEM_PRIVATE_KEY",
+    "REGEX_ENV_SECRET_ASSIGNMENT",
+    "REGEX_UUID_SECRET_ASSIGNMENT",
+    "REGEX_CREDIT_CARD_NONSTANDARD",
+}
 
 # Path to corpus relative to this file
 _CORPUS_PATH = Path(__file__).parent.parent / "fixtures" / "corpus" / "corpus.json"
@@ -79,6 +120,27 @@ def _load_corpus() -> list[dict]:
     return data["samples"]
 
 
+def _finding_entity_type(pred) -> str:
+    """Extract the canonical entity_type from a Finding.
+
+    Presidio findings store it in explanation["entity_type"].
+    RegexDetector findings store the rule name in explanation["pattern"]
+    and the detector string is "regex.RULE_ID_UPPER" — extract the
+    RULE_ID_UPPER suffix and prefix with "REGEX_".
+    """
+    # Try Presidio-style first
+    presidio_type = pred.explanation.get("entity_type", "")
+    if presidio_type:
+        return presidio_type
+
+    # Regex-style: detector = "regex.REGEX_CONNECTION_STRING"
+    detector: str = pred.detector or ""
+    if detector.startswith("regex."):
+        return detector[len("regex."):]  # e.g. "REGEX_CONNECTION_STRING"
+
+    return ""
+
+
 def _predictions_hit(
     predictions: list,  # list[Finding]
     gold: Annotation,
@@ -86,7 +148,7 @@ def _predictions_hit(
 ) -> bool:
     """Return True if any prediction covers *gold* with sufficient IoU."""
     for pred in predictions:
-        pred_entity: str = pred.explanation.get("entity_type", "")
+        pred_entity = _finding_entity_type(pred)
         if pred_entity != gold.entity_type:
             continue
         iou = _span_iou(pred.span_start, pred.span_end, gold.span_start, gold.span_end)
@@ -101,16 +163,18 @@ def _predictions_hit(
 
 
 def evaluate_recall(entity_type: str) -> EvalResult:
-    """Run the PresidioDetector over all corpus samples and compute recall
+    """Run all detectors over all corpus samples and compute recall
     for *entity_type*.
     """
     import asyncio
 
     # Import here to avoid loading spaCy at collection time
     from workers.ml.presidio_detector import PresidioDetector
+    from workers.ml.regex_detector import RegexDetector
 
     corpus = _load_corpus()
-    detector = PresidioDetector()
+    presidio = PresidioDetector()
+    regex = RegexDetector()
     # Policy with liberal score threshold so the detector sees most candidates
     policy = {"score_threshold": 0.3}
 
@@ -135,8 +199,10 @@ def evaluate_recall(entity_type: str) -> EvalResult:
         if not gold_annotations:
             continue  # sample has no annotation for this class
 
-        # Run detector synchronously via asyncio.run
-        predictions = asyncio.run(detector.detect(text, policy))
+        # Run both detectors and merge results
+        presidio_findings = asyncio.run(presidio.detect(text, policy))
+        regex_findings = asyncio.run(regex.detect(text, policy))
+        predictions = presidio_findings + regex_findings
 
         for gold in gold_annotations:
             if _predictions_hit(predictions, gold):
@@ -162,13 +228,47 @@ def corpus_loaded() -> list[dict]:
         "Run from the workers/ directory or check PYTHONPATH."
     )
     samples = _load_corpus()
-    assert len(samples) >= 30, f"Corpus must have ≥30 samples, found {len(samples)}"
+    assert len(samples) >= 200, f"Corpus must have ≥200 samples, found {len(samples)}"
     return samples
+
+
+@pytest.mark.parametrize("entity_type", PII_ENTITY_CLASSES)
+def test_pii_recall_ge_threshold(entity_type: str, corpus_loaded: list[dict]) -> None:
+    """Recall for PII *entity_type* must be ≥ PII_RECALL_THRESHOLD (0.95)."""
+    result = evaluate_recall(entity_type)
+    assert result.tp + result.fn > 0, (
+        f"No gold annotations found for {entity_type} in corpus. "
+        "Add samples with expected annotations."
+    )
+    assert result.recall >= PII_RECALL_THRESHOLD, (
+        f"Recall for {entity_type} is {result.recall:.3f} "
+        f"(TP={result.tp}, FN={result.fn}), "
+        f"required ≥ {PII_RECALL_THRESHOLD}"
+    )
+
+
+@pytest.mark.parametrize("entity_type", SECRET_ENTITY_CLASSES)
+def test_secret_recall_ge_threshold(entity_type: str, corpus_loaded: list[dict]) -> None:
+    """Recall for secret *entity_type* must be ≥ SECRET_RECALL_THRESHOLD (0.99)."""
+    result = evaluate_recall(entity_type)
+    assert result.tp + result.fn > 0, (
+        f"No gold annotations found for {entity_type} in corpus. "
+        "Add samples with expected annotations."
+    )
+    assert result.recall >= SECRET_RECALL_THRESHOLD, (
+        f"Recall for {entity_type} is {result.recall:.3f} "
+        f"(TP={result.tp}, FN={result.fn}), "
+        f"required ≥ {SECRET_RECALL_THRESHOLD}"
+    )
 
 
 @pytest.mark.parametrize("entity_type", ENTITY_CLASSES)
 def test_recall_ge_threshold(entity_type: str, corpus_loaded: list[dict]) -> None:
-    """Recall for *entity_type* must be ≥ RECALL_THRESHOLD (0.90)."""
+    """Legacy gate: recall for *entity_type* must be ≥ RECALL_THRESHOLD (0.90).
+
+    This test covers all classes with the original baseline threshold.
+    The more specific PII/secret tests above apply stricter thresholds.
+    """
     result = evaluate_recall(entity_type)
     assert result.tp + result.fn > 0, (
         f"No gold annotations found for {entity_type} in corpus. "
@@ -195,8 +295,15 @@ def test_corpus_has_minimum_samples_per_class(corpus_loaded: list[dict]) -> None
         assert count >= 10, f"Class {cls} has only {count} annotated samples; need ≥10"
 
 
-def test_no_null_findings_from_detector() -> None:
-    """Detector must never return None or malformed findings."""
+def test_corpus_has_200_samples(corpus_loaded: list[dict]) -> None:
+    """Corpus must have at least 200 samples (T6 requirement)."""
+    assert len(corpus_loaded) >= 200, (
+        f"Corpus has {len(corpus_loaded)} samples; T6 requires ≥200"
+    )
+
+
+def test_no_null_findings_from_presidio_detector() -> None:
+    """PresidioDetector must never return None or malformed findings."""
     import asyncio
     from workers.ml.presidio_detector import PresidioDetector
 
@@ -210,3 +317,26 @@ def test_no_null_findings_from_detector() -> None:
         assert f.rule_id
         assert 0.0 <= f.confidence <= 1.0
         assert f.severity in {"low", "medium", "high", "critical"}
+
+
+def test_no_null_findings_from_regex_detector() -> None:
+    """RegexDetector must never return None or malformed findings."""
+    import asyncio
+    from workers.ml.regex_detector import RegexDetector
+
+    detector = RegexDetector()
+    findings = asyncio.run(
+        detector.detect("This is a safe plain text with no secrets.", {})
+    )
+    assert isinstance(findings, list)
+    for f in findings:
+        assert f.detector
+        assert f.rule_id
+        assert 0.0 <= f.confidence <= 1.0
+        assert f.severity in {"low", "medium", "high", "critical"}
+
+
+# Kept for backward compatibility
+def test_no_null_findings_from_detector() -> None:
+    """Detector must never return None or malformed findings (legacy alias)."""
+    test_no_null_findings_from_presidio_detector()

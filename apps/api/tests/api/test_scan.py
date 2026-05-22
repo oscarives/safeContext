@@ -52,6 +52,11 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
     mock_session.rollback = AsyncMock()
+    # The deduplication check inside scan() calls (await db.execute(...)).scalar_one_or_none().
+    # Return a mock result whose scalar_one_or_none() returns None (no cached operation).
+    _mock_execute_result = MagicMock()
+    _mock_execute_result.scalar_one_or_none = MagicMock(return_value=None)
+    mock_session.execute = AsyncMock(return_value=_mock_execute_result)
 
     async def _fake_get_db() -> AsyncGenerator[Any, None]:
         yield mock_session
@@ -73,6 +78,13 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
         app.dependency_overrides[real_get_db] = _fake_get_db
         app.state.broker = mock_broker
+        # Provide a mock http_client for OPA policy version lookup in scan.py
+        mock_http_client = AsyncMock()
+        mock_http_response = MagicMock()
+        mock_http_response.status_code = 200
+        mock_http_response.json = MagicMock(return_value={"result": "1.0.0"})
+        mock_http_client.get = AsyncMock(return_value=mock_http_response)
+        app.state.http_client = mock_http_client
         # Sync settings token with test header value
         from config import settings as _settings
 
@@ -136,6 +148,93 @@ async def test_scan_requires_policy_name(client: AsyncClient) -> None:
         json={"document": "Some text without policy."},
     )
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# T2 — actor_id from JWT sub
+# ---------------------------------------------------------------------------
+
+_JWT_SUB = "550e8400-e29b-41d4-a716-446655440000"
+_SENTINEL_ACTOR_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+
+@pytest.mark.asyncio
+async def test_scan_actor_id_from_jwt_sub() -> None:
+    """POST /v1/scan with a Keycloak JWT must store actor_id = sub from token,
+    not the SENTINEL_ACTOR_ID (TECH-DEBT-001 / T2 acceptance criterion)."""
+    mock_broker = AsyncMock()
+    mock_broker.enqueue = AsyncMock()
+
+    captured_operations: list = []
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    mock_session.commit = AsyncMock()
+    mock_session.rollback = AsyncMock()
+    mock_session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+    )
+
+    def _capture_add(obj: object) -> None:
+        from db.models.operation import Operation as OperationModel
+        if isinstance(obj, OperationModel):
+            captured_operations.append(obj)
+
+    mock_session.add = MagicMock(side_effect=_capture_add)
+
+    async def _fake_get_db() -> AsyncGenerator[Any, None]:
+        yield mock_session
+
+    from db import session as session_module
+    from db.session import get_db as real_get_db
+
+    # Mock _decode_token to return a payload with a known sub claim (simulates
+    # a valid Keycloak JWT without needing a real Keycloak instance).
+    jwt_payload = {
+        "sub": _JWT_SUB,
+        "preferred_username": "testuser",
+        "email": "testuser@example.com",
+    }
+
+    with (
+        patch.object(session_module, "AsyncSessionLocal", return_value=mock_session),
+        patch("api.v1.health._check_postgres", return_value="ok"),
+        patch("api.v1.health._check_redis", return_value="ok"),
+        patch("api.v1.health._check_minio", return_value="ok"),
+        patch("api.v1.scan._decode_token", AsyncMock(return_value=jwt_payload)),
+    ):
+        app.dependency_overrides[real_get_db] = _fake_get_db
+        app.state.broker = mock_broker
+
+        # Use a JWT-looking token (not the static MCP secret) so the code
+        # takes the Keycloak branch inside _resolve_scan_actor.
+        jwt_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.fake.signature"
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+        ) as ac:
+            resp = await ac.post("/v1/scan", json=_VALID_PAYLOAD)
+
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200, resp.text
+
+    # At least one Operation must have been committed.
+    assert captured_operations, "No Operation was added to the DB session"
+
+    operation = captured_operations[0]
+
+    # The actor_id must match the JWT sub — not the sentinel UUID.
+    assert operation.actor_id == uuid.UUID(_JWT_SUB), (
+        f"Expected actor_id={_JWT_SUB}, got {operation.actor_id}"
+    )
+    assert operation.actor_id != _SENTINEL_ACTOR_ID, (
+        "actor_id must not be the SENTINEL_ACTOR_ID when a real JWT is provided"
+    )
+    assert operation.actor_type == "human"
 
 
 # ---------------------------------------------------------------------------

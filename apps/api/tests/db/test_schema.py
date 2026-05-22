@@ -161,3 +161,111 @@ class TestRelationships:
 
     def test_finding_has_redactions_relationship(self):
         assert hasattr(Finding, "redactions")
+
+
+class TestPartitionMigration:
+    """Verify that migration 0005 defines the expected partitioning DDL."""
+
+    @staticmethod
+    def _load_migration():
+        """Load 0005_partition_operations_findings.py via importlib."""
+        import importlib.util
+        import pathlib
+
+        path = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "db"
+            / "migrations"
+            / "versions"
+            / "0005_partition_operations_findings.py"
+        )
+        spec = importlib.util.spec_from_file_location("migration_0005", path)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def test_revision_metadata(self):
+        """Migration must declare correct revision chain."""
+        m = self._load_migration()
+        assert m.revision == "3f8a1c9d2e47"
+        assert m.down_revision == "0004"
+
+    def test_upgrade_creates_partitioned_table(self):
+        """upgrade() must create the PARTITION BY RANGE table."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        assert "PARTITION BY RANGE" in source
+        assert "operations_partitioned" in source
+
+    def test_upgrade_creates_24_monthly_partitions(self):
+        """upgrade() must define 24 monthly partitions (2025-01 to 2026-12)."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        # Each monthly partition follows the naming scheme operations_y<year>m<month>
+        expected_partitions = [
+            "operations_y2025m01", "operations_y2025m02", "operations_y2025m03",
+            "operations_y2025m04", "operations_y2025m05", "operations_y2025m06",
+            "operations_y2025m07", "operations_y2025m08", "operations_y2025m09",
+            "operations_y2025m10", "operations_y2025m11", "operations_y2025m12",
+            "operations_y2026m01", "operations_y2026m02", "operations_y2026m03",
+            "operations_y2026m04", "operations_y2026m05", "operations_y2026m06",
+            "operations_y2026m07", "operations_y2026m08", "operations_y2026m09",
+            "operations_y2026m10", "operations_y2026m11", "operations_y2026m12",
+        ]
+        for name in expected_partitions:
+            assert name in source, f"Partition {name} not found in upgrade()"
+
+    def test_upgrade_creates_default_partition(self):
+        """upgrade() must include a DEFAULT catch-all partition."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        assert "operations_future" in source
+        assert "DEFAULT" in source
+
+    def test_upgrade_copies_data(self):
+        """upgrade() must migrate existing rows into the partitioned table."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        assert "INSERT INTO operations_partitioned SELECT * FROM operations" in source
+
+    def test_upgrade_atomic_rename_swap(self):
+        """upgrade() must perform the old/new rename swap."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        assert "operations_old" in source
+        assert "RENAME TO operations_old" in source
+        assert "RENAME TO operations" in source
+
+    def test_upgrade_recreates_child_fk_constraints(self):
+        """upgrade() must drop and recreate FKs for all child tables."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        child_constraints = [
+            "findings_operation_id_fkey",
+            "redactions_operation_id_fkey",
+            "artifacts_operation_id_fkey",
+        ]
+        for constraint in child_constraints:
+            assert constraint in source, (
+                f"FK constraint {constraint} not handled in upgrade()"
+            )
+
+    def test_upgrade_reenables_rls(self):
+        """upgrade() must re-enable RLS on the new partitioned parent."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        assert "ENABLE ROW LEVEL SECURITY" in source
+        assert "FORCE ROW LEVEL SECURITY" in source
+
+    def test_upgrade_drops_old_table(self):
+        """upgrade() must clean up the original non-partitioned table."""
+        m = self._load_migration()
+        source = inspect.getsource(m.upgrade)
+        assert "DROP TABLE operations_old" in source
+
+    def test_downgrade_raises(self):
+        """downgrade() must raise NotImplementedError — no safe auto-rollback."""
+        import pytest
+        m = self._load_migration()
+        with pytest.raises(NotImplementedError):
+            m.downgrade()

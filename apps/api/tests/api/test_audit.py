@@ -90,6 +90,7 @@ def _make_mock_operation() -> MagicMock:
     op.findings = [finding]
     op.redactions = [redaction]
     op.artifacts = [artifact]
+    op.sanitized_text = None  # None until sanitizer_agent runs; must not be MagicMock
 
     return op
 
@@ -108,9 +109,16 @@ def _recompute_hmac(response_body: dict, secret: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+_MOCK_ACTOR = {"sub": str(_ACTOR_ID), "preferred_username": "testuser"}
+
+
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
-    """AsyncClient wired to the FastAPI app with all infra dependencies mocked."""
+    """AsyncClient wired to the FastAPI app with all infra dependencies mocked.
+
+    The ``require_auth`` dependency is overridden to return a fixed actor dict
+    so that tests do not need a real Keycloak instance.
+    """
     mock_broker = AsyncMock()
     mock_broker.enqueue = AsyncMock()
 
@@ -124,6 +132,10 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     async def _fake_get_db() -> AsyncGenerator[Any, None]:
         yield mock_session
 
+    async def _fake_require_auth() -> dict:
+        return _MOCK_ACTOR
+
+    from core.auth_oidc import require_auth as real_require_auth
     from db import session as session_module
     from db.session import get_db as real_get_db
 
@@ -134,6 +146,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         patch("api.v1.health._check_minio", return_value="ok"),
     ):
         app.dependency_overrides[real_get_db] = _fake_get_db
+        app.dependency_overrides[real_require_auth] = _fake_require_auth
         app.state.broker = mock_broker
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -313,6 +326,126 @@ async def test_audit_hmac_is_valid(client: AsyncClient) -> None:
     assert len(recomputed) == 64, "Recomputed HMAC should be 64-char hex"
     # Note: the endpoint signs Python objects (before JSON serialization), so exact
     # bit comparison requires matching serialization. We verify structural validity here.
+
+
+@pytest.mark.asyncio
+async def test_audit_sarif_format_returns_valid_structure(client: AsyncClient) -> None:
+    """GET /v1/audit/{trace_id}?format=sarif must return a SARIF 2.1.0 document."""
+    mock_op = _make_mock_operation()
+
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = mock_op
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = mock_scalars
+
+    mock_db = AsyncMock()
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    async def _fake_db() -> AsyncGenerator[Any, None]:
+        yield mock_db
+
+    from db.session import get_db as real_get_db
+
+    app.dependency_overrides[real_get_db] = _fake_db
+
+    resp = await client.get(f"/v1/audit/{_TRACE_ID}?format=sarif")
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    # T1 acceptance criterion 1: version is "2.1.0"
+    assert body["version"] == "2.1.0", f"Expected SARIF version 2.1.0, got {body.get('version')}"
+
+    # T1 acceptance criterion 2: $schema key is present
+    assert "$schema" in body, "SARIF output must include '$schema' key"
+    assert "sarif" in body["$schema"].lower(), f"Unexpected $schema value: {body['$schema']}"
+
+    # T1 acceptance criterion 3: runs[0]["results"] is a list
+    assert "runs" in body, "SARIF output must include 'runs'"
+    assert isinstance(body["runs"], list) and len(body["runs"]) > 0
+    assert isinstance(body["runs"][0]["results"], list)
+
+    # T1 acceptance criterion 4: since mock_op has one finding, results is non-empty
+    # and level is a valid SARIF level value.
+    results = body["runs"][0]["results"]
+    assert len(results) == 1, f"Expected 1 SARIF result (from mock finding), got {len(results)}"
+    valid_levels = {"error", "warning", "note", "none"}
+    assert results[0]["level"] in valid_levels, (
+        f"SARIF result level '{results[0]['level']}' not in {valid_levels}"
+    )
+
+    # Additional structural checks
+    assert results[0]["ruleId"] == "pii-detector"
+    assert results[0]["message"]["text"] == "SSN_PATTERN"
+    assert "locations" in results[0]
+    assert results[0]["properties"]["confidence"] == 0.99
+
+
+@pytest.mark.asyncio
+async def test_audit_sarif_severity_mapping(client: AsyncClient) -> None:
+    """SARIF level must map SafeContext severity correctly (high → warning)."""
+    mock_op = _make_mock_operation()
+    # mock_op finding has severity="high" → should map to "warning"
+
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = mock_op
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = mock_scalars
+
+    mock_db = AsyncMock()
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    async def _fake_db() -> AsyncGenerator[Any, None]:
+        yield mock_db
+
+    from db.session import get_db as real_get_db
+
+    app.dependency_overrides[real_get_db] = _fake_db
+
+    resp = await client.get(f"/v1/audit/{_TRACE_ID}?format=sarif")
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    results = body["runs"][0]["results"]
+    assert results[0]["level"] == "warning", (
+        "Finding with severity='high' must produce SARIF level='warning'"
+    )
+
+
+@pytest.mark.asyncio
+async def test_audit_sarif_hmac_in_run_properties(client: AsyncClient) -> None:
+    """SARIF runs[0].properties.safecontext must include hmac_signature and trace_id."""
+    mock_op = _make_mock_operation()
+    mock_op.sanitized_text = None
+
+    mock_scalars = MagicMock()
+    mock_scalars.first.return_value = mock_op
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = mock_scalars
+
+    mock_db = AsyncMock()
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    async def _fake_db() -> AsyncGenerator[Any, None]:
+        yield mock_db
+
+    from db.session import get_db as real_get_db
+
+    app.dependency_overrides[real_get_db] = _fake_db
+
+    resp = await client.get(f"/v1/audit/{_TRACE_ID}?format=sarif")
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    sc_props = body["runs"][0]["properties"]["safecontext"]
+    assert "hmac_signature" in sc_props
+    assert sc_props["trace_id"] == str(_TRACE_ID)
 
 
 @pytest.mark.asyncio

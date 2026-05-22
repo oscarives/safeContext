@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,7 @@ from schemas.audit import (
     FindingAuditSchema,
     RedactionAuditSchema,
 )
+from schemas.sarif import audit_to_sarif
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -195,21 +196,30 @@ async def verification_key() -> VerificationKeyResponse:
     )
 
 
-@router.get("/audit/{trace_id}", response_model=AuditExportResponse, tags=["audit"])
+@router.get("/audit/{trace_id}", tags=["audit"])
 async def audit_export_endpoint(
     trace_id: UUID,
     actor: Annotated[dict, Depends(require_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> AuditExportResponse:
+    format: Annotated[str, Query(description="Response format: 'json' (default) or 'sarif'")] = "json",
+) -> AuditExportResponse | dict:
     """
     Return full audit evidence for the operation identified by trace_id.
 
     Requires a valid Bearer token (any authenticated user).
     The response payload is signed with HMAC-SHA256 so consumers can verify
     integrity without trusting the transport layer.
+
+    Use ``?format=sarif`` to receive the findings in SARIF 2.1.0 format,
+    compatible with GitHub Advanced Security, VS Code, and other SARIF tools.
     """
     actor_id: str = str(actor.get("sub", "unknown"))
     result = await get_audit_export(trace_id, db, actor_id=actor_id)
     if result is None:
         raise HTTPException(status_code=404, detail="trace_id not found")
+
+    if format == "sarif":
+        sarif_output = audit_to_sarif(result)
+        return sarif_output.model_dump(by_alias=True)
+
     return result

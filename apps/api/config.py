@@ -24,8 +24,9 @@ class Settings(BaseSettings):
     # MUST be True in production — enforces MFA on every authenticated API call.
     api_require_mfa: bool = True
 
-    mcp_auth_token: str
+    mcp_auth_token: str = ""
     mcp_rate_limit_rpm: int = 100
+    safecontext_env: str = "production"  # "dev" | "production"
 
     # OIDC / Keycloak
     keycloak_url: str = "http://keycloak:8080"

@@ -117,3 +117,23 @@ decision(findings) := d if {
         "critical_count":        count([f | f := findings[_]; f.severity == "critical"]),
     }
 }
+
+# ---------------------------------------------------------------------------
+# Waiver support — check if a finding is covered by an active waiver
+# ---------------------------------------------------------------------------
+
+# should_waive: true if any active waiver's rule_id matches the finding's rule_id
+# and the waiver's entity_pattern (regex) matches the finding's matched text.
+should_waive(finding, waivers) if {
+    some waiver in waivers
+    waiver.status == "active"
+    waiver.rule_id == finding.rule_id
+    regex.match(waiver.entity_pattern, finding.explanation.matched_text)
+}
+
+# active_findings_after_waivers: filter out findings covered by an active waiver.
+# Returns the subset of findings that are NOT waived.
+active_findings_after_waivers(findings, waivers) := [f |
+    f := findings[_]
+    not should_waive(f, waivers)
+]

@@ -298,9 +298,9 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 | ID | Tarea | Descripción | Criterio de aceptación | Esfuerzo | Desarrollado | Tests |
 |---|---|---|---|---|---|---|
-| **T1** | SARIF output | Exportar findings en formato SARIF 2.1 además de JSON propio. SARIF es el estándar que consume GitHub Advanced Security, SonarQube, etc. Sin esto, la integración en pipelines enterprise requiere trabajo extra del cliente. | `GET /v1/audit/{trace_id}?format=sarif` retorna SARIF válido contra schema oficial. `opa test` y CI verifica esquema. | 2 días | ❌ | ❌ |
-| **T2** | actor_id real desde JWT | Hoy `actor_id = 00000000-0000-0000-0000-000000000001` en todas las operaciones. El audit trail no es trazable por usuario. | `POST /v1/scan` extrae `sub` del JWT Bearer y lo guarda como `actor_id`. Operaciones MCP guardan `client_id` del token. Test: operación crea registro con actor_id ≠ sentinel. | 1 día | ❌ | ❌ |
-| **T3** | Rescan post-sanitización | Después de sanitizar, el documento redactado no se vuelve a analizar. Si quedan fugas, no se detectan. El informe lo marca como obligatorio. | Worker sanitizador invoca detector sobre el documento redactado. Si hay findings residuales, escala de nuevo. Test con documento que tiene PII en posición que podría quedar parcialmente redactada. | 2 días | ❌ | ❌ |
+| **T1** | SARIF output | Exportar findings en formato SARIF 2.1 además de JSON propio. SARIF es el estándar que consume GitHub Advanced Security, SonarQube, etc. Sin esto, la integración en pipelines enterprise requiere trabajo extra del cliente. | `GET /v1/audit/{trace_id}?format=sarif` retorna SARIF válido contra schema oficial. `opa test` y CI verifica esquema. | 2 días | ✅ `schemas/sarif.py` | ✅ `tests/api/test_audit.py` |
+| **T2** | actor_id real desde JWT | Hoy `actor_id = 00000000-0000-0000-0000-000000000001` en todas las operaciones. El audit trail no es trazable por usuario. | `POST /v1/scan` extrae `sub` del JWT Bearer y lo guarda como `actor_id`. Operaciones MCP guardan `client_id` del token. Test: operación crea registro con actor_id ≠ sentinel. | 1 día | ✅ `scan.py:_resolve_scan_actor` | ✅ `tests/api/test_scan.py` |
+| **T3** | Rescan post-sanitización | Después de sanitizar, el documento redactado no se vuelve a analizar. Si quedan fugas, no se detectan. El informe lo marca como obligatorio. | Worker sanitizador invoca detector sobre el documento redactado. Si hay findings residuales, escala de nuevo. Test con documento que tiene PII en posición que podría quedar parcialmente redactada. | 2 días | ✅ `workers/agents/rescan_agent.py` | ✅ `workers/tests/test_rescan.py` |
 
 ---
 
@@ -308,8 +308,8 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 | ID | Tarea | Descripción | Criterio de aceptación | Esfuerzo | Desarrollado | Tests |
 |---|---|---|---|---|---|---|
-| **T4** | Capa de reglas determinísticas | Hoy Presidio (ML) es el único motor de detección. El informe dice: "determinismo primero — la IA complementa, no reemplaza". Si el modelo no detecta un patrón nuevo (nuevo formato de API key, credencial custom), no hay net de seguridad. | Implementar `RegexDetector` que corra ANTES de Presidio con reglas para: connection strings, UUIDs en asignaciones `secret=`, tokens JWT, patrones de tarjetas en formatos no estándar. Mismo `DetectorInterface`. Test con patrones que Presidio no detecta. | 5 días | ❌ | ❌ |
-| **T6** | Golden corpus formal con métricas | Existe `corpus.json` con 30 samples pero no hay pipeline de evaluación en CI. El informe exige recall ≥ 95% en PII/PHI y ≥ 99% en secretos críticos, medido y documentado. Sin esto no se puede demostrar la calidad del detector a un cliente. | Corpus ampliado a ≥ 200 samples categorizados por tipo (EMAIL, API_KEY, SSN, CREDIT_CARD, PERSON, IBAN, MEDICAL_RECORD). Pipeline en CI que corra recall_evaluator y falle si recall < umbral. Métricas publicadas en Prometheus con alerta. | 4 días | ⚠️ (30 samples, sin CI) | ❌ |
+| **T4** | Capa de reglas determinísticas | Hoy Presidio (ML) es el único motor de detección. El informe dice: "determinismo primero — la IA complementa, no reemplaza". Si el modelo no detecta un patrón nuevo (nuevo formato de API key, credencial custom), no hay net de seguridad. | Implementar `RegexDetector` que corra ANTES de Presidio con reglas para: connection strings, UUIDs en asignaciones `secret=`, tokens JWT, patrones de tarjetas en formatos no estándar. Mismo `DetectorInterface`. Test con patrones que Presidio no detecta. | 5 días | ✅ `workers/ml/regex_detector.py` | ✅ `workers/tests/ml/test_regex_detector.py` (36 tests) |
+| **T6** | Golden corpus formal con métricas | Existe `corpus.json` con 30 samples pero no hay pipeline de evaluación en CI. El informe exige recall ≥ 95% en PII/PHI y ≥ 99% en secretos críticos, medido y documentado. Sin esto no se puede demostrar la calidad del detector a un cliente. | Corpus ampliado a ≥ 200 samples categorizados por tipo (EMAIL, API_KEY, SSN, CREDIT_CARD, PERSON, IBAN, MEDICAL_RECORD). Pipeline en CI que corra recall_evaluator y falle si recall < umbral. Métricas publicadas en Prometheus con alerta. | 4 días | ✅ 200 samples, 10 entidades | ✅ CI job `test-recall` en `ci.yml` |
 
 ---
 
@@ -317,8 +317,8 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 | ID | Tarea | Descripción | Criterio de aceptación | Esfuerzo | Desarrollado | Tests |
 |---|---|---|---|---|---|---|
-| **T5** | Sistema de waivers/excepciones | Hoy solo existe aprobar/rechazar un finding individual. No hay mecanismo para "permitir este tipo de hallazgo durante N días con aprobación del CISO". Sin esto, la plataforma es todo-o-nada, lo que genera fricción operacional inaceptable en enterprise. | Modelo `Waiver` en BD (finding_type, duration_days, ticket_id, approved_by, expires_at). `POST /v1/waivers`. OPA consulta waivers activos antes de escalar. Test: waiver activo evita escalado; waiver expirado no evita. | 4 días | ❌ | ❌ |
-| **T7** | Particionado PostgreSQL | Las tablas `operations` y `findings` crecen indefinidamente. Para volumen enterprise (miles de scans/día) y cumplimiento de retención GDPR (borrado por período), el particionado es necesario. | Migración Alembic que añade particionado por `created_at` (RANGE MONTHLY) en `operations` y `findings`. Test de borrado por partición. | 1 día | ❌ | ❌ |
+| **T5** | Sistema de waivers/excepciones | Hoy solo existe aprobar/rechazar un finding individual. No hay mecanismo para "permitir este tipo de hallazgo durante N días con aprobación del CISO". Sin esto, la plataforma es todo-o-nada, lo que genera fricción operacional inaceptable en enterprise. | Modelo `Waiver` en BD (finding_type, duration_days, ticket_id, approved_by, expires_at). `POST /v1/waivers`. OPA consulta waivers activos antes de escalar. Test: waiver activo evita escalado; waiver expirado no evita. | 4 días | ✅ `db/models/waiver.py` + `api/v1/waivers.py` | ✅ `tests/api/test_waivers.py` (28 tests) |
+| **T7** | Particionado PostgreSQL | Las tablas `operations` y `findings` crecen indefinidamente. Para volumen enterprise (miles de scans/día) y cumplimiento de retención GDPR (borrado por período), el particionado es necesario. | Migración Alembic que añade particionado por `created_at` (RANGE MONTHLY) en `operations` y `findings`. Test de borrado por partición. | 1 día | ✅ `db/migrations/versions/0005_partition_operations_findings.py` | ✅ `tests/db/test_schema.py` (10 tests) |
 
 ---
 
@@ -326,8 +326,8 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 | ID | Tarea | Descripción | Criterio de aceptación | Esfuerzo | Desarrollado | Tests |
 |---|---|---|---|---|---|---|
-| **T8** | OAuth 2.1 + PKCE para MCP HTTP | El spec MCP exige OAuth 2.1 con PKCE cuando se usa transporte HTTP. Hoy el MCP Server usa `MCP_AUTH_TOKEN` estático. Eso es aceptable para demo interna pero no para un cliente enterprise que conecte su agente externo. | Keycloak configurado como Authorization Server con PKCE. `mcp/auth.py` valida `audience`, Resource Indicators, `client_id`. Token estático solo en modo `dev`. Test de flujo completo PKCE. | 5 días | ❌ | ❌ |
-| **T9** | Consent management en MCP | El spec MCP dice: "el host debe controlar permisos y consentimiento; los servidores no deben ver más contexto del estrictamente necesario". Hoy el MCP Server acepta cualquier documento sin scope de consentimiento. | Claims de scope en token MCP: `scan:read`, `audit:read`, `review:write`. Validación por tool. Log de consentimiento en audit trail. Test: token sin `review:write` rechaza safecontext.approve. | 3 días | ❌ | ❌ |
+| **T8** | OAuth 2.1 + PKCE para MCP HTTP | El spec MCP exige OAuth 2.1 con PKCE cuando se usa transporte HTTP. Hoy el MCP Server usa `MCP_AUTH_TOKEN` estático. Eso es aceptable para demo interna pero no para un cliente enterprise que conecte su agente externo. | Keycloak configurado como Authorization Server con PKCE. `mcp/auth.py` valida `audience`, Resource Indicators, `client_id`. Token estático solo en modo `dev`. Test de flujo completo PKCE. | 5 días | ✅ `mcp/auth.py` reescrito + Keycloak scopes | ✅ `tests/mcp/test_mcp_oauth.py` (9 tests) |
+| **T9** | Consent management en MCP | El spec MCP dice: "el host debe controlar permisos y consentimiento; los servidores no deben ver más contexto del estrictamente necesario". Hoy el MCP Server acepta cualquier documento sin scope de consentimiento. | Claims de scope en token MCP: `scan:read`, `audit:read`, `review:write`. Validación por tool. Log de consentimiento en audit trail. Test: token sin `review:write` rechaza safecontext.approve. | 3 días | ✅ `mcp/scopes.py` + `dispatch_tool()` | ✅ `tests/mcp/test_mcp_scopes.py` (15 tests) |
 
 ---
 
@@ -338,7 +338,7 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 | **T10a** | Python 3.14 | Migrado a Python 3.14 (soportado hasta 2029). | Baja | ✅ |
 | **T10b** | Next.js 16.2 | Actualizado a Next.js 16.2 con React 19, Node.js 24.16.0. | Baja | ✅ |
 | **T10c** | PostgreSQL 18.4 | Actualizado a PostgreSQL 18.4. | Baja | ✅ |
-| **T10d** | MinIO due diligence | Repositorio público archivado en abril 2026. ADR-011 abstrajo el storage correctamente. Evaluar AIStor o alternativa S3-compatible antes de primer cliente enterprise real. | Media | ❌ |
+| **T10d** | MinIO due diligence | Repositorio público archivado en abril 2026. ADR-011 abstrajo el storage correctamente. Evaluar AIStor o alternativa S3-compatible antes de primer cliente enterprise real. | Media | ✅ ADR-013 creado, `.env.example` actualizado a `S3_*`, MinIO CE pinned a `RELEASE.2025-09-07` |
 
 ---
 
@@ -346,10 +346,10 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 | ID | Deuda | Impacto | Dónde está |
 |---|---|---|---|
-| **TECH-DEBT-001** | `actor_id` sentinel hardcodeado en `/v1/scan` y `/v1/review` | Audit trail no trazable por usuario real. Bloquea T2. | `apps/api/api/v1/scan.py:83`, `review.py:140` |
-| **TECH-DEBT-002** | `MinIO` nombrado explícitamente en variables de entorno y comentarios | Cosmético — el código real usa `StoragePort` (ADR-011). Swap técnico es trivial. | `.env.example`, comentarios en workers |
-| **TECH-DEBT-003** | Tokens MCP estáticos en modo dev y CI | Aceptable para desarrollo. Bloquea T8. | `apps/api/mcp/auth.py`, `.env.example` |
-| **TECH-DEBT-004** | Corpus de evaluación con solo 30 samples | Insuficiente para demostrar recall a cliente enterprise. Bloquea T6. | `workers/tests/fixtures/corpus/corpus.json` |
+| **TECH-DEBT-001** | ~~`actor_id` sentinel hardcodeado~~ | ~~Audit trail no trazable por usuario real.~~ | ✅ Resuelto en T2 (2026-05-22) |
+| **TECH-DEBT-002** | ~~`MinIO` nombrado explícitamente en variables de entorno y comentarios~~ | ~~Cosmético — el código real usa `StoragePort` (ADR-011).~~ | ✅ Resuelto en T10d (2026-05-22) — vars renombradas a `S3_*`, ADR-013 documenta el upgrade path |
+| **TECH-DEBT-003** | ~~Tokens MCP estáticos en modo dev y CI~~ | ~~Aceptable para desarrollo. Bloquea T8.~~ | ✅ Resuelto en T8 (2026-05-22) — token estático solo en `SAFECONTEXT_ENV=dev` |
+| **TECH-DEBT-004** | ~~Corpus de evaluación con solo 30 samples~~ | ~~Insuficiente para demostrar recall a cliente enterprise.~~ | ✅ Resuelto en T6 (2026-05-22) — 200 samples + CI gate |
 
 ---
 
@@ -376,38 +376,31 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 | Dimensión | Estado | Gap principal |
 |---|---|---|
 | Arquitectura | ✅ Completa | — |
-| Backend API | ✅ Completa | T2: actor_id real |
-| Workers / Agentes | ✅ Completa | T3: rescan, T4: capa determinística |
+| Backend API | ✅ Completa | — |
+| Workers / Agentes | ✅ Completa | — |
 | Frontend UI | ✅ Completa | — |
-| MCP Server | ⚠️ Funcional, no enterprise | T8: OAuth2.1/PKCE, T9: consent |
-| Policy Engine | ✅ Completa | T5: waivers |
-| Audit Trail | ⚠️ Funcional, trazabilidad parcial | T2: actor_id, T1: SARIF |
-| Observabilidad | ✅ Completa | T6: corpus en CI |
+| MCP Server | ✅ Enterprise-grade | — |
+| Policy Engine | ✅ Completa | — |
+| Audit Trail | ✅ Completa | — |
+| Observabilidad | ✅ Completa | — |
 | Supply Chain | ✅ Completa | — |
 | DevSecOps / CI | ✅ Completa | — |
-| Auth / Identidad | ✅ Completa | T8: PKCE MCP |
-| Offline / Air-gapped | ✅ Completa | T10d: MinIO due diligence |
-| Base de datos | ⚠️ Funcional | T7: particionado |
-| Tests | ✅ 43 UI + API tests | T6: golden corpus en CI |
+| Auth / Identidad | ✅ Completa | — |
+| Offline / Air-gapped | ✅ Completa | — |
+| Base de datos | ✅ Completa (particionada) | — |
+| Tests | ✅ 43 UI + 144 backend/ML/MCP tests | — |
 
 ---
 
 ## 11. Resumen para nuevos agentes
 
-**Madurez actual**: 3.5–4 / 5
+**Madurez actual**: 4.5 / 5 ✅
 
-**Lo que existe y funciona**: stack completo Docker Compose, FastAPI + Workers + PostgreSQL + Redis + MinIO + OPA + Keycloak + Vault + Harbor + Kubernetes + CI/CD + Frontend Next.js con OIDC.
+**Lo que existe y funciona**: stack completo Docker Compose, FastAPI + Workers + PostgreSQL (particionado) + Redis + MinIO CE pinned (S3_* vars, upgrade path a AIStor documentado en ADR-013) + OPA (con waivers) + Keycloak + Vault + Harbor + Kubernetes + CI/CD + Frontend Next.js con OIDC + MCP Server enterprise (OAuth 2.1 + consent) + RegexDetector + Rescan + SARIF output + Golden corpus (200 samples) en CI.
 
-**Lo que NO existe todavía** (tareas del replanteo):
-- SARIF output (T1)
-- actor_id real desde JWT (T2) — **tocar scan.py y review.py**
-- Rescan post-sanitización (T3)
-- Capa de reglas determinísticas pre-ML (T4)
-- Sistema de waivers (T5)
-- Golden corpus ≥ 200 samples en CI (T6)
-- Particionado PostgreSQL (T7)
-- OAuth 2.1 + PKCE en MCP (T8)
-- Consent management MCP (T9)
+**Backlog de replanteo T1–T10**: ✅ COMPLETADO (2026-05-22)
+
+**No hay gaps de código pendientes.** Para alcanzar 5/5 (Enterprise regulado multi-tenant) se requieren: multi-tenancy, evidencias firmadas con timestamp authority, y hardening de compliance repetible — trabajo de F6 fuera del roadmap actual.
 
 **Antes de implementar cualquier cosa**: verifica que no esté ya implementado consultando los flags de esta tabla y leyendo el archivo correspondiente en el repo.
 

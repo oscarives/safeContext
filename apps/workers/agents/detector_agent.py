@@ -32,11 +32,38 @@ from workers.core.db import get_session
 from workers.core.metrics import FINDINGS_TOTAL, TASKS_TOTAL, TASK_DURATION_SECONDS
 from workers.core.opa_client import OPAUnavailableError, opa_client
 from workers.ml.presidio_detector import PresidioDetector
+from workers.ml.regex_detector import RegexDetector
 
-# Module-level singleton — PresidioDetector holds no per-task state;
-# the spaCy model is already a class-level singleton (_analyzer). Creating
-# a new instance per task is unnecessary allocation.
+# Module-level singletons — neither detector holds per-task mutable state.
+# RegexDetector is instantiated alongside PresidioDetector so both are ready
+# before any task arrives (T4: regex pre-ML layer).
+_regex_detector = RegexDetector()
 _detector = PresidioDetector()
+
+
+def _merge_findings(regex: list, presidio: list) -> list:
+    """Merge regex and Presidio findings, deduplicating by span overlap.
+
+    Regex findings are authoritative for any span they cover. Presidio
+    findings that overlap with an existing regex finding are dropped to
+    avoid duplicate annotations on the same text range.
+
+    Args:
+        regex:   Findings from RegexDetector (higher-confidence, deterministic).
+        presidio: Findings from PresidioDetector (NER / ML-based).
+
+    Returns:
+        Combined, span-start–sorted list with no overlapping entries.
+    """
+    merged = list(regex)
+    for pf in presidio:
+        overlaps = any(
+            max(rf.span_start, pf.span_start) < min(rf.span_end, pf.span_end)
+            for rf in regex
+        )
+        if not overlaps:
+            merged.append(pf)
+    return sorted(merged, key=lambda f: f.span_start)
 
 logger = structlog.get_logger(__name__)
 
@@ -121,10 +148,18 @@ async def _process_scan_async(operation_id: str) -> None:
             payload: dict = outbox_entry.payload
             document_text: str = payload.get("document_text", "")
 
-            # ── 4. Run detector ──────────────────────────────────────────────
-            findings = await _detector.detect(document_text, policy)
+            # ── 4. Run detectors (T4: regex pre-ML + Presidio NER) ───────────
+            regex_findings = await _regex_detector.detect(document_text, policy)
+            presidio_findings = await _detector.detect(document_text, policy)
+            findings = _merge_findings(regex_findings, presidio_findings)
 
-            logger.info("detector_agent.findings", id=operation_id, count=len(findings))
+            logger.info(
+                "detector_agent.findings",
+                id=operation_id,
+                count=len(findings),
+                regex_count=len(regex_findings),
+                presidio_count=len(presidio_findings),
+            )
 
             # ── 5. Persist findings ──────────────────────────────────────────
             for f in findings:

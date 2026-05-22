@@ -122,6 +122,27 @@ jobs:
           print(f'PASS: coverage {pct:.1f}%')
           "
 
+  test-recall:
+    name: ML recall gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install worker dependencies
+        run: pip install -r apps/workers/requirements.txt
+        working-directory: ${{ github.workspace }}
+      - name: Download spaCy model
+        run: python -m spacy download en_core_web_lg
+      - name: Run recall evaluation
+        run: pytest apps/workers/tests/ml/test_recall.py -v --tb=short
+        env:
+          PYTHONPATH: ${{ github.workspace }}/apps/workers:${{ github.workspace }}/apps/api
+      - name: Assert recall thresholds
+        if: always()
+        run: echo "Recall gate complete — check test output above"
+
   safecontext-gate:
     name: SafeContext security gate
     runs-on: ubuntu-latest

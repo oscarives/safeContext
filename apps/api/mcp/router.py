@@ -20,7 +20,8 @@ from db.models.operation import Operation
 from db.models.outbox import Outbox
 from db.models.redaction import Redaction
 from db.session import get_db
-from mcp.auth import require_mcp_token
+from mcp.auth import require_mcp_oauth, require_mcp_token  # noqa: F401 — keep alias for imports
+from mcp.scopes import require_tool_scope
 from mcp.schemas import (
     ClassifyToolRequest,
     ClassifyToolResponse,
@@ -73,7 +74,7 @@ VERSION_COMPAT: dict[tuple[str, str], str] = {
 
 @router.get("/tools", summary="List available MCP tools and their schemas")
 async def list_tools(
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
     request: Request,
 ) -> dict[str, Any]:
     fallback = request.client.host if request.client else "unknown"
@@ -93,7 +94,7 @@ async def dispatch_tool(
     call: MCPToolCallVersioned,
     response: Response,
     request: Request,
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
     fallback = request.client.host if request.client else "unknown"
@@ -116,20 +117,23 @@ async def dispatch_tool(
     if key not in VERSION_COMPAT:
         raise HTTPException(status_code=404, detail=f"Tool '{call.tool}' not found")
 
+    # T9: enforce consent-management scope before dispatching
+    require_tool_scope(call.tool, _token_payload)
+
     if call.tool == "safecontext.scan":
         req = ScanToolRequest(**call.input)
-        return await tool_scan(req, response, _token, db)
+        return await tool_scan(req, response, _token_payload, db)
     elif call.tool == "safecontext.sanitize":
         req = SanitizeToolRequest(**call.input)
-        return await tool_sanitize(req, response, _token, db)
+        return await tool_sanitize(req, response, _token_payload, db)
     elif call.tool == "safecontext.classify":
         req = ClassifyToolRequest(**call.input)
-        return await tool_classify(req, response, _token, db)
+        return await tool_classify(req, response, _token_payload, db)
     elif call.tool == "safecontext.approve":
         if version == "1.0.0":
             raise HTTPException(400, "safecontext.approve requires tool_version >= 1.1.0")
         req = ApproveToolRequest(**call.input)
-        return await tool_approve(req, response, _token, db)
+        return await tool_approve(req, response, _token_payload, db)
     else:
         raise HTTPException(404, f"Tool '{call.tool}' not supported via /call")
 
@@ -145,7 +149,7 @@ async def dispatch_tool(
 async def tool_scan(
     request: ScanToolRequest,
     response: Response,
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
     with tracer.start_as_current_span("mcp.scan") as span:
@@ -158,10 +162,12 @@ async def tool_scan(
         except ValueError:
             trace_uuid = uuid.uuid4()
 
+        # Derive actor_id from JWT sub claim (or raw token in dev mode for compat)
+        _actor_token = _token_payload.get("_raw_token") or _token_payload.get("sub", "unknown")
         # actor_type='mcp_agent' — ADR-004, E1.4 acceptance criterion
         operation = Operation(
             trace_id=trace_uuid,
-            actor_id=uuid.UUID(hashlib.sha256(_token.encode()).hexdigest()[:32]),
+            actor_id=uuid.UUID(hashlib.sha256(_actor_token.encode()).hexdigest()[:32]),
             actor_type="mcp_agent",
             document_id=uuid.uuid4(),
             artifact_digest=artifact_digest,
@@ -216,7 +222,7 @@ async def tool_scan(
 async def tool_sanitize(
     request: SanitizeToolRequest,
     response: Response,
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
     with tracer.start_as_current_span("mcp.sanitize"):
@@ -310,7 +316,7 @@ async def tool_sanitize(
 async def tool_classify(
     request: ClassifyToolRequest,
     response: Response,
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
     with tracer.start_as_current_span("mcp.classify") as span:
@@ -355,10 +361,12 @@ async def tool_classify(
                 )
             )
 
+        # Derive actor_id from JWT sub claim (or raw token in dev mode for compat)
+        _actor_token = _token_payload.get("_raw_token") or _token_payload.get("sub", "unknown")
         # Record operation for audit trail
         operation = Operation(
             trace_id=trace_uuid,
-            actor_id=uuid.UUID(hashlib.sha256(_token.encode()).hexdigest()[:32]),
+            actor_id=uuid.UUID(hashlib.sha256(_actor_token.encode()).hexdigest()[:32]),
             actor_type="mcp_agent",
             document_id=uuid.uuid4(),
             artifact_digest=hashlib.sha256(request.document.encode()).hexdigest(),
@@ -397,7 +405,7 @@ class AuditToolRequest(BaseModel):
 )
 async def tool_audit(
     request: AuditToolRequest,
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
     from api.v1.audit import get_audit_export
@@ -431,7 +439,7 @@ class PolicyGetRequest(BaseModel):
 )
 async def tool_policy_get(
     request: PolicyGetRequest,
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
 ) -> MCPToolResult:
     import httpx
 
@@ -488,7 +496,7 @@ class ApproveToolRequest(BaseModel):
 async def tool_approve(
     request: ApproveToolRequest,
     response: Response,
-    _token: Annotated[str, Depends(require_mcp_token)],
+    _token_payload: Annotated[dict, Depends(require_mcp_oauth)],
     db: AsyncSession = Depends(get_db),
 ) -> MCPToolResult:
     with tracer.start_as_current_span("mcp.approve") as span:
