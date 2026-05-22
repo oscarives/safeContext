@@ -154,6 +154,7 @@ async def get_audit_export(
         redactions=redactions,
         artifacts=artifacts,
         hmac_signature=signature,
+        sanitized_document=operation.sanitized_text,  # None until sanitizer_agent runs
     )
 
 

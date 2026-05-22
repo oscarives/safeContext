@@ -43,3 +43,7 @@ class AuditExportResponse(BaseModel):
     redactions: list[RedactionAuditSchema]
     artifacts: list[ArtifactAuditSchema]
     hmac_signature: str  # HMAC-SHA256 of serialized payload
+    # The document with all PII/secret spans replaced by [REDACTED].
+    # None if the operation is still pending sanitization.
+    # Use this field to safely pass the document to an LLM or downstream system.
+    sanitized_document: str | None = None

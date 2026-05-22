@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from core.auth_oidc import _decode_token
 from core.constants import SENTINEL_ACTOR_ID
+from db.models.operation import Operation as OperationModel
 from core.logging import get_logger
 from core.metrics import operations_total, scan_duration
 from core.tracing import get_trace_id, tracer
@@ -103,6 +104,38 @@ async def scan(
 
         # --- artifact digest ---
         artifact_digest = hashlib.sha256(body.document.encode()).hexdigest()
+
+        # --- deduplication: return previous result for identical documents ------
+        # If the same document + policy combination was already successfully
+        # processed, return the existing trace_id immediately without re-scanning.
+        # This prevents double-sanitization of already-clean documents and avoids
+        # false positives on previously-sanitized content (idempotent scanning).
+        from sqlalchemy import select as sa_select
+        existing_op = (await db.execute(
+            sa_select(OperationModel)
+            .where(
+                OperationModel.artifact_digest == artifact_digest,
+                OperationModel.policy_version == (body.policy_version or ""),
+                OperationModel.status.in_(["completed", "escalated"]),
+            )
+            .order_by(OperationModel.created_at.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+
+        if existing_op is not None:
+            logger.info(
+                "scan.deduplicated",
+                artifact_digest=artifact_digest,
+                reusing_trace_id=str(existing_op.trace_id),
+            )
+            response.headers["X-Trace-ID"] = str(existing_op.trace_id)
+            return ScanResponse(
+                trace_id=existing_op.trace_id,
+                artifact_digest=artifact_digest,
+                policy_version=existing_op.policy_version,
+                findings=[],
+                requires_human_review=existing_op.status == "escalated",
+            )
 
         # --- policy version ---
         http_client: httpx.AsyncClient = request.app.state.http_client

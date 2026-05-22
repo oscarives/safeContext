@@ -27,9 +27,12 @@ class Operation(Base):
     actor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     actor_type: Mapped[str] = mapped_column(String(20), nullable=False)
     document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    artifact_digest: Mapped[str] = mapped_column(Text, nullable=False)
+    artifact_digest: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     policy_version: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    # The document text with all PII spans replaced by their redaction markers.
+    # Set by sanitizer_agent after applying redactions. None until sanitization runs.
+    sanitized_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

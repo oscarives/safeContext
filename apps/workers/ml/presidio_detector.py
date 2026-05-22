@@ -12,6 +12,15 @@ from __future__ import annotations
 import logging
 import threading
 
+# Email domains that are clearly test/example data and should not be flagged as PII.
+# These are standard RFC 2606 / IANA reserved domains plus common dev placeholders.
+_EXEMPT_EMAIL_DOMAINS: frozenset[str] = frozenset({
+    "test.com", "test.local", "test.org", "test.net",
+    "example.com", "example.org", "example.net",
+    "localhost", "local", "invalid",
+    "testmail.com", "mailtest.com",
+})
+
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, RecognizerResult
 from presidio_analyzer import Pattern
 
@@ -210,6 +219,24 @@ class PresidioDetector(DetectorInterface):
         findings: list[Finding] = []
         for r in results:
             entity_type: str = r.entity_type
+            matched_text: str = text[r.start:r.end]
+
+            # Skip already-redacted spans — document was previously sanitized
+            if "[REDACTED]" in matched_text:
+                continue
+
+            # Skip email addresses from known test/example domains (false positives
+            # produced when test data or previously-sanitized content is re-scanned)
+            if entity_type == "EMAIL_ADDRESS" and "@" in matched_text:
+                domain = matched_text.split("@")[-1].strip().lower()
+                if domain in _EXEMPT_EMAIL_DOMAINS:
+                    logger.debug(
+                        "presidio_detector.exempt_email",
+                        domain=domain,
+                        span=f"{r.start}:{r.end}",
+                    )
+                    continue
+
             severity: str = _SEVERITY.get(entity_type, "medium")
             finding = Finding(
                 detector=f"presidio.{entity_type}",

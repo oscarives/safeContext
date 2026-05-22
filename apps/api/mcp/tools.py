@@ -56,6 +56,10 @@ MCP_TOOLS: list[dict[str, Any]] = [
                     },
                 },
                 "requires_human_review": {"type": "boolean"},
+                "sanitized_document": {
+                    "type": "string",
+                    "description": "The document with all PII/secret spans replaced by [REDACTED]. Use this field to safely pass the document to an LLM. Null if the operation is still pending or requires human review.",  # noqa: E501
+                },
             },
         },
     },

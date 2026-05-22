@@ -15,10 +15,11 @@ import uuid
 
 import dramatiq
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from db.models.finding import Finding as FindingModel
 from db.models.operation import Operation
+from db.models.outbox import Outbox
 from db.models.redaction import Redaction
 
 from workers.core.db import get_session
@@ -35,6 +36,39 @@ logger = structlog.get_logger(__name__)
 )
 def process_sanitize(operation_id: str) -> None:
     asyncio.run(_process_sanitize_async(operation_id))
+
+
+def _apply_redactions(text: str, findings: list, redaction_map: dict[uuid.UUID, str]) -> str:
+    """Apply span-based redactions to the document text.
+
+    Processes spans from end to start so that earlier span offsets remain valid
+    after each replacement. The result is a coherent sanitized document where
+    every sensitive span is replaced by its redaction marker.
+
+    Args:
+        text:          Original document text.
+        findings:      List of FindingModel instances ordered by span_start.
+        redaction_map: Mapping of finding.id → redaction_type.
+
+    Returns:
+        The sanitized text with all PII/secret spans replaced.
+    """
+    _REDACTION_MARKERS = {
+        "mask":    "[REDACTED]",
+        "remove":  "",
+        "replace": "[REDACTED]",
+    }
+
+    # Sort descending by span_start so we process from the end of the string
+    # — this preserves the byte offsets of earlier spans during replacement.
+    sorted_findings = sorted(findings, key=lambda f: f.span_start, reverse=True)
+
+    chars = list(text)
+    for f in sorted_findings:
+        marker = _REDACTION_MARKERS.get(redaction_map.get(f.id, "mask"), "[REDACTED]")
+        chars[f.span_start:f.span_end] = list(marker)
+
+    return "".join(chars)
 
 
 async def _process_sanitize_async(operation_id: str) -> None:
@@ -67,15 +101,29 @@ async def _process_sanitize_async(operation_id: str) -> None:
             )
             findings = findings_result.scalars().all()
 
+            # ── Fetch original document text from outbox payload ──────────────
+            outbox_result = await session.execute(
+                select(Outbox).where(
+                    Outbox.payload["operation_id"].as_string() == operation_id
+                )
+            )
+            outbox_entry: Outbox | None = outbox_result.scalars().first()
+            document_text: str = outbox_entry.payload.get("document_text", "") if outbox_entry else ""
+
+            # ── Apply redactions and compute sanitized text ───────────────────
+            redaction_map: dict[uuid.UUID, str] = {}
+
             if not findings:
                 logger.info(
                     "sanitizer_agent.no_findings",
                     id=operation_id,
                     proceeding_to="audit",
                 )
+                sanitized_text = document_text  # no changes needed
             else:
                 for f in findings:
                     redaction_type = _severity_to_redaction_type(f.severity)
+                    redaction_map[f.id] = redaction_type
                     redaction = Redaction(
                         finding_id=f.id,
                         operation_id=op_uuid,
@@ -89,10 +137,21 @@ async def _process_sanitize_async(operation_id: str) -> None:
                         type=redaction_type,
                     )
 
+                # Build the sanitized text by applying all redactions
+                sanitized_text = _apply_redactions(document_text, findings, redaction_map)
+
+            # ── Persist sanitized text on the operation ───────────────────────
+            await session.execute(
+                update(Operation)
+                .where(Operation.id == op_uuid)
+                .values(sanitized_text=sanitized_text)
+            )
+
             logger.info(
                 "sanitizer_agent.done",
                 id=operation_id,
                 redactions=len(findings),
+                sanitized_length=len(sanitized_text),
             )
 
     from workers.agents.auditor_agent import process_audit
