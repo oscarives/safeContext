@@ -174,6 +174,9 @@ def check_rate_limit(client_id: str) -> None:
     Note: in-memory, not shared across worker processes.
     For multi-replica deployments, replace with a Redis sliding-window counter (F4).
     """
+    # global declaration must be at the top of the function (before any use of the variable)
+    global _rate_limit_last_eviction
+
     now = time.time()
     window_start = now - 60.0
     timestamps = [t for t in _rate_limit_store.get(client_id, []) if t > window_start]
@@ -189,7 +192,6 @@ def check_rate_limit(client_id: str) -> None:
     # Evict idle clients at most once per 30 s to avoid an O(n) scan on every
     # request once the store exceeds 10 000 entries.
     if len(_rate_limit_store) > 10_000 and now - _rate_limit_last_eviction > _RATE_LIMIT_EVICTION_INTERVAL:
-        global _rate_limit_last_eviction
         stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < window_start]
         for k in stale:
             del _rate_limit_store[k]
