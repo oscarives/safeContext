@@ -1,6 +1,6 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Build context: project root (.) — gives access to apps/workers/ and apps/api/db/
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ RUN python -c "from presidio_analyzer import AnalyzerEngine; AnalyzerEngine()" &
     echo "Presidio initialized successfully"
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # Layout:
 #   /workspace/workers/   ← worker source (from workers/)
@@ -32,8 +32,8 @@ FROM python:3.12-slim AS runtime
 # PYTHONPATH=/workspace → "from workers.xxx" and "from db.xxx" both resolve
 WORKDIR /workspace
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages \
-                    /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/lib/python3.14/site-packages \
+                    /usr/local/lib/python3.14/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /models /models
 
