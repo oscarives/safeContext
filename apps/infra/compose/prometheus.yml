@@ -4,11 +4,13 @@ global:
   scrape_interval:     15s
   evaluation_interval: 15s
   scrape_timeout:      10s
-  # Prometheus v3: Content-Type header is now required by scraped targets.
-  # fallback_scrape_protocol is used when a target returns no Content-Type
-  # or an unsupported one. Keeps compatibility with targets that haven't
-  # migrated to OpenMetrics format.
-  fallback_scrape_protocol: PrometheusText0.0.4
+  # Prometheus v3: scrape_protocols defines the Accept header order sent to targets.
+  # Default already includes PrometheusText0.0.4 — explicit here for clarity.
+  # NOTE: fallback_scrape_protocol is per-job only (not valid in global).
+  scrape_protocols:
+    - OpenMetricsText1.0.0
+    - OpenMetricsText0.0.1
+    - PrometheusText0.0.4
   external_labels:
     project: safecontext
     environment: development
