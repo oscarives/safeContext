@@ -7,7 +7,7 @@
 ## SKILL-BACKEND · FastAPI + Workers + OPA
 
 ### Stack
-- Python 3.12, FastAPI, asyncio, Pydantic v2
+- Python 3.14, FastAPI, asyncio, Pydantic v2
 - Dramatiq + Redis broker
 - OPA client (opa-python-client o HTTP directo)
 - SQLAlchemy async + Alembic
@@ -94,7 +94,7 @@ async def process_scan(operation_id: str):
 ## SKILL-FRONTEND · Next.js + TypeScript + shadcn/ui
 
 ### Stack
-- Next.js 14+ (App Router), TypeScript estricto
+- Next.js 16.2 (App Router), TypeScript estricto
 - Tailwind CSS, shadcn/ui
 - Custom cache handler (Redis) para multi-instancia
 - Nginx como reverse proxy con TLS
@@ -149,7 +149,7 @@ const nextConfig = {
 ## SKILL-DATA · PostgreSQL + Alembic + pgAudit
 
 ### Stack
-- PostgreSQL 15+, pgAudit
+- PostgreSQL 18.4, pgAudit
 - SQLAlchemy async + Alembic para migraciones
 - psycopg3 como driver
 

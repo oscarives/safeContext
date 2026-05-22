@@ -92,22 +92,25 @@ SafeContext expone sus capacidades como MCP Server, lo que permite que cualquier
 
 | Componente | Tecnología | Versión | Justificación | ADR referenciado |
 |---|---|---|---|---|
-| Backend API | FastAPI + asyncio | Python 3.12 | Alto rendimiento, OpenAPI automática, ecosistema ML robusto, compatibilidad con Presidio/spaCy | ADR-003 |
+| Backend API | FastAPI + asyncio | Python 3.14 | Alto rendimiento, OpenAPI automática, ecosistema ML robusto, compatibilidad con Presidio/spaCy | ADR-003 |
 | MCP Server | Módulo FastAPI propio | MCP spec actual | Comparte autenticación, observabilidad y acceso a agentes; protocolo abierto sin lock-in | ADR-003 |
-| Frontend | Next.js + TypeScript | Next.js 14+ | SSR, streaming, self-hosting, compatible con shadcn/ui y Tailwind CSS | — |
-| Base de datos | PostgreSQL | 15+ | JSONB nativo, Row Level Security (RLS), pgAudit, HA con WAL archiving, TLS | ADR-001 |
-| Message broker | Redis | 7+ | Broker efímero para Dramatiq; cache de Next.js en multi-instancia | ADR-002 |
+| Frontend | Next.js + TypeScript | Next.js 16.2 | SSR, streaming, self-hosting, compatible con shadcn/ui y Tailwind CSS; React 19; Node.js 24.16.0 | — |
+| Base de datos | PostgreSQL | 18.4 | JSONB nativo, Row Level Security (RLS), pgAudit, HA con WAL archiving, TLS | ADR-001 |
+| Message broker | Redis | 7.4 | Broker efímero para Dramatiq; cache de Next.js en multi-instancia | ADR-002 |
 | Workers | Dramatiq | — | Más simple que Celery para tareas idempotentes sin DAGs complejos; soporta DLQ y backoff | ADR-007 |
 | Almacenamiento | MinIO | AGPL / Commercial | S3-compatible, object locking (WORM), erasure coding, Server-Side Encryption (SSE) | ADR-008 |
-| Motor de políticas | OPA / Rego | OPA 0.60+ | Policy-as-code versionado, testeable con `opa test`, hot-reload sin reinicio | ADR-005 |
+| Motor de políticas | OPA / Rego | OPA 1.4.0 | Policy-as-code versionado, testeable con `opa test`, hot-reload sin reinicio | ADR-005 |
 | Detección NLP/ML | Presidio + spaCy + Transformers | — | Modular, reemplazable via interfaz abstraída `DetectorInterface`, operación offline | ADR-010 |
 | Observabilidad | OpenTelemetry + Prometheus | — | Estándar de industria, vendor-neutral, trazas distribuidas + métricas de calidad | ADR-009 |
 | Dashboards | Grafana | — | Visualización de métricas Prometheus y error budgets SLO | ADR-009 |
 | Orquestación F1-F2 | Docker Compose | v2+ | Despliegue reproducible en single-node con un comando | ADR-006 |
 | Orquestación F3+ | Kubernetes | 1.28+ | HPA, PodDisruptionBudget, NetworkPolicy, External Secrets Operator | ADR-006 |
-| Proxy reverso | nginx | 1.25+ | Terminación TLS, rate limiting, enrutamiento UI/API | — |
-| Gestión identidad | Keycloak (OIDC) | 23+ | SSO/MFA para humanos; OIDC client credentials para agentes MCP | — |
-| Secretos (F4+) | HashiCorp Vault / KMS | — | Rotación de claves sin downtime, secretos no estáticos | — |
+| Proxy reverso | nginx | 1.28 | Terminación TLS, rate limiting, enrutamiento UI/API | — |
+| Gestión identidad | Keycloak (OIDC) | 26.2 | SSO/MFA para humanos; OIDC client credentials para agentes MCP | — |
+| Secretos (F4+) | OpenBao / KMS | 2.5.4 (fork MPL 2.0, Linux Foundation) | Rotación de claves sin downtime, secretos no estáticos | — |
+| Almacenamiento objetos | MinIO | RELEASE.2025-09-07 | S3-compatible, WORM, erasure coding, SSE | ADR-008 |
+| Observabilidad — métricas | Prometheus | v3.11.3 | Vendor-neutral, scrape multi-target | ADR-009 |
+| Observabilidad — dashboards | Grafana | 13.0.1 | Visualización SLO y error budgets | ADR-009 |
 
 ---
 
@@ -764,7 +767,7 @@ El schema SQL completo con comentarios se encuentra en `apps/api/db/migrations/`
 ```sql
 -- ============================================================
 -- SafeContext — Schema canónico de base de datos
--- PostgreSQL 15+
+-- PostgreSQL 18.4
 -- Todas las tablas con RLS habilitado
 -- ============================================================
 
@@ -951,7 +954,7 @@ Este patrón permite reemplazar Redis por RabbitMQ o MinIO por cualquier almacé
 |---|---|---|
 | F1–F2 | Variables de entorno en `.env` (nunca en imagen ni repositorio) | Aceptable en desarrollo; documentado en `.env.example` |
 | F3 | OIDC para CI/CD — sin secretos en pipelines. Trivy escanea imágenes | 0 secretos en CI/CD |
-| F4 | HashiCorp Vault / KMS. External Secrets Operator en K8s | 0 secretos estáticos en cualquier capa |
+| F4 | OpenBao 2.5.4 / KMS. External Secrets Operator en K8s | 0 secretos estáticos en cualquier capa |
 | F5 | Vault en modo offline. Rotación de claves documentada para air-gapped | 0 dependencias externas para autenticación |
 
 ---

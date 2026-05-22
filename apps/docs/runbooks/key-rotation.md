@@ -1,6 +1,6 @@
 # Runbook: Key Rotation (KMS)
 
-**Versión**: 1.0.0 · **Sistema**: HashiCorp Vault Transit Engine
+**Versión**: 1.0.0 · **Sistema**: OpenBao 2.5.4 Transit Engine (fork MPL 2.0, Linux Foundation)
 **RTO de rotación**: < 5 minutos sin downtime
 
 ## 1. Rotar clave de cifrado MinIO

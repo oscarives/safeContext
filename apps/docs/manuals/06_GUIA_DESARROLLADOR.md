@@ -28,8 +28,8 @@
 | Herramienta | Versión mínima | Verificar |
 |---|---|---|
 | Docker Desktop | 24+ | `docker --version` |
-| Python | 3.12+ | `python --version` |
-| Node.js | 20+ | `node --version` |
+| Python | 3.14 | `python --version` |
+| Node.js | 24.16.0 | `node --version` |
 | Git | 2.40+ | `git --version` |
 
 ### Primeros pasos (desde cero)

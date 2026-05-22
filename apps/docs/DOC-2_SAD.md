@@ -323,7 +323,7 @@ services:
 | Licencia MinIO CE AGPLv3 incompatible | Media | Alto — bloqueo legal | Decisión explícita de edición antes de F3. |
 | MCP spec con breaking changes | Baja a media | Medio | Abstracción de protocolo desde F1. Versionado de tools desde F2. |
 | Detector con recall < umbral en producción | Media | Alto — fuga de datos no detectada | Evaluación continua con corpus etiquetado desde F1. Alertas automáticas. |
-| Python 3.12 EOL | Baja (2028) | Medio | Plan de migración a 3.13+ en roadmap F3-F4. |
+| Python 3.14 soportado hasta 2029 | Ninguno | — | Versión activa en uso; próxima revisión al lanzar 3.16. |
 | Deuda de UI por shadcn sin sistema de diseño | Alta | Bajo-Medio | ADRs de componentes y tokens de diseño desde F1. |
 
 ---

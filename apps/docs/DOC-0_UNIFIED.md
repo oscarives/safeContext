@@ -150,13 +150,16 @@ Si limpio → Pipeline continúa con evidencia de escaneo adjunta
 
 | Componente | Tecnología | Versión mínima | Justificación | Lock-in |
 |---|---|---|---|---|
-| Backend | FastAPI + asyncio | Python 3.12 | High performance, OpenAPI implícita, ecosistema ML | Bajo — interfaz REST estándar |
-| Frontend | Next.js + TypeScript | Next.js 14+ | SSR, streaming, self-hosting, Tailwind/shadcn | Medio — sustituible por cualquier cliente MCP |
-| Base de datos | PostgreSQL | 15+ | JSONB, RLS, pgAudit, HA, TLS | Bajo — SQL estándar |
-| Cola/Workers | Redis (broker) + Dramatiq | Redis 7+ | Broker efímero, no fuente de verdad | Bajo — Dramatiq soporta RabbitMQ |
-| Almacenamiento de artefactos | MinIO | AGPL o comercial | S3-compatible, WORM, erasure coding, SSE | Bajo — S3-compatible |
-| Motor de políticas | OPA / Rego | OPA 0.60+ | Policy-as-code, versionado, testeable | Medio — Rego es DSL propio |
-| Observabilidad | OpenTelemetry + Prometheus | — | Estándar de industria, vendor-neutral | Ninguno |
+| Backend | FastAPI + asyncio | Python 3.14 | High performance, OpenAPI implícita, ecosistema ML | Bajo — interfaz REST estándar |
+| Frontend | Next.js + TypeScript | Next.js 16.2 | SSR, streaming, self-hosting, Tailwind/shadcn | Medio — sustituible por cualquier cliente MCP |
+| Base de datos | PostgreSQL | 18.4 | JSONB, RLS, pgAudit, HA, TLS | Bajo — SQL estándar |
+| Cola/Workers | Redis (broker) + Dramatiq | Redis 7.4 | Broker efímero, no fuente de verdad | Bajo — Dramatiq soporta RabbitMQ |
+| Almacenamiento de artefactos | MinIO | RELEASE.2025-09-07 | S3-compatible, WORM, erasure coding, SSE | Bajo — S3-compatible |
+| Motor de políticas | OPA / Rego | OPA 1.4.0 | Policy-as-code, versionado, testeable | Medio — Rego es DSL propio |
+| Observabilidad | OpenTelemetry + Prometheus + Grafana | Prometheus v3.11.3 · Grafana 13.0.1 | Estándar de industria, vendor-neutral | Ninguno |
+| Secretos / KMS | OpenBao | 2.5.4 (MPL 2.0, Linux Foundation) | Fork de Vault; rotación de claves sin downtime | Bajo — API compatible con Vault |
+| Auth / SSO | Keycloak | 26.2 | OIDC + MFA, SSO empresarial | Bajo — estándar OIDC |
+| Proxy reverso | nginx | 1.28 | Terminación TLS, rate limiting | Bajo |
 | Orquestación | Docker Compose → Kubernetes | — | Compose para desarrollo/single-node; K8s para HA/multi-tenant | Bajo |
 | MCP Server | Implementación propia sobre FastAPI | MCP spec actual | Exposición de agentes internos como tools | Ninguno — protocolo abierto |
 | NLP/ML detección | Presidio + spaCy + Transformers | — | Modular, reemplazable por detector custom | Bajo — interfaz de detector abstraída |
@@ -259,7 +262,7 @@ Surgieron del análisis externo de madurez realizado en mayo 2026. No invalidan 
 | T7 | Particionado PostgreSQL | Escala y retención GDPR | ❌ Pendiente |
 | T8 | OAuth 2.1 + PKCE para MCP HTTP | MCP spec compliance enterprise | ❌ Pendiente |
 | T9 | Consent management en MCP | MCP spec compliance enterprise | ❌ Pendiente |
-| T10 | Actualización de versiones (Python, Next.js, PG, MinIO due diligence) | Mantenimiento y seguridad | ❌ Pendiente |
+| T10 | Actualización de versiones (Python 3.14, Next.js 16.2, PG 18.4, MinIO due diligence) | Mantenimiento y seguridad | ✅ Completado |
 
 ---
 

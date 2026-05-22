@@ -16,7 +16,7 @@ StoragePort      → S3StorageAdapter       (usa boto3 + endpoint MinIO)
 
 ## Consecuencias
 - El código de negocio (workers, API) nunca importa `redis` o `boto3` directamente.
-- Cambiar de Redis 7 → Redis 8, o de MinIO CE → AIStor, requiere solo:
+- Cambiar de Redis 7.4 → versión futura, o de MinIO CE → AIStor, requiere solo:
   1. Actualizar el adapter correspondiente (o parámetros de configuración).
   2. Cambiar variables de entorno.
 - El selector de adapter es configuración: `BROKER_ADAPTER=redis`, `STORAGE_ADAPTER=minio`.

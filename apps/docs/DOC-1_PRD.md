@@ -187,7 +187,7 @@ SafeContext ocupa un espacio no cubierto: **gobierno de contexto para pipelines 
 |---|---|
 | Redis 8 usa licencia tri-license — requiere revisión legal antes de producción | Puede requerir alternativa (RabbitMQ) si la licencia es incompatible |
 | MinIO CE es AGPLv3 — requiere decisión explícita sobre edición | AIStor (comercial) o despliegue AGPL con análisis legal |
-| Python 3.12 en security fixes only desde 2025 | Plan de migración a 3.13+ antes de F4 |
+| Python 3.14 soportado hasta 2029 | Versión activa con soporte completo |
 | MCP spec puede evolucionar — el servidor debe soportar versionado de tools | Diseño defensivo desde F1 |
 
 ---

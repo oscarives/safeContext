@@ -136,15 +136,18 @@ si limpio: pipeline continúa con evidencia de escaneo adjunta
 
 | Componente | Tecnología | Versión actual | Nota |
 |---|---|---|---|
-| Backend | FastAPI + Python | 3.12.x | Upgrade a 3.13+ planificado |
-| Frontend | Next.js + TypeScript | 14.2.3 / TS 5 | Upgrade a 15+ planificado |
-| Base de datos | PostgreSQL | 15 (CI), 17+ recomendado | JSONB + RLS + pgAudit |
-| Cola/Workers | Redis + Dramatiq | Redis 7 | Broker efímero únicamente |
-| Almacenamiento | MinIO (StoragePort abstraction) | CE AGPLv3 | ADR-011: swap = solo `.env` |
-| Motor de políticas | OPA / Rego | 0.60+ | Policy-as-code versionado |
-| Observabilidad | OTel + Prometheus + Grafana | — | Vendor-neutral |
-| Auth | Keycloak | Self-hosted | OIDC + MFA |
-| KMS | HashiCorp Vault | Self-hosted | Rotación de claves |
+| Backend | FastAPI + Python | 3.14 | Versión activa con soporte hasta 2029 |
+| Frontend | Next.js + TypeScript | 16.2 / TS 5 | App Router; React 19 |
+| Base de datos | PostgreSQL | 18.4 | JSONB + RLS + pgAudit |
+| Cola/Workers | Redis + Dramatiq | Redis 7.4 | Broker efímero únicamente |
+| Almacenamiento | MinIO (StoragePort abstraction) | RELEASE.2025-09-07 | ADR-011: swap = solo `.env` |
+| Motor de políticas | OPA / Rego | 1.4.0 | Policy-as-code versionado |
+| Observabilidad | OTel + Prometheus + Grafana | Prometheus v3.11.3 · Grafana 13.0.1 | Vendor-neutral |
+| Proxy reverso | nginx | 1.28 | Terminación TLS, rate limiting |
+| Node.js (frontend runtime) | Node.js | 24.16.0 | Runtime para Next.js 16.2 |
+| React | React | 19 | UI components |
+| Auth | Keycloak | 26.2 | OIDC + MFA |
+| KMS | OpenBao | 2.5.4 (fork MPL 2.0, Linux Foundation) | Rotación de claves |
 | Registry | Harbor | Self-hosted | Air-gapped ready |
 | Orquestación | Docker Compose → Kubernetes | — | Compose F1-F2; K8s F3+ |
 | NLP/PII | Presidio + spaCy en_core_web_lg | 2.2.x | Interfaz abstraída (ADR-010) |
@@ -238,7 +241,7 @@ Convención de flags:
 | Entregable | Descripción | Desarrollado | Tests |
 |---|---|---|---|
 | E4.1 · Identidad y acceso | Keycloak SSO/MFA, roles Viewer/Reviewer/PolicyEditor/Admin, SoD, rate limiting | ✅ | ✅ |
-| E4.2 · KMS | HashiCorp Vault integrado, rotación de claves MinIO sin downtime | ✅ | ✅ |
+| E4.2 · KMS | OpenBao 2.5.4 integrado, rotación de claves MinIO sin downtime | ✅ | ✅ |
 | E4.3 · SLOs | 99.9% disponibilidad, p95 < 5s, error budget dashboard, alertas | ✅ | ✅ |
 | E4.4 · DR verificado | RTO < 15 min en drill, RPO < 5 min, drill trimestral en calendario | ✅ | ✅ |
 | E4.5 · Versionado MCP | tool_version en requests, backward compat N-1 | ✅ | ✅ `tests/mcp/test_mcp_versioning.py` |
@@ -332,9 +335,9 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 | ID | Tarea | Descripción | Prioridad | Desarrollado |
 |---|---|---|---|---|
-| **T10a** | Python 3.13+ | Python 3.12 en security-fixes-only desde 2025. Migrar a 3.13 antes de F4 real. | Baja | ❌ |
-| **T10b** | Next.js 15+ | Actualizar cuando haya smoke-test verde en staging. | Baja | ❌ |
-| **T10c** | PostgreSQL 17+ | En el siguiente DR drill planificar upgrade. | Baja | ❌ |
+| **T10a** | Python 3.14 | Migrado a Python 3.14 (soportado hasta 2029). | Baja | ✅ |
+| **T10b** | Next.js 16.2 | Actualizado a Next.js 16.2 con React 19, Node.js 24.16.0. | Baja | ✅ |
+| **T10c** | PostgreSQL 18.4 | Actualizado a PostgreSQL 18.4. | Baja | ✅ |
 | **T10d** | MinIO due diligence | Repositorio público archivado en abril 2026. ADR-011 abstrajo el storage correctamente. Evaluar AIStor o alternativa S3-compatible antes de primer cliente enterprise real. | Media | ❌ |
 
 ---

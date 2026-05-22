@@ -592,12 +592,12 @@ El drill de Disaster Recovery se ejecuta trimestralmente para verificar que los 
 
 ### 7.1 Rotacion de claves (KMS)
 
-Vault gestiona el ciclo de vida de las claves criptograficas usadas para cifrar artefactos en MinIO y firmar el audit trail.
+OpenBao 2.5.4 (fork MPL 2.0, Linux Foundation) gestiona el ciclo de vida de las claves criptograficas usadas para cifrar artefactos en MinIO y firmar el audit trail.
 
-**URL Vault**: http://localhost:8200
+**URL OpenBao**: http://localhost:8200
 **Token de acceso**: definido en `.env` como `VAULT_DEV_ROOT_TOKEN_ID`
 
-> En produccion, usar Vault con autenticacion AppRole en lugar del token de dev.
+> En produccion, usar OpenBao con autenticacion AppRole en lugar del token de dev.
 
 **Referencia completa**: `docs/runbooks/key-rotation.md`
 
