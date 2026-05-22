@@ -12,12 +12,11 @@ const nextConfig = {
   // dependency resolution differences between environments.
   eslint: { ignoreDuringBuilds: true },
 
-  // Redis cache backend (ADR-002) — DESHABILITADO temporalmente.
-  // El cache handler fue escrito para Next.js 14. Next.js 16 cambió
-  // el formato de los cache entries (nueva API de CacheHandler).
-  // Error: "Invariant app-page handler received invalid cache entry undefined"
-  // TODO: actualizar cache-handler.js a la nueva API de Next.js 16 (CacheHandler v2)
-  // antes de re-habilitar en producción multi-instancia.
+  // Redis cache backend (ADR-002) — activo en todos los entornos.
+  // Actualizado a CacheHandler v2 (Next.js 16): get() retorna { lastModified, value }
+  // en lugar del dato crudo. Backward compatible con entradas Next.js 14 en Redis.
+  cacheHandler: require.resolve('./cache-handler'),
+  cacheMaxMemorySize: 0,  // Redis es la única fuente — sin caché en memoria
 
   // API rewrites so UI can call /api/* → FastAPI
   async rewrites() {

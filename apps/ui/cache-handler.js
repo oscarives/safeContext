@@ -1,6 +1,14 @@
 'use strict'
 // Redis-backed Next.js cache handler (ADR-002)
 // CommonJS format required by Next.js cacheHandler option (runs in Node.js, not Edge).
+//
+// Next.js 16 CacheHandler v2 API:
+//   get(key)  → { lastModified: number, value: <data> } | null   (wrapping required)
+//   set(key, data, ctx) → void
+//   revalidateTag(tag)  → void
+//
+// Previous (Next.js 14) API returned raw data from get() without wrapping.
+// Next.js 16 accesses entry.value — returning raw data causes "invalid cache entry undefined".
 
 const { createClient } = require('redis')
 
@@ -23,21 +31,11 @@ async function getClient() {
  *
  * Pure function — no side effects, fully unit-testable without Redis.
  *
- * Next.js 14 App Router passes different data shapes depending on the entry type:
- *   { kind: 'APP_PAGE',  html, rscData, status? }  — App Router pages
- *   { kind: 'APP_ROUTE', body, status, headers }   — App Router route handlers
- *   { kind: 'PAGE',      html, pageData, status? } — Pages Router pages
- *   { kind: 'ROUTE',     body, status, headers }   — Pages Router API routes
- *   { kind: 'FETCH',     data: { status, … }, revalidate } — fetch() cache
- *   { kind: 'REDIRECT',  props }                   — redirect responses
- *   { kind: 'NOT_FOUND' }                          — not-found responses
- *
- * The original check `data.status === 404` only caught ROUTE/APP_ROUTE kinds.
- * NOT_FOUND, REDIRECT, and non-200 statuses on other kinds were missed,
- * causing 404/redirect responses to be cached and poison subsequent requests.
+ * Next.js 16 App Router passes different data shapes depending on the entry type.
+ * The `shouldCache` check operates on the inner `value` field (not the wrapper).
  *
  * @param {string} key   - The cache key (route path)
- * @param {unknown} data - The value Next.js wants to cache
+ * @param {unknown} data - The inner value Next.js wants to cache (not the wrapper)
  * @returns {boolean}    - true if the entry should be stored, false to skip
  */
 function shouldCache(key, data) {
@@ -66,22 +64,49 @@ function shouldCache(key, data) {
 }
 
 class RedisCache {
+  /**
+   * Retrieve a cached entry.
+   *
+   * Next.js 16 expects: { lastModified: number, value: <data> } | null
+   * (NOT the raw data — accessing .value on raw data gives undefined → invariant error)
+   */
   async get(key) {
     try {
       const c = await getClient()
       if (!c) return null
-      const data = await c.get(`nextjs:${key}`)
-      return data ? JSON.parse(data) : null
+      const raw = await c.get(`nextjs:${key}`)
+      if (!raw) return null
+      const stored = JSON.parse(raw)
+      // Detect Next.js 16 format (already wrapped) vs legacy Next.js 14 format (raw data)
+      if (
+        stored !== null &&
+        typeof stored === 'object' &&
+        'value' in stored &&
+        'lastModified' in stored
+      ) {
+        return stored  // already in { lastModified, value } format
+      }
+      // Legacy entry — wrap it so Next.js 16 can access .value correctly
+      return { lastModified: Date.now(), value: stored }
     } catch { return null }
   }
 
+  /**
+   * Store a cache entry.
+   *
+   * `data` is the inner value (APP_PAGE, APP_ROUTE, FETCH, etc.).
+   * We wrap it in { lastModified, value } for Next.js 16 compatibility.
+   */
   async set(key, data, ctx) {
     try {
       if (!shouldCache(key, data)) return
       const c = await getClient()
       if (!c) return
       const ttl = typeof ctx?.revalidate === 'number' ? ctx.revalidate : 3600
-      await c.setEx(`nextjs:${key}`, ttl, JSON.stringify(data))
+      await c.setEx(`nextjs:${key}`, ttl, JSON.stringify({
+        lastModified: Date.now(),
+        value: data,
+      }))
     } catch {}
   }
 
