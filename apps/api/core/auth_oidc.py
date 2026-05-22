@@ -180,8 +180,36 @@ async def require_auth(
     return payload
 
 
+async def check_rate_limit_redis(client_id: str, redis_client) -> None:
+    """Rate limit via Redis sorted sets — works across multiple API replicas.
+
+    Pattern: ZREMRANGEBYSCORE (evict expired) + ZCARD (count) + ZADD (add current)
+    in a single pipeline → atomic O(log n) sliding window.
+    """
+    now = time.time()
+    window_start = now - 60.0
+    key = f"sc:rl:{client_id}"
+
+    async with redis_client.pipeline(transaction=True) as pipe:
+        await pipe.zremrangebyscore(key, 0, window_start)
+        await pipe.zcard(key)
+        await pipe.zadd(key, {str(now): now})
+        await pipe.expire(key, 120)   # TTL safety net
+        results = await pipe.execute()
+
+    count_before = results[1]
+    if count_before >= MCP_RATE_LIMIT_RPM:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded: {MCP_RATE_LIMIT_RPM} requests/minute",
+            headers={"Retry-After": "60"},
+        )
+
+
 def check_rate_limit(client_id: str) -> None:
     """Rate limit by client_id: MCP_RATE_LIMIT_RPM requests per minute.
+
+    Fallback in-memory implementation used when Redis is unavailable.
 
     Uses deque(maxlen=RPM) for O(1) append + O(1) head-eviction instead of
     rebuilding a filtered list on every request.

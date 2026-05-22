@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth_oidc import check_rate_limit
+from core.auth_oidc import check_rate_limit, check_rate_limit_redis
 from core.tracing import get_trace_id, tracer
 from db.models.operation import Operation
 from db.models.outbox import Outbox
@@ -78,7 +78,10 @@ async def list_tools(
 ) -> dict[str, Any]:
     fallback = request.client.host if request.client else "unknown"
     client_id = request.headers.get("X-Client-ID", fallback)
-    check_rate_limit(client_id)
+    try:
+        await check_rate_limit_redis(client_id, request.app.state.redis_rl)
+    except Exception:
+        check_rate_limit(client_id)  # fallback to in-memory if Redis unavailable
     return {"tools": MCP_TOOLS}
 
 
@@ -95,7 +98,10 @@ async def dispatch_tool(
 ) -> MCPToolResult:
     fallback = request.client.host if request.client else "unknown"
     client_id = request.headers.get("X-Client-ID", fallback)
-    check_rate_limit(client_id)
+    try:
+        await check_rate_limit_redis(client_id, request.app.state.redis_rl)
+    except Exception:
+        check_rate_limit(client_id)  # fallback to in-memory if Redis unavailable
     version = call.tool_version
     if version not in SUPPORTED_VERSIONS:
         raise HTTPException(
