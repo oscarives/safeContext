@@ -88,28 +88,27 @@ class OPAClient:
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     async def _refresh(self) -> None:
-        """Fetch the current policy version and update the cache."""
-        resp = await self._http.get(f"{self._url}/v1/policies/safecontext-base")
-        if resp.status_code == 200:
-            data = resp.json()
-            self._policy_version = data.get("result", {}).get("id", "unknown")
+        """Fetch the current policy version and update the cache.
 
-            # Attempt to fetch semantic version from policy data
-            meta_resp = await self._http.get(
-                f"{self._url}/v1/data/safecontext/policy/policy_version"
+        OPA 1.x with bundle/volume loading does NOT register policies via
+        the /v1/policies API (that endpoint is only for policies pushed via PUT).
+        Policies loaded from filesystem bundles are only accessible via /v1/data.
+        """
+        # Fetch semantic version from policy data (primary source of truth)
+        meta_resp = await self._http.get(
+            f"{self._url}/v1/data/safecontext/policy/policy_version"
+        )
+        if meta_resp.status_code == 200:
+            self._policy_version = str(
+                meta_resp.json().get("result", self._policy_version)
             )
-            if meta_resp.status_code == 200:
-                self._policy_version = meta_resp.json().get(
-                    "result", self._policy_version
-                )
 
-            # Fetch the full base policy bundle for the cache
-            policy_resp = await self._http.get(
-                f"{self._url}/v1/data/safecontext/policy"
-            )
-            if policy_resp.status_code == 200:
-                self._policy_cache["base"] = policy_resp.json().get("result", {})
-
+        # Fetch the full base policy bundle for the in-memory cache
+        policy_resp = await self._http.get(
+            f"{self._url}/v1/data/safecontext/policy"
+        )
+        if policy_resp.status_code == 200:
+            self._policy_cache["base"] = policy_resp.json().get("result", {})
             log.debug("opa_client.policy_refreshed", version=self._policy_version)
 
     def _default_policy(self) -> dict:
