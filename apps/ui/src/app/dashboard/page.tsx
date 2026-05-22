@@ -214,7 +214,16 @@ export default function DashboardPage() {
             pending: data.total_escalated ?? 0,
             rejected: data.total_rejected ?? 0,
           })
-          setOperations(data.items ?? [])
+          // Map OperationItem → OperationRow (internal display shape)
+          setOperations(
+            (data.items ?? []).map(op => ({
+              id: op.id.toString(),
+              digest: op.artifact_digest,
+              status: op.status as OperationRow['status'],
+              findings: op.findings_count,
+              date: new Date(op.created_at).toLocaleString('es-ES'),
+            }))
+          )
           setOpsNotAvailable(false)
         }
       } catch {
