@@ -15,12 +15,17 @@ export interface SafeContextSession {
   roles: string[]       // realm_access.roles from JWT
   accessToken: string   // raw JWT — passed as Authorization: Bearer header
   refreshToken: string
+  idToken: string       // raw id_token — used for OIDC end_session logout
   expiresAt: number     // unix timestamp (seconds)
 }
 
 // Decode the access token and build a SafeContextSession.
 // Returns null if the token is missing, malformed, or expired.
-function parseAccessToken(accessToken: string, refreshToken: string): SafeContextSession | null {
+function parseAccessToken(
+  accessToken: string,
+  refreshToken: string,
+  idToken: string,
+): SafeContextSession | null {
   try {
     const payload = decodeJwt(accessToken)
 
@@ -39,6 +44,7 @@ function parseAccessToken(accessToken: string, refreshToken: string): SafeContex
       roles,
       accessToken,
       refreshToken,
+      idToken,
       expiresAt: exp,
     }
   } catch {
@@ -47,20 +53,29 @@ function parseAccessToken(accessToken: string, refreshToken: string): SafeContex
   }
 }
 
-// The cookie value is `<accessToken>.<refreshToken>` (dot-separated).
-// We use a single cookie to keep the implementation simple; the access token
-// itself already contains a dot, so we split on the LAST occurrence.
-function encodeCookieValue(accessToken: string, refreshToken: string): string {
-  // Separator is '||' (not present in base64url-encoded JWTs)
-  return `${accessToken}||${refreshToken}`
+// Cookie format: `<accessToken>||<refreshToken>||<idToken>`
+// The separator '||' is not present in base64url-encoded JWTs.
+// The idToken part is new (v2 format) — backward compatible: old cookies without
+// idToken decode to an empty string, which still allows login to work.
+function encodeCookieValue(accessToken: string, refreshToken: string, idToken: string): string {
+  return `${accessToken}||${refreshToken}||${idToken}`
 }
 
-function decodeCookieValue(value: string): { accessToken: string; refreshToken: string } | null {
+function decodeCookieValue(
+  value: string,
+): { accessToken: string; refreshToken: string; idToken: string } | null {
   const idx = value.indexOf('||')
   if (idx === -1) return null
+  const afterFirst = value.slice(idx + 2)
+  const idx2 = afterFirst.indexOf('||')
+  if (idx2 === -1) {
+    // v1 format (no idToken) — backward compatible
+    return { accessToken: value.slice(0, idx), refreshToken: afterFirst, idToken: '' }
+  }
   return {
     accessToken: value.slice(0, idx),
-    refreshToken: value.slice(idx + 2),
+    refreshToken: afterFirst.slice(0, idx2),
+    idToken: afterFirst.slice(idx2 + 2),
   }
 }
 
@@ -89,7 +104,7 @@ export async function getSession(request?: Request): Promise<SafeContextSession 
   const parts = decodeCookieValue(decodeURIComponent(cookieValue))
   if (!parts) return null
 
-  return parseAccessToken(parts.accessToken, parts.refreshToken)
+  return parseAccessToken(parts.accessToken, parts.refreshToken, parts.idToken)
 }
 
 const COOKIE_OPTIONS = {
@@ -100,14 +115,15 @@ const COOKIE_OPTIONS = {
   path: '/',
 }
 
-// Build a Set-Cookie descriptor for createing the session.
+// Build a Set-Cookie descriptor for creating the session.
 export function createSessionCookie(
   accessToken: string,
-  refreshToken: string
+  refreshToken: string,
+  idToken: string,
 ): { name: string; value: string; options: typeof COOKIE_OPTIONS } {
   return {
     name: SESSION_COOKIE_NAME,
-    value: encodeCookieValue(accessToken, refreshToken),
+    value: encodeCookieValue(accessToken, refreshToken, idToken),
     options: COOKIE_OPTIONS,
   }
 }

@@ -52,9 +52,14 @@ export async function GET(request: Request) {
     const tokens = (await tokenResponse.json()) as {
       access_token: string
       refresh_token: string
+      id_token: string       // used for OIDC end_session logout
     }
 
-    const sessionCookie = createSessionCookie(tokens.access_token, tokens.refresh_token)
+    const sessionCookie = createSessionCookie(
+      tokens.access_token,
+      tokens.refresh_token,
+      tokens.id_token ?? '',
+    )
 
     const response = NextResponse.redirect(`${publicOrigin}/dashboard`)
     response.cookies.set(sessionCookie.name, sessionCookie.value, sessionCookie.options)
