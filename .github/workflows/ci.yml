@@ -71,9 +71,8 @@ jobs:
           python-version: "3.14"
       - name: Install dependencies
         run: |
-          pip install pytest pytest-asyncio httpx pydantic fastapi \
-            sqlalchemy asyncpg structlog opentelemetry-api opentelemetry-sdk \
-            prometheus-client PyJWT[crypto] alembic
+          pip install -r apps/api/requirements.txt
+          pip install pytest pytest-asyncio
       - name: Run Alembic migrations
         run: |
           cd apps/api
