@@ -23,7 +23,7 @@ IMAGES=(
   "minio/minio:RELEASE.2025-09-07T16-13-09Z"
   "otel/opentelemetry-collector-contrib:0.122.0"
   "prom/prometheus:v3.11.3"
-  "grafana/grafana:11.5.2"
+  "grafana/grafana:13.0.1-security-01"
   "nginx:1.28-alpine"
   "quay.io/keycloak/keycloak:26.2.0"
   "hashicorp/vault:1.16.2"

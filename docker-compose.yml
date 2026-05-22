@@ -404,7 +404,7 @@ services:
   # ── Grafana ──────────────────────────────────────────────────────────────────
   grafana:
     <<: *common
-    image: grafana/grafana:11.5.2
+    image: grafana/grafana:13.0.1-security-01
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${API_SECRET_KEY}
