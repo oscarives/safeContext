@@ -23,8 +23,8 @@ class WorkerSettings(BaseSettings):
 
     # ── MinIO / Storage ───────────────────────────────────────────────────────
     minio_endpoint: str = "minio:9000"
-    minio_access_key: str = ""
-    minio_secret_key: str = ""
+    minio_access_key: str        # required — no default, fails fast at startup if missing
+    minio_secret_key: str        # required — matches api/config.py convention
     minio_bucket_artifacts: str = "safecontext-artifacts"
     minio_use_ssl: bool = False
 

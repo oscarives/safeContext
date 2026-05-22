@@ -32,7 +32,6 @@ from dramatiq.middleware import AgeLimit, Retries, TimeLimit
 from workers.config import settings
 
 logger = structlog.get_logger(__name__)
-log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Broker + Middleware configuration
@@ -120,7 +119,7 @@ def _handle_sigterm(*_: object) -> None:
     Dramatiq's RedisBroker already flushes in-progress messages on SIGTERM.
     This handler stops our background tasks cleanly before the process exits.
     """
-    log.info("worker.sigterm_received", action="finishing_current_tasks")
+    logger.info("worker.sigterm_received", action="finishing_current_tasks")
     # Signal background tasks to stop (best-effort; process exits shortly)
     try:
         from workers.core.opa_client import opa_client
@@ -152,7 +151,7 @@ async def _startup_background_tasks() -> None:
     asyncio.create_task(opa_client.start_polling(), name="opa-hot-reload")
     asyncio.create_task(monitor_dlq(), name="dlq-monitor")
     asyncio.create_task(run_recall_loop(), name="recall-evaluator")
-    log.info("worker.background_tasks_started")
+    logger.info("worker.background_tasks_started")
 
 
 def _start_background_tasks() -> None:

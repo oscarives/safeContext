@@ -17,6 +17,7 @@ from typing import Any
 import dramatiq
 import structlog
 from dramatiq.brokers.redis import RedisBroker
+from dramatiq.brokers.stub import StubBroker
 from sqlalchemy import select, update
 
 # DB models are available via PYTHONPATH=/workspace in Docker
@@ -29,6 +30,7 @@ from db.models.outbox import Outbox
 from workers.config import settings
 from workers.core.db import get_session
 from workers.core.metrics import FINDINGS_TOTAL, TASKS_TOTAL, TASK_DURATION_SECONDS
+from workers.core.opa_client import opa_client
 from workers.ml.presidio_detector import PresidioDetector
 
 logger = structlog.get_logger(__name__)
@@ -41,10 +43,13 @@ logger = structlog.get_logger(__name__)
 
 try:
     _current_broker = dramatiq.get_broker()
-    if _current_broker.__class__.__name__ == "StubBroker":
+    # Use isinstance() — not a string comparison — so renaming or subclassing StubBroker
+    # doesn't silently break this check.
+    if isinstance(_current_broker, StubBroker):
         _broker = RedisBroker(url=settings.redis_url)
         dramatiq.set_broker(_broker)
-except Exception:
+except RuntimeError:
+    # Dramatiq raises RuntimeError when no broker has been configured yet.
     _broker = RedisBroker(url=settings.redis_url)
     dramatiq.set_broker(_broker)
 
@@ -66,11 +71,14 @@ def process_scan(operation_id: str) -> None:
 
 
 async def _process_scan_async(operation_id: str) -> None:
-    import httpx
-
     op_uuid = uuid.UUID(operation_id)
 
     with TASK_DURATION_SECONDS.labels(agent="detector").time():
+        # ── 3. Obtain OPA policy BEFORE opening DB session ───────────────────
+        # Cache lookup is free (in-memory); live fetch avoids holding a DB
+        # connection idle while waiting for OPA (up to 5 s timeout).
+        policy: dict[str, Any] = await opa_client.get_policy("base")
+
         async with get_session() as session:
             # ── 1. Idempotency check ─────────────────────────────────────────
             result = await session.execute(
@@ -108,23 +116,6 @@ async def _process_scan_async(operation_id: str) -> None:
             payload: dict = outbox_entry.payload
             document_text: str = payload.get("document_text", "")
 
-            # ── 3. Obtain OPA policy for this operation ──────────────────────
-            policy: dict[str, Any] = {}
-            try:
-                async with httpx.AsyncClient(timeout=5.0) as http:
-                    resp = await http.get(
-                        f"{settings.opa_url}/v1/data/safecontext/policy",
-                        params={"input": "{}"},
-                    )
-                    if resp.status_code == 200:
-                        policy = resp.json().get("result", {})
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "detector_agent.opa_unavailable",
-                    error=str(exc),
-                    using_defaults=True,
-                )
-
             # ── 4. Run detector ──────────────────────────────────────────────
             detector = PresidioDetector()
             findings = await detector.detect(document_text, policy)
@@ -161,13 +152,11 @@ async def _process_scan_async(operation_id: str) -> None:
                     for f in findings
                 ]
                 try:
-                    async with httpx.AsyncClient(timeout=5.0) as http:
-                        resp = await http.post(
-                            f"{settings.opa_url}/v1/data/safecontext/policy/operation_requires_review",
-                            json={"input": {"findings": findings_payload}},
-                        )
-                        if resp.status_code == 200:
-                            requires_review = bool(resp.json().get("result", False))
+                    result_data = await opa_client.evaluate(
+                        "safecontext/policy/operation_requires_review",
+                        {"findings": findings_payload},
+                    )
+                    requires_review = bool(result_data)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "detector_agent.opa_review_check_failed", error=str(exc)

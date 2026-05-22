@@ -21,6 +21,9 @@ class OPAClient:
 
     The client caches the last-known policy and falls back to sane defaults
     when OPA is unreachable, so workers never block on OPA availability.
+
+    A single persistent httpx.AsyncClient is shared across evaluate() and
+    _refresh() calls to avoid creating a new TCP connection per request.
     """
 
     def __init__(self, opa_url: str) -> None:
@@ -28,6 +31,9 @@ class OPAClient:
         self._policy_cache: dict = {}
         self._policy_version: str = "unknown"
         self._running: bool = False
+        # Persistent client — avoids new TCP connection per evaluate()/poll cycle.
+        # Closed in stop() when the singleton is shut down.
+        self._http = httpx.AsyncClient(timeout=5.0)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -49,13 +55,12 @@ class OPAClient:
         Returns:
             The ``result`` field from the OPA response, or an empty dict on error.
         """
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(
-                f"{self._url}/v1/data/{policy_path}",
-                json={"input": input_data},
-            )
-            resp.raise_for_status()
-            return resp.json().get("result", {})
+        resp = await self._http.post(
+            f"{self._url}/v1/data/{policy_path}",
+            json={"input": input_data},
+        )
+        resp.raise_for_status()
+        return resp.json().get("result", {})
 
     # ── Background polling ────────────────────────────────────────────────────
 
@@ -75,40 +80,39 @@ class OPAClient:
             await asyncio.sleep(settings.policy_poll_interval)
 
     async def stop(self) -> None:
-        """Stop the polling loop gracefully."""
+        """Stop the polling loop and close the persistent HTTP client."""
         self._running = False
+        await self._http.aclose()
         log.info("opa_client.polling_stopped")
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     async def _refresh(self) -> None:
         """Fetch the current policy version and update the cache."""
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{self._url}/v1/policies/safecontext-base")
-            if resp.status_code == 200:
-                data = resp.json()
-                self._policy_version = data.get("result", {}).get("id", "unknown")
+        resp = await self._http.get(f"{self._url}/v1/policies/safecontext-base")
+        if resp.status_code == 200:
+            data = resp.json()
+            self._policy_version = data.get("result", {}).get("id", "unknown")
 
-                # Attempt to fetch semantic version from policy data
-                meta_resp = await client.get(
-                    f"{self._url}/v1/data/safecontext/policy/policy_version"
+            # Attempt to fetch semantic version from policy data
+            meta_resp = await self._http.get(
+                f"{self._url}/v1/data/safecontext/policy/policy_version"
+            )
+            if meta_resp.status_code == 200:
+                self._policy_version = meta_resp.json().get(
+                    "result", self._policy_version
                 )
-                if meta_resp.status_code == 200:
-                    self._policy_version = meta_resp.json().get(
-                        "result", self._policy_version
-                    )
 
-                # Fetch the full base policy bundle for the cache
-                policy_resp = await client.get(
-                    f"{self._url}/v1/data/safecontext/policy"
-                )
-                if policy_resp.status_code == 200:
-                    self._policy_cache["base"] = policy_resp.json().get("result", {})
+            # Fetch the full base policy bundle for the cache
+            policy_resp = await self._http.get(
+                f"{self._url}/v1/data/safecontext/policy"
+            )
+            if policy_resp.status_code == 200:
+                self._policy_cache["base"] = policy_resp.json().get("result", {})
 
-                log.debug("opa_client.policy_refreshed", version=self._policy_version)
+            log.debug("opa_client.policy_refreshed", version=self._policy_version)
 
-    @staticmethod
-    def _default_policy() -> dict:
+    def _default_policy(self) -> dict:
         """Sane defaults used when OPA is unreachable and the cache is empty."""
         return {
             "entities": [
@@ -118,7 +122,9 @@ class OPAClient:
                 "API_KEY",
                 "PASSWORD",
             ],
-            "confidence_threshold": 0.85,
+            # Use the configured threshold instead of a hard-coded literal,
+            # so a .env override is respected even when OPA is down.
+            "confidence_threshold": settings.detector_confidence_threshold,
         }
 
 

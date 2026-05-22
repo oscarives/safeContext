@@ -35,18 +35,8 @@ from workers.core.metrics import (
     OUTBOX_RELAY_ERRORS,
 )
 
-# Bootstrap structlog for structured JSON output
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.stdlib.add_log_level,
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.BoundLogger,
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-)
-
+# Logging is configured by workers/main.py (the process entrypoint).
+# This module trusts that structlog has already been set up before it is imported.
 logger = structlog.get_logger(__name__)
 
 # Event type → Dramatiq queue name mapping
@@ -95,6 +85,8 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                     outbox_id=str(event.id),
                 )
                 # Do NOT mark as processed — leave for operator inspection.
+                # The OUTBOX_LAG_EVENTS gauge and an alert on stale unprocessed
+                # rows will surface this. Silently discarding breaks the audit trail.
                 OUTBOX_RELAY_ERRORS.inc()
                 continue
 
@@ -108,6 +100,7 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                         queue=queue_name,
                         outbox_id=str(event.id),
                     )
+                    # Do NOT mark as processed — configuration error, needs operator fix.
                     OUTBOX_RELAY_ERRORS.inc()
                     continue
                 actor.send(operation_id)
@@ -121,6 +114,9 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
                 OUTBOX_RELAY_ERRORS.inc()
                 raise
 
+            # Mark processed AFTER successful enqueue — never before.
+            # If PG update fails here the event will be re-delivered (at-least-once),
+            # but each actor has idempotency guards so double-delivery is safe.
             await session.execute(
                 update(Outbox).where(Outbox.id == event.id).values(processed=True)
             )

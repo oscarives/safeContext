@@ -33,50 +33,58 @@ KEYCLOAK_CLIENT_ID = settings.keycloak_client_id
 # Rate limiting state (per client_id, in-memory for single instance; Redis in F4 HA)
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 MCP_RATE_LIMIT_RPM = settings.mcp_rate_limit_rpm
+_rate_limit_last_eviction: float = 0.0
+_RATE_LIMIT_EVICTION_INTERVAL: float = 30.0  # evict stale entries at most once per 30 s
 
 # ── JWKS cache ────────────────────────────────────────────────────────────────
+# Raw dict AND parsed PyJWKSet are cached together so PyJWKSet.from_dict()
+# (which constructs RSA key objects) runs once per TTL, not on every request.
 
 _jwks_cache: dict = {}
+_jwks_keyset: PyJWKSet | None = None   # parsed key set, avoids re-parsing per request
 _jwks_fetched_at: float = 0.0
 _jwks_lock = asyncio.Lock()
 _JWKS_TTL: float = 900.0   # 15 minutes
 
 
-async def _get_jwks() -> dict:
+async def _get_jwks() -> PyJWKSet:
     """Fetch JWKS from Keycloak, cached with a 15-minute TTL.
+
+    Returns the parsed PyJWKSet (not the raw dict) so callers don't need to
+    call PyJWKSet.from_dict() on every token verification — RSA key construction
+    is done once per cache refresh cycle.
 
     Uses asyncio.Lock with double-checked locking to avoid thundering herd.
     """
-    global _jwks_cache, _jwks_fetched_at
+    global _jwks_cache, _jwks_keyset, _jwks_fetched_at
 
     now = time.time()
-    if _jwks_cache and now - _jwks_fetched_at < _JWKS_TTL:
-        return _jwks_cache
+    if _jwks_keyset is not None and now - _jwks_fetched_at < _JWKS_TTL:
+        return _jwks_keyset
 
     async with _jwks_lock:
         now = time.time()
-        if _jwks_cache and now - _jwks_fetched_at < _JWKS_TTL:
-            return _jwks_cache
+        if _jwks_keyset is not None and now - _jwks_fetched_at < _JWKS_TTL:
+            return _jwks_keyset
 
         url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             _jwks_cache = resp.json()
+            _jwks_keyset = PyJWKSet.from_dict(_jwks_cache)   # parse once
             _jwks_fetched_at = time.time()
             log.debug("auth_oidc.jwks_refreshed")
 
-    return _jwks_cache
+    return _jwks_keyset  # type: ignore[return-value]
 
 
-def _decode_with_jwks(token: str, jwks_dict: dict) -> dict:
-    """Decode a JWT using a cached JWKS dict with PyJWT.
+def _decode_with_jwks(token: str, jwks_obj: PyJWKSet) -> dict:
+    """Decode a JWT using a cached PyJWKSet with PyJWT.
 
     Selects the correct signing key by matching the 'kid' claim in the token
     header against the JWKS key set.
     """
-    jwks_obj = PyJWKSet.from_dict(jwks_dict)
-
     # Match signing key by kid (key ID) from the token header
     header = pyjwt.get_unverified_header(token)
     kid = header.get("kid")
@@ -103,8 +111,8 @@ def _decode_with_jwks(token: str, jwks_dict: dict) -> dict:
 async def _decode_token(token: str) -> dict:
     """Decode and validate a Keycloak JWT. Raises HTTPException on failure."""
     try:
-        jwks = await _get_jwks()
-        return _decode_with_jwks(token, jwks)
+        jwks_obj = await _get_jwks()
+        return _decode_with_jwks(token, jwks_obj)
     except InvalidTokenError as exc:
         log.warning("auth_oidc.token_invalid", error=str(exc))
         raise HTTPException(
@@ -178,10 +186,14 @@ def check_rate_limit(client_id: str) -> None:
     timestamps.append(now)
     _rate_limit_store[client_id] = timestamps
 
-    if len(_rate_limit_store) > 10_000:
+    # Evict idle clients at most once per 30 s to avoid an O(n) scan on every
+    # request once the store exceeds 10 000 entries.
+    if len(_rate_limit_store) > 10_000 and now - _rate_limit_last_eviction > _RATE_LIMIT_EVICTION_INTERVAL:
+        global _rate_limit_last_eviction
         stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < window_start]
         for k in stale:
             del _rate_limit_store[k]
+        _rate_limit_last_eviction = now
 
 
 async def require_reviewer(payload: dict = Depends(require_auth)) -> dict:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections import Counter
 
 import dramatiq
 import structlog
@@ -33,6 +34,9 @@ _SEVERITY_TO_LEVEL: dict[str, str] = {
     "medium": "internal",
     "low": "public",
 }
+
+# Rank for max() comparison — module-level constant, not recreated per task call.
+_SEVERITY_RANK: dict[str, int] = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 
 
 @dramatiq.actor(
@@ -65,12 +69,11 @@ async def _process_classify_async(operation_id: str) -> None:
             )
             findings = findings_result.scalars().all()
 
-            # Determine highest severity
-            _RANK: dict[str, int] = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+            # Single O(n) pass for both highest-severity and per-level counts.
+            severity_counts = Counter(f.severity for f in findings)
             highest_severity = max(
-                (f.severity for f in findings),
-                key=lambda s: _RANK.get(s, 0),
-                default="low",
+                severity_counts or ["low"],
+                key=lambda s: _SEVERITY_RANK.get(s, 0),
             )
             classification_level = _SEVERITY_TO_LEVEL.get(highest_severity, "public")
 
@@ -80,10 +83,10 @@ async def _process_classify_async(operation_id: str) -> None:
                 level=classification_level,
                 highest_severity=highest_severity,
                 findings_count=len(findings),
-                critical_count=sum(1 for f in findings if f.severity == "critical"),
-                high_count=sum(1 for f in findings if f.severity == "high"),
-                medium_count=sum(1 for f in findings if f.severity == "medium"),
-                low_count=sum(1 for f in findings if f.severity == "low"),
+                critical_count=severity_counts["critical"],
+                high_count=severity_counts["high"],
+                medium_count=severity_counts["medium"],
+                low_count=severity_counts["low"],
                 policy_version=operation.policy_version,
             )
 
