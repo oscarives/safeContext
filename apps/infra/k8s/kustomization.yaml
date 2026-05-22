@@ -14,12 +14,16 @@ resources:
   - deployments/otel.yaml
   - deployments/prometheus.yaml
   - deployments/grafana.yaml
+  - deployments/keycloak.yaml
+  - deployments/openbao.yaml
   - services/postgres.yaml
   - services/redis.yaml
   - services/minio.yaml
   - services/api.yaml
   - services/worker.yaml
   - services/ui.yaml
+  - services/keycloak.yaml
+  - services/openbao.yaml
   - services/monitoring.yaml
   - network-policies/deny-all.yaml
   - network-policies/allow-api.yaml

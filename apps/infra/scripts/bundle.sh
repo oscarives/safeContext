@@ -27,6 +27,7 @@ IMAGES=(
   "nginx:1.28-alpine"
   "quay.io/keycloak/keycloak:26.2.0"
   "openbao/openbao:2.5.4"
+  "openpolicyagent/opa:1.4.0"
 )
 
 for img in "${IMAGES[@]}"; do

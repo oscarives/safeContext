@@ -18,9 +18,22 @@ for img in images/*.tar; do
 done
 
 echo "Configuring environment..."
-cp configs/.env.example .env
+if [ ! -f .env ]; then
+  cp configs/.env.example .env
+  echo "  Created .env from template — edit before starting"
+fi
+
 echo ""
-echo "Edit .env with your settings, then run:"
-echo "  docker compose up -d"
+echo "Next steps:"
+echo "  1. Edit .env with your production settings"
+echo "  2. docker compose up -d"
+echo "  3. Wait for all services to be healthy:"
+echo "     docker compose ps"
+echo "  4. Apply database migrations (required after first start):"
+echo "     docker exec \$(docker compose ps -q api) alembic upgrade head"
+echo "  5. (Optional) Initialize OpenBao KMS for MinIO SSE encryption:"
+echo "     docker exec \$(docker compose ps -q vault) sh /init-openbao.sh"
+echo "  6. Verify deployment:"
+echo "     curl http://localhost/health"
 echo ""
 echo "Installation complete."

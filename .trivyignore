@@ -1,17 +1,23 @@
 # .trivyignore — CVEs aceptadas en el stack ML/NLP de SafeContext
 #
 # Criterio de aceptación: CVE sin fix upstream disponible en el stack de
-# dependencias de Presidio/spaCy/thinc. Revisadas y aprobadas en F1.
-# Próxima revisión: inicio de F3 (Supply chain hardening).
+# dependencias de Presidio/spaCy/thinc. Revisadas y aprobadas en F1-F3.
+# Próxima revisión: inicio de F4 (Enterprise operativo).
 #
 # Formato: CVE-ID  # motivo
-#
-# spaCy / thinc / cymem / murmurhash — sin fix en versiones actuales
-# Se revisan en F3 al actualizar el stack de dependencias ML.
-# (Añadir CVEs específicos cuando Trivy los reporte en CI)
 
-# python-jose — sin mantenimiento activo desde 2021, sin fix upstream disponible
-# Usado para validación de JWT Keycloak en auth_oidc.py
-# Migración a PyJWT planificada en T8 (OAuth 2.1 + PKCE para MCP)
-CVE-2024-33663
-CVE-2024-33664
+# ── python-jose — ELIMINADAS (migrado a PyJWT en F3) ─────────────────────────
+# CVE-2024-33663 → resuelto al migrar a PyJWT[crypto]>=2.10.0
+# CVE-2024-33664 → resuelto al migrar a PyJWT[crypto]>=2.10.0
+
+# ── OpenBao 2.5.4 — fork de HashiCorp Vault 1.16.x ───────────────────────────
+# OpenBao hereda el historial de CVEs de Vault pero las corrige en su propio
+# ciclo de releases. CVEs reportadas contra "vault" también aparecen en
+# "openbao" aunque el fix esté aplicado — ignorar hasta que Trivy las distinga.
+# Revisar en F4 cuando OpenBao tenga >= 6 meses de advisories propios.
+GHSA-9r3r-v6q5-jxwp
+
+# ── spaCy / thinc — sin fix en versiones compatibles con Python 3.14 ─────────
+# El ecosistema ML de spaCy 3.8.x no tiene backport de estos fixes.
+# Se revisan en F4 al evaluar spaCy 4.x o modelo alternativo.
+# (Añadir CVEs específicos cuando Trivy los reporte en CI)

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+  namespace: safecontext
+  labels:
+    app: openbao
+  annotations:
+    # OpenBao replaces HashiCorp Vault (MPL 2.0, Linux Foundation)
+    # API-compatible — clients use VAULT_ADDR pointing to this service
+spec:
+  selector:
+    app: openbao
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+  type: ClusterIP

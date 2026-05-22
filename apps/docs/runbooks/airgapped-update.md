@@ -26,7 +26,13 @@ for img in safecontext-bundle-N+1/images/*.tar; do docker load -i "$img"; done
 
 ### Paso 3: Actualizar configuración si hay cambios en .env.example
 
-### Paso 4: Aplicar migraciones de base de datos
+### Paso 4: Aplicar migraciones de base de datos (OBLIGATORIO desde F2)
+
+El esquema de BD tiene 4 migraciones acumuladas (0001-0004):
+- 0001: Schema inicial
+- 0002: approved_by_agent_id en redactions
+- 0003: Índice JSONB en outbox.payload->>'operation_id'
+- 0004: Operation.sanitized_text + índice artifact_digest
 
 ```bash
 docker compose run --rm api alembic upgrade head

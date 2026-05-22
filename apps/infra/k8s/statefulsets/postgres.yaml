@@ -61,7 +61,7 @@ spec:
               memory: 1Gi
           volumeMounts:
             - name: postgres-data
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/postgresql  # PG18: uses major-version subdirs under /var/lib/postgresql
   volumeClaimTemplates:
     - metadata:
         name: postgres-data
