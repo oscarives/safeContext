@@ -5,10 +5,10 @@ from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
+from core.auth_oidc import _decode_token
 from core.constants import SENTINEL_ACTOR_ID
 from core.logging import get_logger
 from core.metrics import operations_total, scan_duration
@@ -16,7 +16,6 @@ from core.tracing import get_trace_id, tracer
 from db.models.operation import Operation
 from db.models.outbox import Outbox
 from db.session import get_db
-from mcp.auth import require_mcp_token
 from schemas.scan import ScanRequest, ScanResponse
 
 router = APIRouter()
@@ -26,11 +25,7 @@ _FALLBACK_POLICY_VERSION = "1.0.0"
 
 
 async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> str:
-    """Query OPA for the current policy version; fall back gracefully.
-
-    Uses the shared AsyncClient from app.state to avoid a new TCP connection
-    per scan request.
-    """
+    """Query OPA for the current policy version; fall back gracefully."""
     try:
         url = f"{settings.opa_url}/v1/data/safecontext/policy/policy_version"
         resp = await client.get(url)
@@ -43,24 +38,56 @@ async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> st
     return _FALLBACK_POLICY_VERSION
 
 
+async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str]:
+    """Resolve actor_id and actor_type from the Authorization header.
+
+    Accepts two authentication mechanisms:
+    - MCP agent token (static secret = settings.mcp_auth_token) → sentinel actor, "mcp_agent"
+    - Keycloak JWT (from the web UI) → actor_id = uuid(sub claim), "human"
+
+    This replaces the hardcoded SENTINEL_ACTOR_ID so that scans made from the
+    web UI are correctly attributed to the authenticated user (TECH-DEBT-001).
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+
+    token = auth_header[7:]
+
+    # MCP agent token — static secret, not a JWT
+    if token == settings.mcp_auth_token:
+        return SENTINEL_ACTOR_ID, "mcp_agent"
+
+    # Keycloak JWT — decode and extract the sub claim
+    try:
+        payload = await _decode_token(token)
+        sub = payload.get("sub", "")
+        if not sub:
+            raise ValueError("empty sub claim in JWT")
+        return uuid.UUID(sub), "human"
+    except HTTPException:
+        raise  # re-raise 401 from _decode_token
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
+
+
 @router.post("/scan", response_model=ScanResponse, tags=["scan"])
 async def scan(
     request: Request,
     body: ScanRequest,
     response: Response,
-    _token: Annotated[str, Depends(require_mcp_token)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ScanResponse:
     """
     Accept a document and enqueue it for asynchronous PII scanning.
 
+    Accepts both MCP agent tokens and Keycloak JWTs (web UI).
     Returns a ScanResponse immediately with trace_id and artifact_digest.
     Findings are populated asynchronously by workers.
     """
     with tracer.start_as_current_span("scan") as span:
         trace_id_hex = get_trace_id()
 
-        # Derive a stable UUID from the OTel trace_id hex string
         try:
             trace_uuid = uuid.UUID(trace_id_hex)
         except ValueError:
@@ -70,6 +97,9 @@ async def scan(
         span.set_attribute("safecontext.policy_name", body.policy_name)
 
         t_start = time.perf_counter()
+
+        # --- resolve actor from Authorization header (MCP token OR Keycloak JWT) ---
+        actor_id, actor_type = await _resolve_scan_actor(request)
 
         # --- artifact digest ---
         artifact_digest = hashlib.sha256(body.document.encode()).hexdigest()
@@ -84,14 +114,11 @@ async def scan(
         operation_id = uuid.uuid4()
         document_id = uuid.uuid4()
 
-        # F4: replace with the real sub from the JWT once OIDC auth is wired.
-        actor_id = SENTINEL_ACTOR_ID
-
         operation = Operation(
             id=operation_id,
             trace_id=trace_uuid,
             actor_id=actor_id,
-            actor_type="mcp_agent",
+            actor_type=actor_type,
             document_id=document_id,
             artifact_digest=artifact_digest,
             policy_version=policy_version,
@@ -101,7 +128,7 @@ async def scan(
             event_type="scan_requested",
             payload={
                 "operation_id": str(operation_id),
-                "document_text": body.document,  # workers read this key
+                "document_text": body.document,
                 "document_hash": artifact_digest,
                 "policy_name": body.policy_name,
                 "policy_version": policy_version,
@@ -138,7 +165,6 @@ async def scan(
                 },
             )
         except Exception as exc:
-            # Non-fatal: outbox relay will pick this up later
             logger.warning(
                 "scan.enqueue.error",
                 trace_id=str(trace_uuid),
@@ -155,12 +181,13 @@ async def scan(
             "scan.created",
             trace_id=str(trace_uuid),
             operation_id=str(operation_id),
+            actor_id=str(actor_id),
+            actor_type=actor_type,
             artifact_digest=artifact_digest,
             policy_name=body.policy_name,
             elapsed_s=round(elapsed, 4),
         )
 
-        # --- response ---
         response.headers["X-Trace-ID"] = str(trace_uuid)
 
         return ScanResponse(
