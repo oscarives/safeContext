@@ -204,14 +204,15 @@ export default function DashboardPage() {
     let cancelled = false
     async function fetchOps() {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data: any = await apiClient.getOperations()
+        const data = await apiClient.getOperations()
         if (!cancelled) {
           setStats({
             total: data.total ?? 0,
-            approved: data.approved ?? 0,
-            pending: data.pending ?? 0,
-            rejected: data.rejected ?? 0,
+            // total_completed = scans approved by a human reviewer
+            approved: data.total_completed ?? 0,
+            // total_escalated = scans awaiting human review
+            pending: data.total_escalated ?? 0,
+            rejected: data.total_rejected ?? 0,
           })
           setOperations(data.items ?? [])
           setOpsNotAvailable(false)

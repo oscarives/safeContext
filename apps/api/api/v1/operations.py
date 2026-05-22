@@ -1,6 +1,6 @@
 """Operations list endpoint — GET /v1/operations.
 
-Returns a paginated, filterable list of operations.
+Returns a paginated, filterable list of operations with aggregated status counts.
 Used by the Dashboard and Audit page for recent activity.
 """
 
@@ -13,7 +13,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth_oidc import require_auth
@@ -22,7 +22,7 @@ from db.models.operation import Operation
 from db.session import get_db
 
 router = APIRouter(tags=["operations"])
-log = structlog.get_logger()
+log = structlog.get_logger(__name__)
 
 
 # ── Response schemas ──────────────────────────────────────────────────────────
@@ -44,6 +44,12 @@ class OperationItem(BaseModel):
 class OperationsListResponse(BaseModel):
     total: int
     items: list[OperationItem]
+    # Aggregated counts across ALL matching operations (not just the current page).
+    # Used by the Dashboard to display status metrics without a second request.
+    total_pending: int = 0
+    total_escalated: int = 0
+    total_completed: int = 0
+    total_rejected: int = 0
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
@@ -61,9 +67,10 @@ async def list_operations(
     actor_id: str | None = Query(default=None, description="UUID of the actor"),
 ) -> OperationsListResponse:
     """
-    Return a paginated list of operations with optional filters.
+    Return a paginated list of operations with optional filters and aggregated counts.
 
     Any authenticated user can access this endpoint.
+    The response includes per-status counts for the Dashboard metrics panel.
     """
     # Clamp limit to 100
     limit = min(limit, 100)
@@ -99,7 +106,7 @@ async def list_operations(
                 detail=f"Invalid actor_id format: {actor_id!r}. Must be a UUID.",
             ) from exc
 
-    # Build base filters (reused for both count and items queries)
+    # Build base filters (reused for both stats and items queries)
     filters = []
     if status_filter is not None:
         filters.append(Operation.status == status_filter)
@@ -110,12 +117,22 @@ async def list_operations(
     if actor_uuid is not None:
         filters.append(Operation.actor_id == actor_uuid)
 
-    # Total count (without limit/offset)
-    count_stmt = select(func.count()).select_from(Operation)
+    # ── Aggregated stats — single query replacing the separate COUNT(*) ────────
+    # Uses conditional COUNT so we get total + per-status breakdown in one round-trip.
+    stats_stmt = select(
+        func.count().label("total"),
+        func.count(case((Operation.status == "pending", 1))).label("total_pending"),
+        func.count(case((Operation.status == "escalated", 1))).label("total_escalated"),
+        func.count(case((Operation.status == "completed", 1))).label("total_completed"),
+        func.count(case((Operation.status == "rejected", 1))).label("total_rejected"),
+    ).select_from(Operation)
     if filters:
-        count_stmt = count_stmt.where(*filters)
-    count_result = await db.execute(count_stmt)
-    total: int = count_result.scalar_one()
+        stats_stmt = stats_stmt.where(*filters)
+
+    stats_row = (await db.execute(stats_stmt)).one()
+    total: int = stats_row.total
+
+    # ── Paginated items ───────────────────────────────────────────────────────
 
     # Subquery: findings count per operation
     findings_subq = (
@@ -124,7 +141,6 @@ async def list_operations(
         .subquery()
     )
 
-    # Main items query
     items_stmt = (
         select(Operation, func.coalesce(findings_subq.c.findings_count, 0).label("findings_count"))
         .outerjoin(findings_subq, Operation.id == findings_subq.c.operation_id)
@@ -163,4 +179,11 @@ async def list_operations(
         offset=offset,
     )
 
-    return OperationsListResponse(total=total, items=items)
+    return OperationsListResponse(
+        total=total,
+        items=items,
+        total_pending=stats_row.total_pending,
+        total_escalated=stats_row.total_escalated,
+        total_completed=stats_row.total_completed,
+        total_rejected=stats_row.total_rejected,
+    )

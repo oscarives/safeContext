@@ -149,6 +149,11 @@ export interface OperationItem {
 export interface OperationsListResponse {
   total: number
   items: OperationItem[]
+  // Aggregated counts across ALL matching operations (from backend, single query)
+  total_pending: number
+  total_escalated: number
+  total_completed: number
+  total_rejected: number
 }
 
 export interface OperationsQuery {
