@@ -80,7 +80,7 @@ export async function getSession(request?: Request): Promise<SafeContextSession 
       .slice(1)
       .join('=')
   } else {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()   // Next.js 15+: cookies() is async
     cookieValue = cookieStore.get(SESSION_COOKIE_NAME)?.value
   }
 

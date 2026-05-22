@@ -23,7 +23,7 @@ export function ConfirmModal({
 }) {
   const [justification, setJustification] = useState('')
   const [touched, setTouched] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)   // React 19: explicit null union
 
   useEffect(() => {
     if (isOpen) {
