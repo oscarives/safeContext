@@ -175,6 +175,7 @@ export default function DashboardPage() {
   const [operations, setOperations] = useState<OperationRow[]>([])
   const [opsNotAvailable, setOpsNotAvailable] = useState(false)
   const [opsLoading, setOpsLoading] = useState(true)
+  const [showMyOps, setShowMyOps] = useState(false)  // toggle mis / todas
 
   // ── Health fetch ──────────────────────────────────────────────────────────
 
@@ -204,7 +205,9 @@ export default function DashboardPage() {
     let cancelled = false
     async function fetchOps() {
       try {
-        const data = await apiClient.getOperations()
+        const data = await apiClient.getOperations(
+          showMyOps ? { actor_id: 'me' } : {}
+        )
         if (!cancelled) {
           setStats({
             total: data.total ?? 0,
@@ -234,7 +237,7 @@ export default function DashboardPage() {
     }
     fetchOps()
     return () => { cancelled = true }
-  }, [])
+  }, [showMyOps])
 
   // ── Derived values ────────────────────────────────────────────────────────
 
@@ -344,7 +347,19 @@ export default function DashboardPage() {
 
       {/* ── Recent activity ── */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">Actividad reciente</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-800">Actividad reciente</h2>
+          <button
+            onClick={() => setShowMyOps(v => !v)}
+            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+              showMyOps
+                ? 'bg-brand text-white border-brand'
+                : 'text-gray-500 border-gray-300 hover:border-brand hover:text-brand'
+            }`}
+          >
+            {showMyOps ? '▶ Mis operaciones' : '◎ Todas'}
+          </button>
+        </div>
 
         {opsLoading ? (
           <div className="flex justify-center py-8">

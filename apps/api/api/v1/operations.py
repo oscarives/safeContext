@@ -95,15 +95,22 @@ async def list_operations(
                 detail=f"Invalid to_date format: {to_date!r}. Use ISO 8601.",
             ) from exc
 
-    # Parse actor_id UUID if provided
+    # Parse actor_id UUID if provided — supports "me" as an alias for the current user
     actor_uuid: UUID | None = None
-    if actor_id is not None:
+    if actor_id == "me":
+        sub = _actor.get("sub", "")
+        if sub:
+            try:
+                actor_uuid = UUID(sub)
+            except ValueError:
+                pass  # invalid sub — no filter applied
+    elif actor_id is not None:
         try:
             actor_uuid = UUID(actor_id)
         except ValueError as exc:
             raise HTTPException(
                 status_code=422,
-                detail=f"Invalid actor_id format: {actor_id!r}. Must be a UUID.",
+                detail=f"Invalid actor_id format: {actor_id!r}. Must be a UUID or 'me'.",
             ) from exc
 
     # Build base filters (reused for both stats and items queries)
