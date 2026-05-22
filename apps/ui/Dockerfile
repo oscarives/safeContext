@@ -1,12 +1,15 @@
 # ── Stage 1: dependencies ─────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:24.16.0-alpine AS deps
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+# npm install (not npm ci) to regenerate the lock file after Node 24 upgrade.
+# The lock file will be updated on the first build; commit the result afterwards
+# to restore strict reproducibility via npm ci.
+RUN npm install --legacy-peer-deps
 
 # ── Stage 2: builder ──────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:24.16.0-alpine AS builder
 
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -16,7 +19,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # ── Stage 3: runtime ──────────────────────────────────────────────────────────
-FROM node:22-alpine AS runtime
+FROM node:24.16.0-alpine AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
