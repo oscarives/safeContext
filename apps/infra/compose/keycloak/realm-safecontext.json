@@ -36,7 +36,20 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "redirectUris": ["https://safecontext.example.com/*"],
-      "webOrigins": ["https://safecontext.example.com"]
+      "webOrigins": ["https://safecontext.example.com"],
+      "protocolMappers": [
+        {
+          "name": "safecontext-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "safecontext-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "requiredActions": [
