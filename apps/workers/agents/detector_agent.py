@@ -30,8 +30,13 @@ from db.models.outbox import Outbox
 from workers.config import settings
 from workers.core.db import get_session
 from workers.core.metrics import FINDINGS_TOTAL, TASKS_TOTAL, TASK_DURATION_SECONDS
-from workers.core.opa_client import opa_client
+from workers.core.opa_client import OPAUnavailableError, opa_client
 from workers.ml.presidio_detector import PresidioDetector
+
+# Module-level singleton — PresidioDetector holds no per-task state;
+# the spaCy model is already a class-level singleton (_analyzer). Creating
+# a new instance per task is unnecessary allocation.
+_detector = PresidioDetector()
 
 logger = structlog.get_logger(__name__)
 
@@ -117,8 +122,7 @@ async def _process_scan_async(operation_id: str) -> None:
             document_text: str = payload.get("document_text", "")
 
             # ── 4. Run detector ──────────────────────────────────────────────
-            detector = PresidioDetector()
-            findings = await detector.detect(document_text, policy)
+            findings = await _detector.detect(document_text, policy)
 
             logger.info("detector_agent.findings", id=operation_id, count=len(findings))
 
@@ -157,11 +161,12 @@ async def _process_scan_async(operation_id: str) -> None:
                         {"findings": findings_payload},
                     )
                     requires_review = bool(result_data)
-                except Exception as exc:  # noqa: BLE001
+                except OPAUnavailableError as exc:
                     logger.warning(
                         "detector_agent.opa_review_check_failed", error=str(exc)
                     )
-                    # Conservative: escalate if OPA is unavailable
+                    # Conservative: escalate if OPA is unavailable so findings
+                    # are not silently passed without human review.
                     requires_review = any(f.severity == "critical" for f in findings)
 
             # ── 7. Update status and enqueue next stage ──────────────────────

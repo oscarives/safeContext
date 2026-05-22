@@ -5,6 +5,7 @@ All environment variable access in workers must go through this module —
 never call os.environ.get() directly inside agents or core modules.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +37,29 @@ class WorkerSettings(BaseSettings):
     worker_concurrency: int = 4
     worker_max_retries: int = 3
     detector_confidence_threshold: float = 0.85
+
+    # ── Validators ────────────────────────────────────────────────────────────
+
+    @field_validator("outbox_batch_size")
+    @classmethod
+    def validate_batch_size(cls, v: int) -> int:
+        if v < 1 or v > 1000:
+            raise ValueError("outbox_batch_size must be between 1 and 1000")
+        return v
+
+    @field_validator("policy_poll_interval")
+    @classmethod
+    def validate_poll_interval(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("policy_poll_interval must be >= 1 second")
+        return v
+
+    @field_validator("outbox_poll_interval")
+    @classmethod
+    def validate_outbox_interval(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("outbox_poll_interval must be > 0 seconds")
+        return v
 
 
 settings = WorkerSettings()

@@ -39,6 +39,12 @@ from workers.core.metrics import (
 # This module trusts that structlog has already been set up before it is imported.
 logger = structlog.get_logger(__name__)
 
+# Sample the outbox lag gauge every N relay cycles rather than every second.
+# The partial index on processed=false makes the COUNT fast, but it's still
+# a DB round-trip per poll. 10 cycles ≈ 10 s at the default 1-second interval.
+_LAG_SAMPLE_EVERY: int = 10
+_lag_cycle_counter: int = 0
+
 # Event type → Dramatiq queue name mapping
 _EVENT_TO_QUEUE: dict[str, str] = {
     "scan_requested": "safecontext_scan",
@@ -58,14 +64,18 @@ async def relay_once(broker: RedisBrokerAdapter) -> int:
 
     Returns the number of events relayed in this batch.
     """
+    global _lag_cycle_counter
+    _lag_cycle_counter += 1
     relayed = 0
 
     async with get_session() as session:
-        # Report true backlog, not just the current batch size.
-        total_lag = (await session.execute(
-            select(func.count()).select_from(Outbox).where(Outbox.processed == False)  # noqa: E712
-        )).scalar_one()
-        OUTBOX_LAG_EVENTS.set(total_lag)
+        # Sample the lag gauge every _LAG_SAMPLE_EVERY cycles to reduce DB load.
+        # Sub-second precision is not needed for a monitoring gauge.
+        if _lag_cycle_counter % _LAG_SAMPLE_EVERY == 0:
+            total_lag = (await session.execute(
+                select(func.count()).select_from(Outbox).where(Outbox.processed == False)  # noqa: E712
+            )).scalar_one()
+            OUTBOX_LAG_EVENTS.set(total_lag)
 
         result = await session.execute(
             select(Outbox)

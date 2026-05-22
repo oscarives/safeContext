@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Annotated
 
 import httpx
@@ -31,10 +31,13 @@ KEYCLOAK_REALM = settings.keycloak_realm
 KEYCLOAK_CLIENT_ID = settings.keycloak_client_id
 
 # Rate limiting state (per client_id, in-memory for single instance; Redis in F4 HA)
-_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+# deque(maxlen=RPM) gives O(1) append + O(1) head-eviction vs list-rebuild per request.
 MCP_RATE_LIMIT_RPM = settings.mcp_rate_limit_rpm
+_rate_limit_store: dict[str, deque[float]] = defaultdict(
+    lambda: deque(maxlen=MCP_RATE_LIMIT_RPM)
+)
 _rate_limit_last_eviction: float = 0.0
-_RATE_LIMIT_EVICTION_INTERVAL: float = 30.0  # evict stale entries at most once per 30 s
+_RATE_LIMIT_EVICTION_INTERVAL: float = 30.0  # evict stale client entries at most once per 30 s
 
 # ── JWKS cache ────────────────────────────────────────────────────────────────
 # Raw dict AND parsed PyJWKSet are cached together so PyJWKSet.from_dict()
@@ -183,26 +186,31 @@ async def require_auth(
 def check_rate_limit(client_id: str) -> None:
     """Rate limit by client_id: MCP_RATE_LIMIT_RPM requests per minute.
 
+    Uses deque(maxlen=RPM) for O(1) append + O(1) head-eviction instead of
+    rebuilding a filtered list on every request.
+
     Note: in-memory, not shared across worker processes.
     For multi-replica deployments, replace with a Redis sliding-window counter (F4).
     """
-    # global declaration must be at the top of the function (before any use of the variable)
     global _rate_limit_last_eviction
 
     now = time.time()
     window_start = now - 60.0
-    timestamps = [t for t in _rate_limit_store.get(client_id, []) if t > window_start]
-    if len(timestamps) >= MCP_RATE_LIMIT_RPM:
+    dq = _rate_limit_store[client_id]
+
+    # Evict expired timestamps from the front (deque is ordered oldest→newest)
+    while dq and dq[0] <= window_start:
+        dq.popleft()
+
+    if len(dq) >= MCP_RATE_LIMIT_RPM:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Rate limit exceeded: {MCP_RATE_LIMIT_RPM} requests/minute",
             headers={"Retry-After": "60"},
         )
-    timestamps.append(now)
-    _rate_limit_store[client_id] = timestamps
+    dq.append(now)  # deque mutates in-place; no reassignment needed
 
-    # Evict idle clients at most once per 30 s to avoid an O(n) scan on every
-    # request once the store exceeds 10 000 entries.
+    # Evict idle client entries at most once per 30 s to bound memory.
     if len(_rate_limit_store) > 10_000 and now - _rate_limit_last_eviction > _RATE_LIMIT_EVICTION_INTERVAL:
         stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < window_start]
         for k in stale:
@@ -211,15 +219,23 @@ def check_rate_limit(client_id: str) -> None:
 
 
 async def require_reviewer(payload: dict = Depends(require_auth)) -> dict:
-    """Shortcut dependency for reviewer role."""
-    if "reviewer" not in get_roles(payload) and "admin" not in get_roles(payload):
-        raise HTTPException(status_code=403, detail="Reviewer or Admin role required")
+    """Shortcut dependency for reviewer or admin role."""
+    roles = get_roles(payload)  # bind once — avoid calling get_roles() twice
+    if "reviewer" not in roles and "admin" not in roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Reviewer or Admin role required",
+        )
     return payload
 
 
 async def require_admin(payload: dict = Depends(require_auth)) -> dict:
+    """Shortcut dependency for admin role."""
     if "admin" not in get_roles(payload):
-        raise HTTPException(status_code=403, detail="Admin role required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
     return payload
 
 

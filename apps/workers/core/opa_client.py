@@ -16,6 +16,10 @@ from workers.config import settings
 log = structlog.get_logger(__name__)
 
 
+class OPAUnavailableError(Exception):
+    """Raised when OPA cannot be reached during a live evaluate() call."""
+
+
 class OPAClient:
     """Async OPA client with background polling for hot-reload of policies.
 
@@ -54,13 +58,26 @@ class OPAClient:
 
         Returns:
             The ``result`` field from the OPA response, or an empty dict on error.
+
+        Raises:
+            OPAUnavailableError: when OPA cannot be reached or returns an error.
+            Callers should handle this and fall back to a conservative default
+            (e.g. escalate rather than silently pass the document).
         """
-        resp = await self._http.post(
-            f"{self._url}/v1/data/{policy_path}",
-            json={"input": input_data},
-        )
-        resp.raise_for_status()
-        return resp.json().get("result", {})
+        try:
+            resp = await self._http.post(
+                f"{self._url}/v1/data/{policy_path}",
+                json={"input": input_data},
+            )
+            resp.raise_for_status()
+            return resp.json().get("result", {})
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "opa_client.evaluate_failed",
+                policy_path=policy_path,
+                error=str(exc),
+            )
+            raise OPAUnavailableError(f"OPA evaluate failed for {policy_path}: {exc}") from exc
 
     # ── Background polling ────────────────────────────────────────────────────
 
@@ -93,20 +110,20 @@ class OPAClient:
         OPA 1.x with bundle/volume loading does NOT register policies via
         the /v1/policies API (that endpoint is only for policies pushed via PUT).
         Policies loaded from filesystem bundles are only accessible via /v1/data.
+
+        Both requests are independent reads — asyncio.gather() issues them
+        concurrently, halving the round-trip latency on every poll cycle.
         """
-        # Fetch semantic version from policy data (primary source of truth)
-        meta_resp = await self._http.get(
-            f"{self._url}/v1/data/safecontext/policy/policy_version"
+        meta_resp, policy_resp = await asyncio.gather(
+            self._http.get(f"{self._url}/v1/data/safecontext/policy/policy_version"),
+            self._http.get(f"{self._url}/v1/data/safecontext/policy"),
         )
+
         if meta_resp.status_code == 200:
             self._policy_version = str(
                 meta_resp.json().get("result", self._policy_version)
             )
 
-        # Fetch the full base policy bundle for the in-memory cache
-        policy_resp = await self._http.get(
-            f"{self._url}/v1/data/safecontext/policy"
-        )
         if policy_resp.status_code == 200:
             self._policy_cache["base"] = policy_resp.json().get("result", {})
             log.debug("opa_client.policy_refreshed", version=self._policy_version)

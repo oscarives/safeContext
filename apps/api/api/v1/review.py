@@ -175,13 +175,21 @@ async def approve_finding(
     reviewer_id = SENTINEL_ACTOR_ID
 
     async with db.begin():
-        # Lock the operation row to prevent concurrent approval races
+        # Re-fetch the operation under a row-level lock.
+        # The pre-check in _load_escalated_finding runs WITHOUT a lock, so a
+        # concurrent request could pass the status guard simultaneously.
+        # Re-validating status AFTER acquiring the lock closes the TOCTOU window.
         locked_op_result = await db.execute(
             select(Operation)
             .where(Operation.id == operation.id)
             .with_for_update()
         )
         operation = locked_op_result.scalar_one()
+        if operation.status != "escalated":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Operation status is '{operation.status}', expected 'escalated' (concurrent update)",
+            )
 
         redaction = Redaction(
             finding_id=finding.id,

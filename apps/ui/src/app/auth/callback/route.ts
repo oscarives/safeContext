@@ -4,6 +4,7 @@
 
 import { NextResponse } from 'next/server'
 import { createSessionCookie } from '@/lib/session'
+import { getPublicOrigin } from '@/lib/request-utils'
 
 // KEYCLOAK_INTERNAL_URL is used server-side (token exchange inside Docker network).
 // Falls back to the public URL for local dev without Docker.
@@ -13,25 +14,6 @@ const KEYCLOAK_URL =
   'http://localhost:8080'
 const REALM = process.env.NEXT_PUBLIC_KEYCLOAK_REALM ?? 'safecontext'
 const CLIENT_ID = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID ?? 'safecontext-ui'
-
-/**
- * Reconstruct the public-facing origin from request headers.
- *
- * In Next.js standalone (Docker), request.url uses the internal bind
- * address (http://0.0.0.0:3000). We must use the Host header instead
- * so that redirect_uri matches what the browser originally sent to Keycloak,
- * and so error redirects go back to the browser-accessible URL.
- */
-function getPublicOrigin(request: Request): string {
-  const host =
-    request.headers.get('x-forwarded-host') ||
-    request.headers.get('host') ||
-    'localhost:3000'
-  const proto =
-    request.headers.get('x-forwarded-proto') ||
-    (host.includes('localhost') ? 'http' : 'https')
-  return `${proto}://${host}`
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url)

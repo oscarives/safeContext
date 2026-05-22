@@ -36,8 +36,10 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         settings.database_url,
         echo=False,
         pool_pre_ping=True,
-        pool_size=1,       # 1 connection per task — no pool accumulation
-        max_overflow=0,    # no extra connections
+        pool_size=1,        # 1 connection per task — no pool accumulation
+        max_overflow=0,     # no extra connections
+        pool_recycle=300,   # defensive: engine is short-lived anyway, but this
+                            # prevents stale connections if architecture changes
     )
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
