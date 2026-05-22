@@ -130,7 +130,7 @@ docker compose exec worker python -m pytest workers/tests/ml/test_recall.py -v -
 
 # Tests OPA (require docker)
 docker run --rm -v "$(pwd)/policies:/policies:ro" \
-  openpolicyagent/opa:0.63.0 test /policies/ -v --coverage
+  openpolicyagent/opa:1.4.0 test /policies/ -v --coverage
 ```
 
 ---
@@ -385,7 +385,7 @@ test_too_many_findings_blocks if {
 ```bash
 # Verificar tests OPA
 docker run --rm -v "$(pwd)/policies:/policies:ro" \
-  openpolicyagent/opa:0.63.0 test /policies/ -v
+  openpolicyagent/opa:1.4.0 test /policies/ -v
 
 # OPA hot-reload: sin restart — el worker lo recoge en 30s
 ```
@@ -837,7 +837,7 @@ policy_version := "1.1.0"
 
 # 3. Correr tests OPA
 docker run --rm -v "$(pwd)/policies:/policies:ro" \
-  openpolicyagent/opa:0.63.0 test /policies/ -v
+  openpolicyagent/opa:1.4.0 test /policies/ -v
 
 # 4. Las políticas se despliegan INDEPENDIENTEMENTE del release de la app
 # OPA hot-reload las recoge en 30 segundos sin reinicio

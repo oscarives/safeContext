@@ -1,7 +1,6 @@
 package safecontext.policy
 
-import future.keywords.if
-import future.keywords.in
+import rego.v1
 
 # Versión de la política — debe coincidir con metadata.json
 policy_version := "1.0.0"

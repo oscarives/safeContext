@@ -1,6 +1,6 @@
 package safecontext.policy
 
-import future.keywords.if
+import rego.v1
 
 # ---------------------------------------------------------------------------
 # Test: hallazgo crítico con confianza alta → should_block
