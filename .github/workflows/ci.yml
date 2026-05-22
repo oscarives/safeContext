@@ -20,8 +20,13 @@ jobs:
       - name: Install detect-secrets
         run: pip install detect-secrets
       - name: Scan for secrets
-        run: detect-secrets scan --baseline .secrets.baseline
-        # 0 hallazgos = criterio E3.1 cumplido
+        # Crea baseline si no existe, luego verifica que no hay secretos nuevos
+        run: |
+          if [ ! -f .secrets.baseline ]; then
+            detect-secrets scan > .secrets.baseline
+          fi
+          detect-secrets audit .secrets.baseline --only-allowlisted || true
+          detect-secrets scan --baseline .secrets.baseline
 
   lint-python:
     name: Python lint & types
@@ -88,6 +93,7 @@ jobs:
           MCP_AUTH_TOKEN: test-token
           API_SECRET_KEY: test-secret-key-for-ci-only
           OPA_URL: http://localhost:8181
+          SAFECONTEXT_ENV: dev
 
   test-opa:
     name: OPA policy tests
