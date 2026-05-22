@@ -3,1017 +3,2227 @@
     {
       "id": "email_001",
       "text": "Contact john.doe@company.com for details",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 8, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 8,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "email_002",
       "text": "Please send the invoice to alice.smith@example.org as soon as possible",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 26, "span_end": 49}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 26,
+          "span_end": 49
+        }
+      ]
     },
     {
       "id": "email_003",
       "text": "My work address is bob.johnson@acme-corp.net and my personal one is different",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 19, "span_end": 43}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 19,
+          "span_end": 43
+        }
+      ]
     },
     {
       "id": "email_004",
       "text": "Reach me at support+tickets@helpdesk.io for urgent issues",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 12, "span_end": 39}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 12,
+          "span_end": 39
+        }
+      ]
     },
     {
       "id": "email_005",
       "text": "The system alert was sent from noreply@notifications.safecontext.io",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 31, "span_end": 67}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 31,
+          "span_end": 67
+        }
+      ]
     },
     {
       "id": "email_006",
       "text": "User m.rodriguez_99@startup.dev registered at 2024-01-15",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 5, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 5,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "email_007",
       "text": "Forward the report to cto@bigcorp.com and cfo@bigcorp.com",
       "expected": [
-        {"entity_type": "EMAIL_ADDRESS", "span_start": 22, "span_end": 36},
-        {"entity_type": "EMAIL_ADDRESS", "span_start": 41, "span_end": 55}
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 22,
+          "span_end": 36
+        },
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 41,
+          "span_end": 55
+        }
       ]
     },
     {
       "id": "email_008",
       "text": "Security contact: security-team@internal.example.com",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 18, "span_end": 52}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 18,
+          "span_end": 52
+        }
+      ]
     },
     {
       "id": "email_009",
       "text": "Newsletter unsubscribe: user.name+news@gmail.com",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 24, "span_end": 48}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 24,
+          "span_end": 48
+        }
+      ]
     },
     {
       "id": "email_010",
       "text": "The lead developer is firstname.lastname@university.edu",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 22, "span_end": 54}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 22,
+          "span_end": 54
+        }
+      ]
     },
     {
       "id": "email_011",
       "text": "User registration: user@mail.company.com confirmed",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 19, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 19,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "email_012",
       "text": "Alert from alerts@monitoring.internal triggered",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 11, "span_end": 37}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 11,
+          "span_end": 37
+        }
+      ]
     },
     {
       "id": "email_013",
       "text": "Contact support@safecontext.io for help",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 8, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 8,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "email_014",
       "text": "sender = \"alerts@notify.example.com\"",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 10, "span_end": 35}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 10,
+          "span_end": 35
+        }
+      ]
     },
     {
       "id": "email_015",
       "text": "| john.doe@corp.com | Sales |",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 2, "span_end": 19}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 2,
+          "span_end": 19
+        }
+      ]
     },
     {
       "id": "email_016",
       "text": "Please reply to no-reply@example.net immediately",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 16, "span_end": 36}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 16,
+          "span_end": 36
+        }
+      ]
     },
     {
       "id": "email_017",
       "text": "Email info@example.com or sales@example.com",
       "expected": [
-        {"entity_type": "EMAIL_ADDRESS", "span_start": 6, "span_end": 22},
-        {"entity_type": "EMAIL_ADDRESS", "span_start": 26, "span_end": 43}
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 6,
+          "span_end": 22
+        },
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 26,
+          "span_end": 43
+        }
       ]
     },
     {
       "id": "email_018",
       "text": "admin+prod@infrastructure.io handles deployments",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 0, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 0,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "email_019",
       "text": "Billing contact: billing@accounts.bigcorp.com",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 17, "span_end": 45}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 17,
+          "span_end": 45
+        }
+      ]
     },
     {
       "id": "email_020",
       "text": "HR email hr_team@company.co.uk is monitored",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 9, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 9,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "email_021",
       "text": "mailto:legal@lawfirm.org is the preferred contact",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 7, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 7,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "email_022",
       "text": "DevOps: devops+alerts@startup.io and devops+info@startup.io",
       "expected": [
-        {"entity_type": "EMAIL_ADDRESS", "span_start": 8, "span_end": 32},
-        {"entity_type": "EMAIL_ADDRESS", "span_start": 37, "span_end": 59}
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 8,
+          "span_end": 32
+        },
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 37,
+          "span_end": 59
+        }
       ]
     },
     {
       "id": "email_023",
       "text": "Contact first.last@uni.edu.au for academic inquiries",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 8, "span_end": 29}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 8,
+          "span_end": 29
+        }
+      ]
     },
     {
       "id": "email_024",
       "text": "Account recovery: recovery.user+2024@gmail.com",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 18, "span_end": 46}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 18,
+          "span_end": 46
+        }
+      ]
     },
     {
       "id": "email_025",
       "text": "Webhook notifications to webhook@api.service.net",
-      "expected": [{"entity_type": "EMAIL_ADDRESS", "span_start": 25, "span_end": 48}]
+      "expected": [
+        {
+          "entity_type": "EMAIL_ADDRESS",
+          "span_start": 25,
+          "span_end": 48
+        }
+      ]
     },
     {
       "id": "apikey_001",
       "text": "API key: sk-1234567890abcdef1234567890abcdef",
-      "expected": [{"entity_type": "API_KEY", "span_start": 9, "span_end": 44}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 9,
+          "span_end": 44
+        }
+      ]
     },
     {
       "id": "apikey_002",
       "text": "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature",
-      "expected": [{"entity_type": "API_KEY", "span_start": 22, "span_end": 76}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 22,
+          "span_end": 76
+        }
+      ]
     },
     {
       "id": "apikey_003",
       "text": "GitHub token: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ123456",
-      "expected": [{"entity_type": "API_KEY", "span_start": 14, "span_end": 50}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 14,
+          "span_end": 50
+        }
+      ]
     },
     {
       "id": "apikey_004",
       "text": "Set PAYMENT_API_KEY=sk_live_XXXX_SYNTHETIC_TEST_DATA_ONLY in production env",
-      "expected": [{"entity_type": "API_KEY", "span_start": 20, "span_end": 58}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 20,
+          "span_end": 58
+        }
+      ]
     },
     {
       "id": "apikey_005",
       "text": "The AWS access key is AKIAIOSFODNN7EXAMPLE and secret is wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
       "expected": [
-        {"entity_type": "API_KEY", "span_start": 21, "span_end": 41}
+        {
+          "entity_type": "API_KEY",
+          "span_start": 21,
+          "span_end": 41
+        }
       ]
     },
     {
       "id": "apikey_006",
       "text": "API_TOKEN=xoxb-SYNTHETIC-TEST-DATA-ONLY-NotARealToken",
-      "expected": [{"entity_type": "API_KEY", "span_start": 10, "span_end": 53}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 10,
+          "span_end": 53
+        }
+      ]
     },
     {
       "id": "apikey_007",
       "text": "Client secret: 9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d",
-      "expected": [{"entity_type": "API_KEY", "span_start": 15, "span_end": 51}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 15,
+          "span_end": 51
+        }
+      ]
     },
     {
       "id": "apikey_008",
       "text": "Paste your OpenAI key here: sk-proj-ABCDefgh1234567890abcdef1234567890ABCDEFGH",
-      "expected": [{"entity_type": "API_KEY", "span_start": 28, "span_end": 76}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 28,
+          "span_end": 76
+        }
+      ]
     },
     {
       "id": "apikey_009",
       "text": "HuggingFace token: hf_aBcDeFgHiJkLmNoPqRsTuVwXyZ",
-      "expected": [{"entity_type": "API_KEY", "span_start": 19, "span_end": 47}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 19,
+          "span_end": 47
+        }
+      ]
     },
     {
       "id": "apikey_010",
       "text": "Export ANTHROPIC_API_KEY=sk-ant-api03-AAABBBCCC111222333--XXXXX",
-      "expected": [{"entity_type": "API_KEY", "span_start": 24, "span_end": 63}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 24,
+          "span_end": 63
+        }
+      ]
     },
     {
       "id": "apikey_011",
-      "text": "New OpenAI key: sk-proj-abc123def456ghi789jkl012mno345pqr678stu901",
-      "expected": [{"entity_type": "API_KEY", "span_start": 16, "span_end": 66}]
+      "text": "New OpenAI key: sk-proj-TESTONLY_abc123def456ghi789jkl012mno345pqr",
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 16,
+          "span_end": 66
+        }
+      ]
     },
     {
       "id": "apikey_012",
-      "text": "GitHub PAT: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "expected": [{"entity_type": "API_KEY", "span_start": 12, "span_end": 52}]
+      "text": "GitHub PAT: ghp_TESTONLY_xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 12,
+          "span_end": 53
+        }
+      ]
     },
     {
       "id": "apikey_013",
-      "text": "HuggingFace token: hf_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef",
-      "expected": [{"entity_type": "API_KEY", "span_start": 19, "span_end": 54}]
+      "text": "HuggingFace token: hf_TESTONLY_ABCDEFGHIJKLMNOPQRSTUVWXYZa",
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 19,
+          "span_end": 58
+        }
+      ]
     },
     {
       "id": "apikey_014",
       "text": "Stripe live key: sk_live_abcdef1234567890abcdef12",
-      "expected": [{"entity_type": "API_KEY", "span_start": 17, "span_end": 49}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 17,
+          "span_end": 49
+        }
+      ]
     },
     {
       "id": "apikey_015",
-      "text": "Slack bot token: xoxb-123456789012-123456789012-abcdefghijklmnopqrstuvwx",
-      "expected": [{"entity_type": "API_KEY", "span_start": 17, "span_end": 72}]
+      "text": "Slack bot token: xoxb-TESTONLY-123456789012-123456789012-abcdef",
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 17,
+          "span_end": 63
+        }
+      ]
     },
     {
       "id": "apikey_016",
-      "text": "api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "expected": [{"entity_type": "API_KEY", "span_start": 9, "span_end": 38}]
+      "text": "api_key: sk-TESTONLY_xxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 9,
+          "span_end": 47
+        }
+      ]
     },
     {
       "id": "apikey_017",
       "text": "Set STRIPE_KEY=sk_test_ABCDEFabcdef123456 in config",
-      "expected": [{"entity_type": "API_KEY", "span_start": 15, "span_end": 41}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 15,
+          "span_end": 41
+        }
+      ]
     },
     {
       "id": "apikey_018",
       "text": "Twilio SID: ACaaaabbbbccccddddeeeeffffgggghhhh",
-      "expected": [{"entity_type": "API_KEY", "span_start": 12, "span_end": 46}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 12,
+          "span_end": 46
+        }
+      ]
     },
     {
       "id": "apikey_019",
       "text": "NPM token: npm_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-      "expected": [{"entity_type": "API_KEY", "span_start": 11, "span_end": 47}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 11,
+          "span_end": 47
+        }
+      ]
     },
     {
       "id": "apikey_020",
       "text": "Gitlab token: glpat-xxxxxxxxxxxxxxxxxxxx",
-      "expected": [{"entity_type": "API_KEY", "span_start": 14, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 14,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "apikey_021",
       "text": "Databricks: dapi1234567890abcdef1234567890abcdef",
-      "expected": [{"entity_type": "API_KEY", "span_start": 12, "span_end": 48}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 12,
+          "span_end": 48
+        }
+      ]
     },
     {
       "id": "apikey_022",
       "text": "SendGrid key: SG.xxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "expected": [{"entity_type": "API_KEY", "span_start": 14, "span_end": 80}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 14,
+          "span_end": 80
+        }
+      ]
     },
     {
       "id": "apikey_023",
       "text": "Mapbox token: pk.eyJ1IjoibXl1c2VyIiwiYSI6ImFiY2RlZiJ9.XXXXXXXXXX",
-      "expected": [{"entity_type": "API_KEY", "span_start": 14, "span_end": 64}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 14,
+          "span_end": 64
+        }
+      ]
     },
     {
       "id": "apikey_024",
       "text": "DigitalOcean: dop_v1_1234567890abcdef1234567890abcdef",
-      "expected": [{"entity_type": "API_KEY", "span_start": 14, "span_end": 53}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 14,
+          "span_end": 53
+        }
+      ]
     },
     {
       "id": "apikey_025",
       "text": "Bitbucket app password: ATBB1234567890abcdef1234567890abcde",
-      "expected": [{"entity_type": "API_KEY", "span_start": 24, "span_end": 59}]
+      "expected": [
+        {
+          "entity_type": "API_KEY",
+          "span_start": 24,
+          "span_end": 59
+        }
+      ]
     },
     {
       "id": "person_001",
       "text": "The meeting will be chaired by John Smith.",
-      "expected": [{"entity_type": "PERSON", "span_start": 31, "span_end": 41}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 31,
+          "span_end": 41
+        }
+      ]
     },
     {
       "id": "person_002",
       "text": "Dr. Emily Johnson signed the medical report",
-      "expected": [{"entity_type": "PERSON", "span_start": 4, "span_end": 18}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 4,
+          "span_end": 18
+        }
+      ]
     },
     {
       "id": "person_003",
       "text": "Invoice addressed to: Mr. Robert Garcia, 123 Main St",
-      "expected": [{"entity_type": "PERSON", "span_start": 26, "span_end": 39}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 26,
+          "span_end": 39
+        }
+      ]
     },
     {
       "id": "person_004",
       "text": "Patient name: Maria Gonzalez, DOB: 1985-03-21",
-      "expected": [{"entity_type": "PERSON", "span_start": 14, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 14,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "person_005",
       "text": "Authored by Professor David Chen, PhD",
-      "expected": [{"entity_type": "PERSON", "span_start": 22, "span_end": 32}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 22,
+          "span_end": 32
+        }
+      ]
     },
     {
       "id": "person_006",
       "text": "Legal representative: Sarah Williams, Esq.",
-      "expected": [{"entity_type": "PERSON", "span_start": 22, "span_end": 36}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 22,
+          "span_end": 36
+        }
+      ]
     },
     {
       "id": "person_007",
       "text": "The CEO, James O'Brien, announced the merger",
-      "expected": [{"entity_type": "PERSON", "span_start": 9, "span_end": 22}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 9,
+          "span_end": 22
+        }
+      ]
     },
     {
       "id": "person_008",
       "text": "Payable to: Ana-Maria Fernandez",
-      "expected": [{"entity_type": "PERSON", "span_start": 12, "span_end": 31}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 12,
+          "span_end": 31
+        }
+      ]
     },
     {
       "id": "person_009",
       "text": "cc: Michael Brown <mbrown@corp.com>",
-      "expected": [{"entity_type": "PERSON", "span_start": 4, "span_end": 18}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 4,
+          "span_end": 18
+        }
+      ]
     },
     {
       "id": "person_010",
       "text": "Signed by: Lt. Col. Thomas Hughes on behalf of the department",
-      "expected": [{"entity_type": "PERSON", "span_start": 20, "span_end": 33}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 20,
+          "span_end": 33
+        }
+      ]
     },
     {
       "id": "person_011",
       "text": "Dr. Maria Garcia Lopez signed the consent form",
-      "expected": [{"entity_type": "PERSON", "span_start": 4, "span_end": 22}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 4,
+          "span_end": 22
+        }
+      ]
     },
     {
       "id": "person_012",
       "text": "Jean-Pierre Dupont submitted the application",
-      "expected": [{"entity_type": "PERSON", "span_start": 0, "span_end": 18}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 0,
+          "span_end": 18
+        }
+      ]
     },
     {
       "id": "person_013",
       "text": "Employee: Robert Johnson, ID: 12345",
-      "expected": [{"entity_type": "PERSON", "span_start": 10, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 10,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "person_014",
       "text": "Attendees: Alice Smith, Bob Jones, Carol White",
       "expected": [
-        {"entity_type": "PERSON", "span_start": 11, "span_end": 22},
-        {"entity_type": "PERSON", "span_start": 24, "span_end": 33},
-        {"entity_type": "PERSON", "span_start": 35, "span_end": 46}
+        {
+          "entity_type": "PERSON",
+          "span_start": 11,
+          "span_end": 22
+        },
+        {
+          "entity_type": "PERSON",
+          "span_start": 24,
+          "span_end": 33
+        },
+        {
+          "entity_type": "PERSON",
+          "span_start": 35,
+          "span_end": 46
+        }
       ]
     },
     {
       "id": "person_015",
       "text": "Mr. James Wilson approved the budget",
-      "expected": [{"entity_type": "PERSON", "span_start": 4, "span_end": 16}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 4,
+          "span_end": 16
+        }
+      ]
     },
     {
       "id": "person_016",
       "text": "The report was authored by Dr. Susan Lee, MD",
-      "expected": [{"entity_type": "PERSON", "span_start": 31, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 31,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "person_017",
       "text": "CC: William Turner <wturner@company.com>",
-      "expected": [{"entity_type": "PERSON", "span_start": 4, "span_end": 18}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 4,
+          "span_end": 18
+        }
+      ]
     },
     {
       "id": "person_018",
       "text": "Chief Compliance Officer: Patricia Moore",
-      "expected": [{"entity_type": "PERSON", "span_start": 26, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 26,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "person_019",
       "text": "Patient: Christopher Anderson, DOB 1990-07-15",
-      "expected": [{"entity_type": "PERSON", "span_start": 9, "span_end": 29}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 9,
+          "span_end": 29
+        }
+      ]
     },
     {
       "id": "person_020",
       "text": "Reviewed by Prof. Andrew Martinez",
-      "expected": [{"entity_type": "PERSON", "span_start": 18, "span_end": 33}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 18,
+          "span_end": 33
+        }
+      ]
     },
     {
       "id": "person_021",
       "text": "Next of kin: Margaret Thompson",
-      "expected": [{"entity_type": "PERSON", "span_start": 13, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 13,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "person_022",
       "text": "Case assigned to Detective Frank Miller",
-      "expected": [{"entity_type": "PERSON", "span_start": 27, "span_end": 39}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 27,
+          "span_end": 39
+        }
+      ]
     },
     {
       "id": "person_023",
       "text": "Contract party: Elisabeth van der Berg",
-      "expected": [{"entity_type": "PERSON", "span_start": 16, "span_end": 38}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 16,
+          "span_end": 38
+        }
+      ]
     },
     {
       "id": "person_024",
       "text": "Authorized by: Capt. Samuel Rivera",
-      "expected": [{"entity_type": "PERSON", "span_start": 21, "span_end": 34}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 21,
+          "span_end": 34
+        }
+      ]
     },
     {
       "id": "person_025",
       "text": "Witness statement from Grace O'Sullivan",
-      "expected": [{"entity_type": "PERSON", "span_start": 22, "span_end": 39}]
+      "expected": [
+        {
+          "entity_type": "PERSON",
+          "span_start": 22,
+          "span_end": 39
+        }
+      ]
     },
     {
       "id": "cc_001",
       "text": "Visa card: 4532015112830366",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 11, "span_end": 27}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 11,
+          "span_end": 27
+        }
+      ]
     },
     {
       "id": "cc_002",
       "text": "Mastercard: 5425233430109903",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 12, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 12,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "cc_003",
       "text": "Card number: 4532015112830366, exp 12/28",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 13, "span_end": 29}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 13,
+          "span_end": 29
+        }
+      ]
     },
     {
       "id": "cc_004",
       "text": "Amex: 371449635398431",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 6, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 6,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "cc_005",
       "text": "Payment card 4916338506082832 was charged",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 13, "span_end": 29}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 13,
+          "span_end": 29
+        }
+      ]
     },
     {
       "id": "cc_006",
       "text": "Discover: 6011111111111117",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 10, "span_end": 26}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 10,
+          "span_end": 26
+        }
+      ]
     },
     {
       "id": "cc_007",
       "text": "JCB: 3566002020360505",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 5, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 5,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "cc_008",
       "text": "Card 4532015112830366 declined",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 5, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 5,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "cc_009",
       "text": "Process refund to 5105105105105100",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 18, "span_end": 34}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 18,
+          "span_end": 34
+        }
+      ]
     },
     {
       "id": "cc_010",
       "text": "Stored card ending 4111111111111111",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 19, "span_end": 35}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 19,
+          "span_end": 35
+        }
+      ]
     },
     {
       "id": "cc_011",
       "text": "Credit card 4012888888881881 was reported stolen",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 12, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 12,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "cc_012",
       "text": "Billing card: 4532756279624064",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 14, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 14,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "cc_013",
       "text": "Mastercard 5500005555555559 authorized",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 11, "span_end": 27}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 11,
+          "span_end": 27
+        }
+      ]
     },
     {
       "id": "cc_014",
       "text": "Token for 4222222222222",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 10, "span_end": 23}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 10,
+          "span_end": 23
+        }
+      ]
     },
     {
       "id": "cc_015",
       "text": "Saved card 4716592979436416 on account",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 11, "span_end": 27}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 11,
+          "span_end": 27
+        }
+      ]
     },
     {
       "id": "cc_016",
       "text": "Use card number 4532015112830366 for payment",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 16, "span_end": 32}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 16,
+          "span_end": 32
+        }
+      ]
     },
     {
       "id": "cc_017",
       "text": "Card 6304000000000000 type Maestro",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 5, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 5,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "cc_018",
       "text": "Verify card 4111111111111111 before charging",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 12, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 12,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "cc_019",
       "text": "Recurring billing card: 5425233430109903",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 24, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 24,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "cc_020",
       "text": "Test card 4242424242424242 in sandbox",
-      "expected": [{"entity_type": "CREDIT_CARD", "span_start": 10, "span_end": 26}]
+      "expected": [
+        {
+          "entity_type": "CREDIT_CARD",
+          "span_start": 10,
+          "span_end": 26
+        }
+      ]
     },
     {
       "id": "ssn_001",
       "text": "SSN: 123-45-6789",
-      "expected": [{"entity_type": "SSN", "span_start": 5, "span_end": 16}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 5,
+          "span_end": 16
+        }
+      ]
     },
     {
       "id": "ssn_002",
       "text": "Social Security: 234-56-7890",
-      "expected": [{"entity_type": "SSN", "span_start": 17, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 17,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "ssn_003",
       "text": "Employee SSN: 987-65-4321",
-      "expected": [{"entity_type": "SSN", "span_start": 14, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 14,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "ssn_004",
       "text": "my SSN is 456-78-9012",
-      "expected": [{"entity_type": "SSN", "span_start": 10, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 10,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "ssn_005",
       "text": "SSN on file: 321-54-9876",
-      "expected": [{"entity_type": "SSN", "span_start": 13, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 13,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "ssn_006",
       "text": "Tax ID / SSN: 555-12-3456",
-      "expected": [{"entity_type": "SSN", "span_start": 14, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 14,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "ssn_007",
       "text": "Verify SSN 111-22-3333 for benefits enrollment",
-      "expected": [{"entity_type": "SSN", "span_start": 11, "span_end": 22}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 11,
+          "span_end": 22
+        }
+      ]
     },
     {
       "id": "ssn_008",
       "text": "SSN 222-33-4444 was compromised",
-      "expected": [{"entity_type": "SSN", "span_start": 4, "span_end": 15}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 4,
+          "span_end": 15
+        }
+      ]
     },
     {
       "id": "ssn_009",
       "text": "Patient SSN: 333-44-5555",
-      "expected": [{"entity_type": "SSN", "span_start": 13, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 13,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "ssn_010",
       "text": "Federal ID: 444-55-6666",
-      "expected": [{"entity_type": "SSN", "span_start": 12, "span_end": 23}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 12,
+          "span_end": 23
+        }
+      ]
     },
     {
       "id": "ssn_011",
       "text": "Applicant SSN 666-77-8888 submitted",
-      "expected": [{"entity_type": "SSN", "span_start": 14, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 14,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "ssn_012",
       "text": "SSN: 777-88-9999 (new hire)",
-      "expected": [{"entity_type": "SSN", "span_start": 5, "span_end": 16}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 5,
+          "span_end": 16
+        }
+      ]
     },
     {
       "id": "ssn_013",
       "text": "IRS form SSN 888-99-0000",
-      "expected": [{"entity_type": "SSN", "span_start": 13, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 13,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "ssn_014",
       "text": "Social Security Number: 100-23-4567",
-      "expected": [{"entity_type": "SSN", "span_start": 24, "span_end": 35}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 24,
+          "span_end": 35
+        }
+      ]
     },
     {
       "id": "ssn_015",
       "text": "Benefits SSN: 200-34-5678",
-      "expected": [{"entity_type": "SSN", "span_start": 14, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 14,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "ssn_016",
       "text": "Pension file SSN 300-45-6789",
-      "expected": [{"entity_type": "SSN", "span_start": 17, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 17,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "ssn_017",
       "text": "SSN required: 400-56-7890",
-      "expected": [{"entity_type": "SSN", "span_start": 14, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 14,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "ssn_018",
       "text": "Claim SSN 500-67-8901",
-      "expected": [{"entity_type": "SSN", "span_start": 10, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 10,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "ssn_019",
       "text": "Reported SSN: 600-78-9012",
-      "expected": [{"entity_type": "SSN", "span_start": 14, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 14,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "ssn_020",
       "text": "Payroll SSN 700-89-0123 processed",
-      "expected": [{"entity_type": "SSN", "span_start": 12, "span_end": 23}]
+      "expected": [
+        {
+          "entity_type": "SSN",
+          "span_start": 12,
+          "span_end": 23
+        }
+      ]
     },
     {
       "id": "iban_001",
       "text": "Transfer to DE89370400440532013000",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 12, "span_end": 34}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 12,
+          "span_end": 34
+        }
+      ]
     },
     {
       "id": "iban_002",
       "text": "IBAN: ES9121000418450200051332",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 6, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 6,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "iban_003",
       "text": "Bank account FR7630006000011234567890189",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 13, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 13,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "iban_004",
       "text": "Pay to GB29NWBK60161331926819",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 7, "span_end": 29}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 7,
+          "span_end": 29
+        }
+      ]
     },
     {
       "id": "iban_005",
       "text": "IBAN: NL91ABNA0417164300",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 6, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 6,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "iban_006",
       "text": "Account IT60X0542811101000000123456",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 8, "span_end": 35}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 8,
+          "span_end": 35
+        }
+      ]
     },
     {
       "id": "iban_007",
       "text": "Wire to BE68539007547034",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 8, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 8,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "iban_008",
       "text": "IBAN CH9300762011623852957",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 5, "span_end": 26}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 5,
+          "span_end": 26
+        }
+      ]
     },
     {
       "id": "iban_009",
       "text": "Remit to AT611904300234573201",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 9, "span_end": 29}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 9,
+          "span_end": 29
+        }
+      ]
     },
     {
       "id": "iban_010",
       "text": "IBAN: PL61109010140000071219812874",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 6, "span_end": 34}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 6,
+          "span_end": 34
+        }
+      ]
     },
     {
       "id": "iban_011",
       "text": "Reference: SE4550000000058398257466",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 11, "span_end": 35}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 11,
+          "span_end": 35
+        }
+      ]
     },
     {
       "id": "iban_012",
       "text": "Direct debit: DK5000400440116243",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 14, "span_end": 32}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 14,
+          "span_end": 32
+        }
+      ]
     },
     {
       "id": "iban_013",
       "text": "Bank: NO9386011117947",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 6, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 6,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "iban_014",
       "text": "IBAN FI2112345600000785",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 5, "span_end": 23}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 5,
+          "span_end": 23
+        }
+      ]
     },
     {
       "id": "iban_015",
       "text": "Account PT50000201231234567890154",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 8, "span_end": 33}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 8,
+          "span_end": 33
+        }
+      ]
     },
     {
       "id": "phone_001",
       "text": "Call +1 (555) 867-5309 for support",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 5, "span_end": 22}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 5,
+          "span_end": 22
+        }
+      ]
     },
     {
       "id": "phone_002",
       "text": "Mobile: +34 612 345 678",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 8, "span_end": 23}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 8,
+          "span_end": 23
+        }
+      ]
     },
     {
       "id": "phone_003",
       "text": "US phone: (800) 555-1234",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 10, "span_end": 24}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 10,
+          "span_end": 24
+        }
+      ]
     },
     {
       "id": "phone_004",
       "text": "Fax: +44 20 7946 0958",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 5, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 5,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "phone_005",
       "text": "Emergency: +1-800-123-4567",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 11, "span_end": 26}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 11,
+          "span_end": 26
+        }
+      ]
     },
     {
       "id": "phone_006",
       "text": "French: +33 1 23 45 67 89",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 8, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 8,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "phone_007",
       "text": "German: +49 30 1234567",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 8, "span_end": 22}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 8,
+          "span_end": 22
+        }
+      ]
     },
     {
       "id": "phone_008",
       "text": "Customer line: 1-800-555-0199",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 15, "span_end": 29}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 15,
+          "span_end": 29
+        }
+      ]
     },
     {
       "id": "phone_009",
       "text": "Text us at +1 (415) 555-2671",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 11, "span_end": 28}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 11,
+          "span_end": 28
+        }
+      ]
     },
     {
       "id": "phone_010",
       "text": "International: +81-3-1234-5678",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 15, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 15,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "phone_011",
       "text": "Office: 212-555-0100",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 8, "span_end": 20}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 8,
+          "span_end": 20
+        }
+      ]
     },
     {
       "id": "phone_012",
       "text": "Hotline +55 11 91234-5678",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 8, "span_end": 25}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 8,
+          "span_end": 25
+        }
+      ]
     },
     {
       "id": "phone_013",
       "text": "Helpdesk (212) 555-1234",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 9, "span_end": 23}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 9,
+          "span_end": 23
+        }
+      ]
     },
     {
       "id": "phone_014",
       "text": "Cell: +91 98765 43210",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 6, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 6,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "phone_015",
       "text": "Reach at 800-555-9876 anytime",
-      "expected": [{"entity_type": "PHONE_NUMBER", "span_start": 9, "span_end": 21}]
+      "expected": [
+        {
+          "entity_type": "PHONE_NUMBER",
+          "span_start": 9,
+          "span_end": 21
+        }
+      ]
     },
     {
       "id": "connstr_001",
       "text": "postgresql://admin:secretpass123@db.prod.internal:5432/customers",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 64}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 64
+        }
+      ]
     },
     {
       "id": "connstr_002",
       "text": "mongodb://user:password@mongo.internal:27017/production",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 55}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 55
+        }
+      ]
     },
     {
       "id": "connstr_003",
       "text": "redis://default:redis_secret@cache.internal:6379/0",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 50}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 50
+        }
+      ]
     },
     {
       "id": "connstr_004",
       "text": "mysql://root:mysqlpass@mysql.prod:3306/app_db",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 45}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 45
+        }
+      ]
     },
     {
       "id": "connstr_005",
       "text": "amqp://rabbitmq:rabbitpass@mq.internal:5672/vhost",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 49}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 49
+        }
+      ]
     },
     {
       "id": "connstr_006",
       "text": "DATABASE_URL=postgresql://postgres:pgpass@localhost/mydb",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 13, "span_end": 56}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 13,
+          "span_end": 56
+        }
+      ]
     },
     {
       "id": "connstr_007",
       "text": "connection: mongodb://admin:pass@host/db",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 12, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 12,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "connstr_008",
       "text": "Connect to redis://default:secret@redis.host:6379",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 11, "span_end": 49}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 11,
+          "span_end": 49
+        }
+      ]
     },
     {
       "id": "connstr_009",
       "text": "DB: mssql://sa:SaPassword1@sqlserver.prod:1433/AppDB",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 4, "span_end": 52}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 4,
+          "span_end": 52
+        }
+      ]
     },
     {
       "id": "connstr_010",
       "text": "mysql://readonly:readpass@replica.db:3306/analytics",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 51}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 51
+        }
+      ]
     },
     {
       "id": "connstr_011",
       "text": "Backup DB: postgresql://backup:bkpass@backup.host:5432/backup_db",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 11, "span_end": 64}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 11,
+          "span_end": 64
+        }
+      ]
     },
     {
       "id": "connstr_012",
       "text": "Config: amqp://admin:mqpass@rabbitmq.host:5672/",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 8, "span_end": 47}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 8,
+          "span_end": 47
+        }
+      ]
     },
     {
       "id": "connstr_013",
       "text": "mongodb://mongo:mongopass@mongoprimary:27017/users",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 50}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 50
+        }
+      ]
     },
     {
       "id": "connstr_014",
       "text": "Staging: postgresql://stage_user:stagepass@stage.db:5432/staging",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 9, "span_end": 64}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 9,
+          "span_end": 64
+        }
+      ]
     },
     {
       "id": "connstr_015",
       "text": "redis://redis_user:redispass@redis.staging:6379/1",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 49}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 49
+        }
+      ]
     },
     {
       "id": "connstr_016",
       "text": "mysql://app:apppass@db.internal:3306/appdb",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 42}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 42
+        }
+      ]
     },
     {
       "id": "connstr_017",
       "text": "Dev database: postgresql://dev:devpass@localhost:5432/devdb",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 14, "span_end": 59}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 14,
+          "span_end": 59
+        }
+      ]
     },
     {
       "id": "connstr_018",
       "text": "amqp://worker:workerpass@mq.dev:5672/dev_vhost",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 46}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 46
+        }
+      ]
     },
     {
       "id": "connstr_019",
       "text": "mongodb://root:rootpass@mongo.dev:27017/development",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 51}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 51
+        }
+      ]
     },
     {
       "id": "connstr_020",
       "text": "mysql://admin:adminpass@mysql.dev:3306/devdb",
-      "expected": [{"entity_type": "REGEX_CONNECTION_STRING", "span_start": 0, "span_end": 44}]
+      "expected": [
+        {
+          "entity_type": "REGEX_CONNECTION_STRING",
+          "span_start": 0,
+          "span_end": 44
+        }
+      ]
     },
     {
       "id": "jwt_001",
       "text": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 0, "span_end": 155}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 0,
+          "span_end": 155
+        }
+      ]
     },
     {
       "id": "jwt_002",
       "text": "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 22, "span_end": 177}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 22,
+          "span_end": 177
+        }
+      ]
     },
     {
       "id": "jwt_003",
       "text": "token = \"eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature_abcdefghijklmnopqrstuvwxyz\"",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 9, "span_end": 90}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 9,
+          "span_end": 90
+        }
+      ]
     },
     {
       "id": "jwt_004",
       "text": "JWT: eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoiMTIzIn0.abc123defghijklmnopqrstuvwxyz",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 5, "span_end": 91}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 5,
+          "span_end": 91
+        }
+      ]
     },
     {
       "id": "jwt_005",
       "text": "Current session token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 23, "span_end": 178}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 23,
+          "span_end": 178
+        }
+      ]
     },
     {
       "id": "jwt_006",
       "text": "Accept: application/json\nAuthorization: Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature_abcdefghijklmnopqrstuvwxyz",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 47, "span_end": 128}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 47,
+          "span_end": 128
+        }
+      ]
     },
     {
       "id": "jwt_007",
       "text": "Refresh token: eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoiMTIzIn0.abc123defghijklmnopqrstuvwxyz",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 15, "span_end": 101}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 15,
+          "span_end": 101
+        }
+      ]
     },
     {
       "id": "jwt_008",
       "text": "auth_token = eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 13, "span_end": 168}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 13,
+          "span_end": 168
+        }
+      ]
     },
     {
       "id": "jwt_009",
       "text": "Stored as: eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature_abcdefghijklmnopqrstuvwxyz",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 11, "span_end": 92}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 11,
+          "span_end": 92
+        }
+      ]
     },
     {
       "id": "jwt_010",
       "text": "Identity token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 16, "span_end": 171}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 16,
+          "span_end": 171
+        }
+      ]
     },
     {
       "id": "jwt_011",
       "text": "NEXT_PUBLIC_JWT=eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoiMTIzIn0.abc123defghijklmnopqrstuvwxyz",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 16, "span_end": 102}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 16,
+          "span_end": 102
+        }
+      ]
     },
     {
       "id": "jwt_012",
       "text": "BEARER_TOKEN=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 13, "span_end": 168}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 13,
+          "span_end": 168
+        }
+      ]
     },
     {
       "id": "jwt_013",
       "text": "session_jwt: eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyMTIzIn0.signature_abcdefghijklmnopqrstuvwxyz",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 13, "span_end": 94}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 13,
+          "span_end": 94
+        }
+      ]
     },
     {
       "id": "jwt_014",
       "text": "x-auth-token: eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0Iiwic3ViIjoiMTIzIn0.abc123defghijklmnopqrstuvwxyz",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 14, "span_end": 100}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 14,
+          "span_end": 100
+        }
+      ]
     },
     {
       "id": "jwt_015",
       "text": "Decoded token was: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
-      "expected": [{"entity_type": "REGEX_JWT_TOKEN", "span_start": 19, "span_end": 174}]
+      "expected": [
+        {
+          "entity_type": "REGEX_JWT_TOKEN",
+          "span_start": 19,
+          "span_end": 174
+        }
+      ]
     },
     {
       "id": "privkey_001",
       "text": "-----BEGIN RSA PRIVATE KEY-----",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 0, "span_end": 31}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 0,
+          "span_end": 31
+        }
+      ]
     },
     {
       "id": "privkey_002",
       "text": "-----BEGIN EC PRIVATE KEY-----",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 0, "span_end": 30}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 0,
+          "span_end": 30
+        }
+      ]
     },
     {
       "id": "privkey_003",
       "text": "-----BEGIN OPENSSH PRIVATE KEY-----",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 0, "span_end": 35}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 0,
+          "span_end": 35
+        }
+      ]
     },
     {
       "id": "privkey_004",
       "text": "-----BEGIN PRIVATE KEY-----",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 0, "span_end": 27}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 0,
+          "span_end": 27
+        }
+      ]
     },
     {
       "id": "privkey_005",
       "text": "Private key content:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 21, "span_end": 52}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 21,
+          "span_end": 52
+        }
+      ]
     },
     {
       "id": "privkey_006",
       "text": "Deploy key:\n-----BEGIN EC PRIVATE KEY-----\nMHQCAQEEI...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 12, "span_end": 42}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 12,
+          "span_end": 42
+        }
+      ]
     },
     {
       "id": "privkey_007",
       "text": "Cert:\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjE...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 6, "span_end": 41}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 6,
+          "span_end": 41
+        }
+      ]
     },
     {
       "id": "privkey_008",
       "text": "Config key:\n-----BEGIN PRIVATE KEY-----\nMIIEvgIBAD...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 12, "span_end": 39}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 12,
+          "span_end": 39
+        }
+      ]
     },
     {
       "id": "privkey_009",
       "text": "SSH identity:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQ...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 14, "span_end": 45}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 14,
+          "span_end": 45
+        }
+      ]
     },
     {
       "id": "privkey_010",
       "text": "TLS cert:\n-----BEGIN EC PRIVATE KEY-----\nMHQCAQEEIBkg...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 10, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 10,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "privkey_011",
       "text": "Renewal cert:\n-----BEGIN RSA PRIVATE KEY-----\nMIIG...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 14, "span_end": 45}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 14,
+          "span_end": 45
+        }
+      ]
     },
     {
       "id": "privkey_012",
       "text": "Kubernetes secret:\n-----BEGIN PRIVATE KEY-----\nMIIE...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 19, "span_end": 46}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 19,
+          "span_end": 46
+        }
+      ]
     },
     {
       "id": "privkey_013",
       "text": "CI/CD key:\n-----BEGIN EC PRIVATE KEY-----\nMHsC...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 11, "span_end": 41}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 11,
+          "span_end": 41
+        }
+      ]
     },
     {
       "id": "privkey_014",
       "text": "Server cert:\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 13, "span_end": 48}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 13,
+          "span_end": 48
+        }
+      ]
     },
     {
       "id": "privkey_015",
       "text": "VPN key:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEp...",
-      "expected": [{"entity_type": "REGEX_PEM_PRIVATE_KEY", "span_start": 9, "span_end": 40}]
+      "expected": [
+        {
+          "entity_type": "REGEX_PEM_PRIVATE_KEY",
+          "span_start": 9,
+          "span_end": 40
+        }
+      ]
     },
     {
       "id": "iban_016",
       "text": "Payee IBAN: GR1601101250000000012300695",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 12, "span_end": 39}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 12,
+          "span_end": 39
+        }
+      ]
     },
     {
       "id": "iban_017",
       "text": "Account RO49AAAA1B31007593840000",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 8, "span_end": 32}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 8,
+          "span_end": 32
+        }
+      ]
     },
     {
       "id": "iban_018",
       "text": "Wire transfer to CZ6508000000192000145399",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 17, "span_end": 41}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 17,
+          "span_end": 41
+        }
+      ]
     },
     {
       "id": "iban_019",
       "text": "Vendor IBAN: HU42117730161111101800000000",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 13, "span_end": 41}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 13,
+          "span_end": 41
+        }
+      ]
     },
     {
       "id": "iban_020",
       "text": "Remittance: LU280019400644750000",
-      "expected": [{"entity_type": "IBAN_CODE", "span_start": 12, "span_end": 32}]
+      "expected": [
+        {
+          "entity_type": "IBAN_CODE",
+          "span_start": 12,
+          "span_end": 32
+        }
+      ]
     }
   ]
 }
