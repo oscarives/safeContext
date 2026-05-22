@@ -12,7 +12,7 @@ policy_version := "1.0.0"
 confidence_thresholds := {
     "EMAIL_ADDRESS":  0.85,
     "PHONE_NUMBER":   0.80,
-    "PERSON":         0.85,
+    "PERSON":         0.90,  # higher threshold — spaCy NER has false positives on common words
     "API_KEY":        0.95,
     "PASSWORD":       0.95,
     "CREDIT_CARD":    0.90,

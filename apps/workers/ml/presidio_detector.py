@@ -12,6 +12,20 @@ from __future__ import annotations
 import logging
 import threading
 
+# Common words that spaCy NER incorrectly classifies as PERSON entities.
+# These are labels, headers, and generic nouns that are never real person names.
+_PERSON_DENYLIST: frozenset[str] = frozenset({
+    # Spanish labels
+    "contacto", "contact", "correo", "email", "contraseña", "password",
+    "usuario", "user", "nombre", "name", "dirección", "address",
+    "teléfono", "phone", "clave", "llave", "key", "token", "dato", "datos",
+    # English technical terms that look like names to NER
+    "api", "url", "http", "https", "localhost", "server", "database",
+    "admin", "root", "system", "service", "client", "host",
+    # Common prepositions/articles mistaken for names
+    "mi", "tu", "su", "el", "la", "los", "las",
+})
+
 # Email domains that are clearly test/example data and should not be flagged as PII.
 # These are standard RFC 2606 / IANA reserved domains plus common dev placeholders.
 _EXEMPT_EMAIL_DOMAINS: frozenset[str] = frozenset({
@@ -224,6 +238,17 @@ class PresidioDetector(DetectorInterface):
             # Skip already-redacted spans — document was previously sanitized
             if "[REDACTED]" in matched_text:
                 continue
+
+            # Skip PERSON detections that are common words or labels (spaCy false positives)
+            if entity_type == "PERSON":
+                normalized = matched_text.strip().lower()
+                if normalized in _PERSON_DENYLIST:
+                    logger.debug(
+                        "presidio_detector.exempt_person",
+                        matched=matched_text,
+                        span=f"{r.start}:{r.end}",
+                    )
+                    continue
 
             # Skip email addresses from known test/example domains (false positives
             # produced when test data or previously-sanitized content is re-scanned)
