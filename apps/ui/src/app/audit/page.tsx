@@ -99,7 +99,10 @@ export default function AuditPage() {
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  const op = result ? (result.operation as OperationDetail) : null
+  // Double cast through unknown: AuditExportResponse.operation is typed as
+  // Record<string, unknown>; TypeScript requires the unknown intermediate step
+  // when the target type doesn't structurally overlap with the source type.
+  const op = result ? (result.operation as unknown as OperationDetail) : null
 
   // Build a set of finding_ids that have at least one redaction
   const redactedFindingIds = new Set(
