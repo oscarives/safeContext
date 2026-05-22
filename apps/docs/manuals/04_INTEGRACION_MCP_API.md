@@ -418,7 +418,7 @@ Clasifica el nivel de sensibilidad de un documento por sección.
 {
   "tool": "safecontext.classify",
   "input": {
-    "document": "## Resumen ejecutivo\nEsta es información pública del producto.\n\n## Arquitectura interna\nEl sistema usa PostgreSQL 15 con RLS habilitado para tenant isolation."
+    "document": "## Resumen ejecutivo\nEsta es información pública del producto.\n\n## Arquitectura interna\nEl sistema usa PostgreSQL 18.4 con RLS habilitado para tenant isolation."
   }
 }
 ```
