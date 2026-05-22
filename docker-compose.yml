@@ -19,7 +19,10 @@ x-common: &common
       max-file: "3"
 
 services:
-  # ── PostgreSQL 15 with pgAudit ───────────────────────────────────────────────
+  # ── PostgreSQL 18 with pgAudit ───────────────────────────────────────────────
+  # NOTE: PG18 Docker image changed the recommended mount point from
+  # /var/lib/postgresql/data → /var/lib/postgresql (major-version subdirs).
+  # See: https://github.com/docker-library/postgres/pull/1259
   postgres:
     <<: *common
     image: postgres:18.4-alpine
@@ -28,7 +31,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./apps/infra/compose/postgres/init-pgaudit.sql:/docker-entrypoint-initdb.d/01-init-pgaudit.sql:ro
     ports:
       - "5432:5432"

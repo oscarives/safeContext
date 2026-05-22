@@ -74,9 +74,10 @@ should_block(findings) if {
 
 # ---------------------------------------------------------------------------
 # _blocking_count: cuenta hallazgos que bloquearían (evita `not` en objetos)
+# OPA v1 (import rego.v1): reglas completas con body requieren `if` explícito.
 # ---------------------------------------------------------------------------
 
-_blocking_count(findings) = n {
+_blocking_count(findings) := n if {
     n := count([f |
         f := findings[_]
         f.severity == "critical"
@@ -89,7 +90,7 @@ _blocking_count(findings) = n {
 # _review_count: cuenta hallazgos que requieren revisión
 # ---------------------------------------------------------------------------
 
-_review_count(findings) = n {
+_review_count(findings) := n if {
     n := count([f | f := findings[_]; requires_review(f)])
 }
 
@@ -105,7 +106,7 @@ operation_requires_review(findings) if {
 # decision: respuesta consolidada — sin `not` dentro de literales de objeto
 # ---------------------------------------------------------------------------
 
-decision(findings) = d {
+decision(findings) := d if {
     blocking := _blocking_count(findings)
     reviewing := _review_count(findings)
     d := {

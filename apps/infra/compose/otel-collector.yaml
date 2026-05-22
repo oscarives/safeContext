@@ -1,6 +1,6 @@
 # SafeContext — OpenTelemetry Collector configuration
 # Receivers: OTLP (gRPC + HTTP)
-# Exporters: Prometheus metrics endpoint + logging
+# Exporters: Prometheus metrics endpoint + debug
 
 receivers:
   otlp:
@@ -33,7 +33,7 @@ exporters:
     send_timestamps: true
     metric_expiration: 180m
 
-  logging:
+  debug:
     verbosity: normal
     sampling_initial: 5
     sampling_thereafter: 200
@@ -48,17 +48,17 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [logging]
+      exporters: [debug]
 
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch, resource]
-      exporters: [prometheus, logging]
+      exporters: [prometheus, debug]
 
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [logging]
+      exporters: [debug]
 
   telemetry:
     logs:
