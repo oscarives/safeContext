@@ -12,10 +12,14 @@ const nextConfig = {
   // dependency resolution differences between environments.
   eslint: { ignoreDuringBuilds: true },
 
-  // Use Redis as cache backend (ADR-002: Redis as ephemeral cache, not disk)
-  // cache-handler.js is CommonJS — required by Next.js cacheHandler (runs in Node.js context).
-  cacheHandler: require.resolve('./cache-handler'),
-  cacheMaxMemorySize: 0,  // disable in-memory cache entirely for multi-instance
+  // Redis cache backend (ADR-002) — only in production (multi-instance deployments).
+  // In dev (single instance), the Redis cache handler misinterprets RSC payloads
+  // for 'use client' pages and can cache 404 responses, poisoning subsequent requests.
+  // Next.js built-in cache (memory/disk) is sufficient for single-instance dev.
+  ...(process.env.NODE_ENV === 'production' ? {
+    cacheHandler: require.resolve('./cache-handler'),
+    cacheMaxMemorySize: 0,  // disable in-memory cache entirely for multi-instance
+  } : {}),
 
   // API rewrites so UI can call /api/* → FastAPI
   async rewrites() {
