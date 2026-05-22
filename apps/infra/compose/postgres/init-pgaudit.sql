@@ -1,13 +1,19 @@
 -- SafeContext — PostgreSQL pgAudit initialization
--- This script runs once on first container startup.
+-- pgaudit is optional: if the extension is not installed in the image,
+-- we log a notice and continue. All other initialization still runs.
 
-CREATE EXTENSION IF NOT EXISTS pgaudit;
-
-ALTER SYSTEM SET pgaudit.log = 'write, ddl';
-ALTER SYSTEM SET pgaudit.log_relation = 'on';
-ALTER SYSTEM SET pgaudit.log_catalog = 'off';
-
-SELECT pg_reload_conf();
+DO $$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS pgaudit;
+  EXECUTE 'ALTER SYSTEM SET pgaudit.log = ''write, ddl''';
+  EXECUTE 'ALTER SYSTEM SET pgaudit.log_relation = ''on''';
+  EXECUTE 'ALTER SYSTEM SET pgaudit.log_catalog = ''off''';
+  PERFORM pg_reload_conf();
+  RAISE NOTICE 'pgaudit enabled successfully';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'pgaudit not available (%). Audit logging disabled — install postgresql18-pgaudit for production.', SQLERRM;
+END
+$$;
 
 -- Apply security_barrier to all critical tables when they already exist
 -- (idempotent: the DO block is a no-op on a fresh DB before migrations run).

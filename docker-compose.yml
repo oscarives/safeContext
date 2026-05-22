@@ -22,7 +22,7 @@ services:
   # ── PostgreSQL 15 with pgAudit ───────────────────────────────────────────────
   postgres:
     <<: *common
-    image: postgres:15.6-alpine
+    image: postgres:18.4-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -427,7 +427,7 @@ services:
 
   # ── PostgreSQL daily backup (pg_basebackup + WAL streaming) ─────────────────
   pg-backup:
-    image: postgres:15.6-alpine
+    image: postgres:18.4-alpine
     depends_on:
       postgres:
         condition: service_healthy

@@ -18,7 +18,7 @@ IMAGES=(
   "safecontext/safecontext-api:${VERSION}"
   "safecontext/safecontext-worker:${VERSION}"
   "safecontext/safecontext-ui:${VERSION}"
-  "postgres:15.6-alpine"
+  "postgres:18.4-alpine"
   "redis:7.2.4-alpine"
   "minio/minio:RELEASE.2024-01-16T16-07-38Z"
   "otel/opentelemetry-collector-contrib:0.96.0"
