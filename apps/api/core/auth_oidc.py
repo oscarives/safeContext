@@ -3,6 +3,8 @@
 Validates JWT tokens issued by Keycloak.
 Enforces MFA (verified by amr claim containing 'otp').
 Provides role-based access control via JWT realm_access.roles.
+
+JWT library: PyJWT (replaces python-jose which lacked Python 3.14 support).
 """
 
 from __future__ import annotations
@@ -13,10 +15,11 @@ from collections import defaultdict
 from typing import Annotated
 
 import httpx
+import jwt as pyjwt
 import structlog
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jwt import InvalidTokenError, PyJWKSet
 
 from config import settings
 
@@ -32,9 +35,6 @@ _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 MCP_RATE_LIMIT_RPM = settings.mcp_rate_limit_rpm
 
 # ── JWKS cache ────────────────────────────────────────────────────────────────
-# Fetched async, cached for _JWKS_TTL seconds, refreshed on expiry so key
-# rotations (standard in production Keycloak) are picked up without restarts.
-# asyncio.Lock prevents thundering-herd on simultaneous cache misses.
 
 _jwks_cache: dict = {}
 _jwks_fetched_at: float = 0.0
@@ -45,9 +45,7 @@ _JWKS_TTL: float = 900.0   # 15 minutes
 async def _get_jwks() -> dict:
     """Fetch JWKS from Keycloak, cached with a 15-minute TTL.
 
-    Uses an asyncio.Lock with double-checked locking so that concurrent
-    requests on a cold cache only issue one HTTP call instead of N.
-    Replaces the previous lru_cache + httpx.get() which blocked the event loop.
+    Uses asyncio.Lock with double-checked locking to avoid thundering herd.
     """
     global _jwks_cache, _jwks_fetched_at
 
@@ -56,7 +54,6 @@ async def _get_jwks() -> dict:
         return _jwks_cache
 
     async with _jwks_lock:
-        # Re-check inside the lock (another coroutine may have refreshed first)
         now = time.time()
         if _jwks_cache and now - _jwks_fetched_at < _JWKS_TTL:
             return _jwks_cache
@@ -72,19 +69,43 @@ async def _get_jwks() -> dict:
     return _jwks_cache
 
 
+def _decode_with_jwks(token: str, jwks_dict: dict) -> dict:
+    """Decode a JWT using a cached JWKS dict with PyJWT.
+
+    Selects the correct signing key by matching the 'kid' claim in the token
+    header against the JWKS key set.
+    """
+    jwks_obj = PyJWKSet.from_dict(jwks_dict)
+
+    # Match signing key by kid (key ID) from the token header
+    header = pyjwt.get_unverified_header(token)
+    kid = header.get("kid")
+    if kid:
+        signing_key = next(
+            (k for k in jwks_obj.keys if k.key_id == kid),
+            None,
+        )
+    else:
+        signing_key = jwks_obj.keys[0] if jwks_obj.keys else None
+
+    if signing_key is None:
+        raise InvalidTokenError("No matching signing key found in JWKS")
+
+    return pyjwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],
+        audience=KEYCLOAK_CLIENT_ID,
+        options={"verify_exp": True},
+    )
+
+
 async def _decode_token(token: str) -> dict:
     """Decode and validate a Keycloak JWT. Raises HTTPException on failure."""
     try:
         jwks = await _get_jwks()
-        payload = jwt.decode(
-            token,
-            jwks,
-            algorithms=["RS256"],
-            audience=KEYCLOAK_CLIENT_ID,
-            options={"verify_exp": True},
-        )
-        return payload
-    except JWTError as exc:
+        return _decode_with_jwks(token, jwks)
+    except InvalidTokenError as exc:
         log.warning("auth_oidc.token_invalid", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -157,7 +178,6 @@ def check_rate_limit(client_id: str) -> None:
     timestamps.append(now)
     _rate_limit_store[client_id] = timestamps
 
-    # Evict idle clients to prevent unbounded memory growth.
     if len(_rate_limit_store) > 10_000:
         stale = [k for k, v in _rate_limit_store.items() if not v or v[-1] < window_start]
         for k in stale:
