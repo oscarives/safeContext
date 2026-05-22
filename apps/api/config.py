@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     api_secret_key: str
     api_debug: bool = False
+    # Set to False in dev when users don't have TOTP configured (realm-safecontext.dev.json).
+    # MUST be True in production — enforces MFA on every authenticated API call.
+    api_require_mfa: bool = True
 
     mcp_auth_token: str
     mcp_rate_limit_rpm: int = 100

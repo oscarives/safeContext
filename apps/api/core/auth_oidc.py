@@ -123,7 +123,13 @@ async def _decode_token(token: str) -> dict:
 
 
 def _require_mfa(payload: dict) -> None:
-    """Enforce MFA: token must have 'otp' in amr claim."""
+    """Enforce MFA: token must have 'otp' in amr claim.
+
+    Skipped when settings.api_require_mfa is False (dev environments where
+    users don't have TOTP configured). Always enforced in production.
+    """
+    if not settings.api_require_mfa:
+        return
     amr = payload.get("amr", [])
     if "otp" not in amr:
         log.warning("auth_oidc.mfa_required", sub=payload.get("sub"))
