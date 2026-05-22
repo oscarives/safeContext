@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Install ruff and mypy
         run: pip install ruff mypy pydantic
       - name: Ruff lint
@@ -68,12 +68,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - name: Install dependencies
         run: |
           pip install pytest pytest-asyncio httpx pydantic fastapi \
             sqlalchemy asyncpg structlog opentelemetry-api opentelemetry-sdk \
-            prometheus-client python-jose alembic
+            prometheus-client PyJWT[crypto] alembic
       - name: Run Alembic migrations
         run: |
           cd apps/api

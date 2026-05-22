@@ -12,7 +12,7 @@ jobs:
   ci-airgapped:
     runs-on: [self-hosted, linux, safecontext]
     container:
-      image: ${{ vars.HARBOR_HOST }}/library/python:3.12-slim
+      image: ${{ vars.HARBOR_HOST }}/library/python:3.14-slim
       credentials:
         username: ${{ vars.HARBOR_USER }}
         password: ${{ secrets.HARBOR_PASSWORD }}
