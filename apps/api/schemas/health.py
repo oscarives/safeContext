@@ -8,3 +8,4 @@ class HealthResponse(BaseModel):
     postgres: Literal["ok", "error"]
     redis: Literal["ok", "error"]
     minio: Literal["ok", "error"]
+    broker: Literal["ok", "error"]

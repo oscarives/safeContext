@@ -276,11 +276,11 @@ La UI fue replanteda y completada como proyecto independiente después de detect
 | Auth OIDC | Callback Keycloak, cookie httpOnly, middleware de rutas, `useSession` | ✅ | ✅ `src/middleware.test.ts` |
 | Cliente HTTP | Bearer token automático, manejo 401/403, caché de token | ✅ | ✅ |
 | Componentes | SeverityBadge, StatusBadge, FindingCard, DocumentViewer, ConfirmModal, Toast, EmptyState, Pagination | ✅ | ✅ `src/components/__tests__/` |
-| Página `/scan` | Formulario, polling async, spans resaltados, link a revisión | ✅ | — |
+| Página `/scan` | Formulario, polling async, spans resaltados, link a revisión | ✅ | ✅ `src/app/__tests__/scan.test.tsx` |
 | Página `/review` | ConfirmModal (≥20 chars), SoD display, filtro por trace_id | ✅ | ✅ `src/app/__tests__/review.test.tsx` |
 | Página `/audit` | Findings expandibles, redacciones, HMAC display, descarga correcta | ✅ | ✅ `src/app/__tests__/audit.test.tsx` |
-| Página `/dashboard` | Health fix, stats con fallback, actividad reciente, nav con rol | ✅ | — |
-| NavBar | Nombre de usuario, rol, logout, todos los items | ✅ | — |
+| Página `/dashboard` | Health fix, stats con fallback, actividad reciente, nav con rol | ✅ | ✅ `src/app/__tests__/dashboard.test.tsx` |
+| NavBar | Nombre de usuario, rol, logout, todos los items | ✅ | ✅ |
 
 **Suite de tests UI**: 43/43 pasando (`npm test`)
 
@@ -368,6 +368,8 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 | ADR-009 | OpenTelemetry + Prometheus para observabilidad | Cerrado |
 | ADR-010 | Presidio + spaCy como detectores base, interfaz abstraída | Cerrado |
 | ADR-011 | Port & Adapter pattern para Redis (BrokerPort, CachePort) y MinIO (StoragePort) | Cerrado |
+| ADR-012 | Documento sanitizado como artefacto del pipeline | Cerrado |
+| ADR-013 | Evaluación de storage provider (MinIO CE → AIStor) | Cerrado |
 
 ---
 
@@ -388,7 +390,7 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 | Auth / Identidad | ✅ Completa | — |
 | Offline / Air-gapped | ✅ Completa | — |
 | Base de datos | ✅ Completa (particionada) | — |
-| Tests | ✅ 43 UI + 144 backend/ML/MCP tests | — |
+| Tests | ✅ 43 UI + 144 backend/ML/MCP + 33 nuevos (operations/review/retention/verification-key) | — |
 
 ---
 

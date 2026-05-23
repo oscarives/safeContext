@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.broker = broker
 
     # Shared HTTP client for outbound calls (OPA, Keycloak, etc.).
-    app.state.http_client = httpx.AsyncClient(timeout=5.0)
+    app.state.http_client = httpx.AsyncClient(timeout=settings.http_client_timeout)
 
     # Dedicated Redis client for rate limiting (separate from the Dramatiq broker).
     # Uses sorted sets (ZADD/ZREMRANGEBYSCORE) for multi-replica sliding-window counters.

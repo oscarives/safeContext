@@ -7,18 +7,19 @@ POST /v1/review/{finding_id}/reject  — reject a finding, mark operation reject
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.auth_oidc import require_reviewer
+from core.auth_oidc import check_self_approval, require_reviewer
 from core.constants import SENTINEL_ACTOR_ID
 from db.models.finding import Finding
 from db.models.operation import Operation
@@ -120,8 +121,10 @@ async def _load_document_previews(
 async def get_pending_reviews(
     _actor: dict = Depends(require_reviewer),
     db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ) -> PendingReviewResponse:
-    """Return all operations with status='escalated' and their findings."""
+    """Return escalated operations and their findings, paginated."""
     ops_result = await db.execute(
         select(Operation)
         .where(Operation.status == "escalated")
@@ -129,14 +132,13 @@ async def get_pending_reviews(
     )
     operations = ops_result.scalars().all()
 
-    # Bulk-load all previews in a single query (replaces N+1 pattern)
     preview_map = await _load_document_previews([op.id for op in operations], db)
 
-    items: list[PendingFindingResponse] = []
+    all_items: list[PendingFindingResponse] = []
     for op in operations:
         preview = preview_map.get(str(op.id), "")
         for finding in op.findings:
-            items.append(
+            all_items.append(
                 PendingFindingResponse(
                     operation_id=op.id,
                     trace_id=op.trace_id,
@@ -153,8 +155,11 @@ async def get_pending_reviews(
                 )
             )
 
-    log.info("review.pending.listed", count=len(items))
-    return PendingReviewResponse(total=len(items), items=items)
+    total = len(all_items)
+    items = all_items[offset : offset + limit]
+
+    log.info("review.pending.listed", total=total, returned=len(items))
+    return PendingReviewResponse(total=total, items=items)
 
 
 @router.post("/review/{finding_id}/approve", status_code=status.HTTP_200_OK)
@@ -175,6 +180,8 @@ async def approve_finding(
     # Falls back to SENTINEL_ACTOR_ID only if sub is missing (shouldn't happen).
     sub = actor.get("sub", "")
     reviewer_id = uuid.UUID(sub) if sub else SENTINEL_ACTOR_ID
+
+    check_self_approval(str(operation.actor_id), actor)
 
     async with db.begin():
         # Re-fetch the operation under a row-level lock.

@@ -133,9 +133,14 @@ Para el estado detallado y las tareas pendientes ver [`apps/docs/ROADMAP.md`](ap
 
 ## Documentación
 
+**Para agentes Claude Code** (punto de entrada):
+- **[`CLAUDE.md`](CLAUDE.md)** ← Leer esto primero (instrucciones operacionales)
+- **[`AGENTS.md`](AGENTS.md)** ← Tu rol como agente autónomo
+
+**Documentación técnica del proyecto**:
 | Documento | Contenido |
 |---|---|
-| [`apps/docs/ROADMAP.md`](apps/docs/ROADMAP.md) | Estado actual, fases, tareas pendientes |
+| [`apps/docs/ROADMAP.md`](apps/docs/ROADMAP.md) | Estado actual, fases, tareas pendientes — fuente de verdad |
 | [`apps/docs/DOC-0_UNIFIED.md`](apps/docs/DOC-0_UNIFIED.md) | Visión, principios no negociables, ADRs |
 | [`apps/docs/manuals/03_USUARIO.md`](apps/docs/manuals/03_USUARIO.md) | Manual de usuario |
 | [`apps/docs/manuals/04_INTEGRACION_MCP_API.md`](apps/docs/manuals/04_INTEGRACION_MCP_API.md) | Integración MCP y API |

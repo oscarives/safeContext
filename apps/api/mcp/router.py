@@ -259,34 +259,46 @@ async def tool_sanitize(
             )
         )
         outbox_entry = outbox_result.scalar_one_or_none()
-        document = outbox_entry.payload.get("document", "") if outbox_entry else ""
+        if not outbox_entry or not outbox_entry.payload.get("document_text"):
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail="Original document not found; it may have been archived or deleted",
+            )
+        document = outbox_entry.payload["document_text"]
 
-        # Apply redactions
+        # Apply redactions right-to-left to avoid offset shift issues.
+        # Merge overlapping spans first to prevent double-redaction.
+        sorted_findings = sorted(findings, key=lambda x: (x.span_start, x.span_end))
+        merged: list[tuple[int, int, list]] = []
+        for f in sorted_findings:
+            if merged and f.span_start < merged[-1][1]:
+                prev_start, prev_end, prev_fs = merged[-1]
+                merged[-1] = (prev_start, max(prev_end, f.span_end), prev_fs + [f])
+            else:
+                merged.append((f.span_start, f.span_end, [f]))
+
+        if request.redaction_type == "mask":
+            replacement = "[REDACTED]"
+        elif request.redaction_type == "remove":
+            replacement = ""
+        else:
+            replacement = request.replacement_token or "[REDACTED]"
+
         redaction_map = []
         sanitized = document
-        offset = 0
-        for f in sorted(findings, key=lambda x: x.span_start):
-            start = f.span_start + offset
-            end = f.span_end + offset
-            if request.redaction_type == "mask":
-                replacement = "[REDACTED]"
-            elif request.redaction_type == "remove":
-                replacement = ""
-            else:
-                replacement = request.replacement_token or "[REDACTED]"
-
+        for start, end, group in reversed(merged):
             sanitized = sanitized[:start] + replacement + sanitized[end:]
-            offset += len(replacement) - (f.span_end - f.span_start)
-
-            redaction_map.append(
-                {
-                    "finding_id": str(f.id),
-                    "span_start": f.span_start,
-                    "span_end": f.span_end,
-                    "redaction_type": request.redaction_type,
-                    "policy_version": operation.policy_version,
-                }
-            )
+            for f in group:
+                redaction_map.append(
+                    {
+                        "finding_id": str(f.id),
+                        "span_start": f.span_start,
+                        "span_end": f.span_end,
+                        "redaction_type": request.redaction_type,
+                        "policy_version": operation.policy_version,
+                    }
+                )
+        redaction_map.reverse()
 
         sanitized_digest = hashlib.sha256(sanitized.encode()).hexdigest()
         response.headers["X-Trace-ID"] = str(request.trace_id)
@@ -522,7 +534,7 @@ async def tool_approve(
         trace_uuid = operation.trace_id
 
         if request.decision == "approve":
-            agent_uuid = uuid.uuid4()  # placeholder — real agent UUID in F4 full OIDC
+            agent_uuid = uuid.uuid5(uuid.NAMESPACE_URL, request.agent_client_id)
             redaction = Redaction(
                 finding_id=finding.id,
                 operation_id=operation.id,

@@ -56,5 +56,10 @@ yarn-error.log*
 *.so
 sbom.json
 
+# Playwright E2E
+e2e/.auth/
+playwright-report/
+test-results/
+
 # Test fixtures with real data (corpus uses synthetic data only)
 tests/fixtures/real_data/

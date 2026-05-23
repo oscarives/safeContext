@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     vault_addr: str = "http://vault:8200"
     vault_dev_token: str = "safecontext-dev-token"
 
+    http_client_timeout: float = 5.0
+
     otel_exporter_otlp_endpoint: str = "http://otel:4317"
     otel_service_name: str = "safecontext-api"
 

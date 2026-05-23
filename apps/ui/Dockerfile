@@ -37,4 +37,7 @@ COPY --from=builder /app/cache-handler.js ./cache-handler.js
 USER nextjs
 EXPOSE 3000
 
+HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+
 CMD ["node", "server.js"]

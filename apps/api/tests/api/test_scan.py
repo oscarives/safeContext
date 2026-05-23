@@ -72,6 +72,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         patch("api.v1.health._check_postgres", return_value="ok"),
         patch("api.v1.health._check_redis", return_value="ok"),
         patch("api.v1.health._check_minio", return_value="ok"),
+        patch("api.v1.health._check_broker", new_callable=AsyncMock, return_value="ok"),
     ):
         # Override the FastAPI dependency for get_db
         from db.session import get_db as real_get_db

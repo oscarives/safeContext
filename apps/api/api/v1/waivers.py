@@ -6,6 +6,7 @@ DELETE /v1/waivers/{waiver_id}  — revoke a waiver (policy_editor or admin only
 """
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
@@ -70,6 +71,14 @@ async def create_waiver(
 ) -> WaiverResponse:
     """Create a new policy exception waiver.  Requires policy_editor or admin role."""
     _require_privileged(auth_payload)
+
+    try:
+        re.compile(body.entity_pattern)
+    except re.error as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid regex in entity_pattern: {exc}",
+        ) from exc
 
     approved_by = uuid.UUID(auth_payload["sub"])
     waiver = Waiver(

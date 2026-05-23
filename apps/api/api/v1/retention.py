@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.logging import get_logger
 from db.models.artifact import Artifact
 from db.models.operation import Operation
+from db.models.outbox import Outbox
 
 logger = get_logger(__name__)
 
@@ -55,6 +56,12 @@ async def run_retention(db: AsyncSession) -> dict[str, int]:
     # Delete orphaned / old artifacts first so that the FK constraint
     # (artifacts.operation_id → operations.id) does not block operation deletes
     # for artifacts whose operation was already removed in a prior run.
+    # Delete processed outbox entries older than the operations cutoff
+    outbox_result = await db.execute(
+        delete(Outbox).where(Outbox.processed.is_(True), Outbox.created_at < cutoff_ops)
+    )
+    n_outbox: int = outbox_result.rowcount  # type: ignore[assignment]
+
     art_result = await db.execute(delete(Artifact).where(Artifact.created_at < cutoff_art))
     n_art: int = art_result.rowcount  # type: ignore[assignment]
 
@@ -67,6 +74,7 @@ async def run_retention(db: AsyncSession) -> dict[str, int]:
         "retention.run.complete",
         operations_deleted=n_ops,
         artifacts_deleted=n_art,
+        outbox_deleted=n_outbox,
     )
 
-    return {"operations_deleted": n_ops, "artifacts_deleted": n_art}
+    return {"operations_deleted": n_ops, "artifacts_deleted": n_art, "outbox_deleted": n_outbox}

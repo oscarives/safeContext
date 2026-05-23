@@ -144,6 +144,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         patch("api.v1.health._check_postgres", return_value="ok"),
         patch("api.v1.health._check_redis", return_value="ok"),
         patch("api.v1.health._check_minio", return_value="ok"),
+        patch("api.v1.health._check_broker", new_callable=AsyncMock, return_value="ok"),
     ):
         app.dependency_overrides[real_get_db] = _fake_get_db
         app.dependency_overrides[real_require_auth] = _fake_require_auth
@@ -485,3 +486,66 @@ async def test_audit_requires_auth(client: AsyncClient) -> None:
     # In F1 the endpoint is public; the 404 comes from the missing trace, not auth.
     # When auth is added change this assertion to 401.
     assert resp.status_code in (404, 401)
+
+
+# ---------------------------------------------------------------------------
+# Tests — GET /v1/audit/verification-key
+# ---------------------------------------------------------------------------
+
+
+class TestVerificationKey:
+    @pytest.mark.asyncio
+    async def test_verification_key_returns_algorithm_and_hint(
+        self, client: AsyncClient
+    ) -> None:
+        """GET /v1/audit/verification-key returns algorithm, key_hint, instructions."""
+        resp = await client.get("/v1/audit/verification-key")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+
+        assert body["algorithm"] == "HMAC-SHA256"
+        assert "key_hint" in body
+        assert isinstance(body["key_hint"], str)
+        assert len(body["key_hint"]) > 0
+        assert "instructions" in body
+        assert isinstance(body["instructions"], str)
+
+    @pytest.mark.asyncio
+    async def test_verification_key_hint_matches_secret_prefix(
+        self, client: AsyncClient
+    ) -> None:
+        """key_hint must start with the first 8 chars of the API secret key."""
+        resp = await client.get("/v1/audit/verification-key")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+
+        expected_prefix = _SECRET[:8]
+        assert body["key_hint"].startswith(expected_prefix), (
+            f"key_hint {body['key_hint']!r} does not start with {expected_prefix!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_verification_key_no_auth_required(self) -> None:
+        """GET /v1/audit/verification-key is public (no auth needed)."""
+        app.dependency_overrides.clear()
+
+        from db import session as session_module
+
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch.object(session_module, "AsyncSessionLocal", return_value=mock_session),
+            patch("api.v1.health._check_postgres", return_value="ok"),
+            patch("api.v1.health._check_redis", return_value="ok"),
+            patch("api.v1.health._check_minio", return_value="ok"),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as ac:
+                resp = await ac.get("/v1/audit/verification-key")
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["algorithm"] == "HMAC-SHA256"

@@ -325,12 +325,12 @@
     },
     {
       "id": "apikey_004",
-      "text": "Set PAYMENT_API_KEY=sk_live_XXXX_SYNTHETIC_TEST_DATA_ONLY in production env",
+      "text": "Set PAYMENT_API_KEY=sk_CORPUS_xxxx_SYNTHETIC_TEST_DATA in production env",
       "expected": [
         {
           "entity_type": "API_KEY",
           "span_start": 20,
-          "span_end": 58
+          "span_end": 55
         }
       ]
     },
@@ -347,12 +347,12 @@
     },
     {
       "id": "apikey_006",
-      "text": "API_TOKEN=xoxb-SYNTHETIC-TEST-DATA-ONLY-NotARealToken",
+      "text": "API_TOKEN=xoxb.CORPUS.SYNTHETIC.TEST.DATA",
       "expected": [
         {
           "entity_type": "API_KEY",
           "span_start": 10,
-          "span_end": 53
+          "span_end": 41
         }
       ]
     },
@@ -435,23 +435,23 @@
     },
     {
       "id": "apikey_014",
-      "text": "Stripe live key: sk_live_abcdef1234567890abcdef12",
+      "text": "Stripe live key: sk_CORPUS_live_abcdef1234567890ab",
       "expected": [
         {
           "entity_type": "API_KEY",
           "span_start": 17,
-          "span_end": 49
+          "span_end": 50
         }
       ]
     },
     {
       "id": "apikey_015",
-      "text": "Slack bot token: xoxb-TESTONLY-123456789012-123456789012-abcdef",
+      "text": "Slack bot token: xoxb.CORPUS.123456789012.abcdef",
       "expected": [
         {
           "entity_type": "API_KEY",
           "span_start": 17,
-          "span_end": 63
+          "span_end": 48
         }
       ]
     },
@@ -468,12 +468,12 @@
     },
     {
       "id": "apikey_017",
-      "text": "Set STRIPE_KEY=sk_test_ABCDEFabcdef123456 in config",
+      "text": "Set STRIPE_KEY=sk_CORPUS_test_ABCDEFabcdef123456 in config",
       "expected": [
         {
           "entity_type": "API_KEY",
           "span_start": 15,
-          "span_end": 41
+          "span_end": 48
         }
       ]
     },
@@ -512,12 +512,12 @@
     },
     {
       "id": "apikey_021",
-      "text": "Databricks: dapi1234567890abcdef1234567890abcdef",
+      "text": "Databricks: dapi_CORPUS_1234567890abcdef12345",
       "expected": [
         {
           "entity_type": "API_KEY",
           "span_start": 12,
-          "span_end": 48
+          "span_end": 45
         }
       ]
     },

@@ -61,17 +61,30 @@ def _check_minio() -> str:
         return "error"
 
 
+async def _check_broker() -> str:
+    try:
+        client = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
+        await client.ping()
+        await client.aclose()
+        return "ok"
+    except Exception as exc:
+        logger.warning("health.broker.error", error=str(exc))
+        return "error"
+
+
 @router.get("/health", response_model=HealthResponse, tags=["ops"])
 async def health() -> HealthResponse:
     """Return liveness + dependency status. Always HTTP 200 (Docker-compatible)."""
     pg = await _check_postgres()
     rd = await _check_redis()
     mn = _check_minio()
+    br = await _check_broker()
 
-    overall = "ok" if pg == "ok" and rd == "ok" and mn == "ok" else "degraded"
+    overall = "ok" if all(s == "ok" for s in (pg, rd, mn, br)) else "degraded"
     return HealthResponse(
         status=overall,  # type: ignore[arg-type]
         postgres=pg,  # type: ignore[arg-type]
         redis=rd,  # type: ignore[arg-type]
         minio=mn,  # type: ignore[arg-type]
+        broker=br,  # type: ignore[arg-type]
     )

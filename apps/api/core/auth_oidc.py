@@ -206,6 +206,9 @@ async def check_rate_limit_redis(client_id: str, redis_client) -> None:
         )
 
 
+_rate_limit_fallback_warned = False
+
+
 def check_rate_limit(client_id: str) -> None:
     """Rate limit by client_id: MCP_RATE_LIMIT_RPM requests per minute.
 
@@ -214,9 +217,16 @@ def check_rate_limit(client_id: str) -> None:
     Uses deque(maxlen=RPM) for O(1) append + O(1) head-eviction instead of
     rebuilding a filtered list on every request.
 
-    Note: in-memory, not shared across worker processes.
-    For multi-replica deployments, replace with a Redis sliding-window counter (F4).
+    WARNING: in-memory, not shared across worker processes.
+    With workers>1 the effective limit is RPM × num_workers.
     """
+    global _rate_limit_fallback_warned
+    if not _rate_limit_fallback_warned:
+        log.warning(
+            "rate_limit.fallback_active",
+            detail="Using in-memory rate limiter — limit is per-worker, not global",
+        )
+        _rate_limit_fallback_warned = True
     global _rate_limit_last_eviction
 
     now = time.time()

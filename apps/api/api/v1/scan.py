@@ -26,7 +26,7 @@ _FALLBACK_POLICY_VERSION = "1.0.0"
 
 
 async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> str:
-    """Query OPA for the current policy version; fall back gracefully."""
+    """Query OPA for the current policy version; fall back gracefully on transient errors."""
     try:
         url = f"{settings.opa_url}/v1/data/safecontext/policy/policy_version"
         resp = await client.get(url)
@@ -34,8 +34,13 @@ async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> st
             data = resp.json()
             version = data.get("result", _FALLBACK_POLICY_VERSION)
             return str(version)
+        logger.warning("scan.opa_version.http_error", status=resp.status_code)
+    except httpx.TimeoutException:
+        logger.warning("scan.opa_version.timeout", policy_name=policy_name)
+    except httpx.ConnectError:
+        logger.warning("scan.opa_version.connect_error", policy_name=policy_name)
     except Exception as exc:
-        logger.warning("scan.opa_version.error", error=str(exc))
+        logger.error("scan.opa_version.unexpected_error", error=str(exc))
     return _FALLBACK_POLICY_VERSION
 
 
@@ -105,17 +110,21 @@ async def scan(
         # --- artifact digest ---
         artifact_digest = hashlib.sha256(body.document.encode()).hexdigest()
 
+        # --- policy version (resolve before dedup so lookup uses real value) ---
+        http_client: httpx.AsyncClient = request.app.state.http_client
+        policy_version = body.policy_version or await _get_policy_version(
+            body.policy_name, http_client
+        )
+
         # --- deduplication: return previous result for identical documents ------
         # If the same document + policy combination was already successfully
         # processed, return the existing trace_id immediately without re-scanning.
-        # This prevents double-sanitization of already-clean documents and avoids
-        # false positives on previously-sanitized content (idempotent scanning).
         from sqlalchemy import select as sa_select
         existing_op = (await db.execute(
             sa_select(OperationModel)
             .where(
                 OperationModel.artifact_digest == artifact_digest,
-                OperationModel.policy_version == (body.policy_version or ""),
+                OperationModel.policy_version == policy_version,
                 OperationModel.status.in_(["completed", "escalated"]),
             )
             .order_by(OperationModel.created_at.desc())
@@ -136,12 +145,6 @@ async def scan(
                 findings=[],
                 requires_human_review=existing_op.status == "escalated",
             )
-
-        # --- policy version ---
-        http_client: httpx.AsyncClient = request.app.state.http_client
-        policy_version = body.policy_version or await _get_policy_version(
-            body.policy_name, http_client
-        )
 
         # --- outbox pattern: single transaction ---
         operation_id = uuid.uuid4()

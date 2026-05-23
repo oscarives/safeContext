@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -217,6 +217,16 @@ async def audit_export_endpoint(
     result = await get_audit_export(trace_id, db, actor_id=actor_id)
     if result is None:
         raise HTTPException(status_code=404, detail="trace_id not found")
+
+    # Access control: owner, reviewer, or admin can view audit exports
+    roles = actor.get("realm_access", {}).get("roles", [])
+    is_privileged = "reviewer" in roles or "admin" in roles
+    is_owner = result.operation.get("actor_id") == actor_id
+    if not is_owner and not is_privileged:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: only the operation owner, reviewers, or admins can view audit exports",
+        )
 
     if format == "sarif":
         sarif_output = audit_to_sarif(result)

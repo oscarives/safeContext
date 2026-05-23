@@ -131,6 +131,7 @@ async def policy_editor_client() -> AsyncGenerator[AsyncClient, None]:
         patch("api.v1.health._check_postgres", return_value="ok"),
         patch("api.v1.health._check_redis", return_value="ok"),
         patch("api.v1.health._check_minio", return_value="ok"),
+        patch("api.v1.health._check_broker", new_callable=AsyncMock, return_value="ok"),
     ):
         app.dependency_overrides[real_get_db] = _fake_get_db
         app.dependency_overrides[real_require_auth] = _fake_require_auth
@@ -166,6 +167,7 @@ async def viewer_client() -> AsyncGenerator[AsyncClient, None]:
         patch("api.v1.health._check_postgres", return_value="ok"),
         patch("api.v1.health._check_redis", return_value="ok"),
         patch("api.v1.health._check_minio", return_value="ok"),
+        patch("api.v1.health._check_broker", new_callable=AsyncMock, return_value="ok"),
     ):
         app.dependency_overrides[real_get_db] = _fake_get_db
         app.dependency_overrides[real_require_auth] = _fake_require_auth
