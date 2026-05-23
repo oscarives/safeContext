@@ -267,6 +267,72 @@ Convención de flags:
 
 ---
 
+### F6 · Enterprise regulado multi-tenant 🔲 PENDIENTE
+
+**Objetivo**: aislamiento multi-tenant, evidencias con validez legal, compliance repetible y auditable. Completar F6 lleva la madurez de 4.5/5 a 5/5.
+
+**Prerrequisitos**: F1–F5 completadas ✅ · T1–T10 completadas ✅ · Code review backlog cerrado ✅
+
+---
+
+#### Bloque F6-A — Multi-tenancy (aislamiento de datos y políticas)
+
+| ID | Tarea | Descripción | Criterio de aceptación | Esfuerzo |
+|---|---|---|---|---|
+| **F6-A1** | Modelo de tenant | Tabla `tenants` con metadata (nombre, plan, límites). Columna `tenant_id` en `operations`, `findings`, `redactions`, `waivers`, `artifacts`. Migración Alembic con backfill de tenant por defecto para datos existentes. | Migración crea esquema. Test: operación sin `tenant_id` falla con constraint violation. Datos existentes migrados a tenant `default`. | 3 días |
+| **F6-A2** | Row-Level Security por tenant | Políticas RLS en PostgreSQL que filtran todas las queries por `tenant_id` del JWT. Ningún endpoint puede leer/escribir datos de otro tenant sin bypass explícito de admin. | RLS habilitado en 5 tablas core. Test: query con `tenant_id=A` no retorna registros de `tenant_id=B`. Test: admin bypass funciona con rol `safecontext_admin`. | 3 días |
+| **F6-A3** | Políticas OPA por tenant | Namespace de políticas por tenant: `safecontext/{tenant_id}/policy`. Cada tenant puede tener umbrales de severidad, waivers y reglas custom sin afectar a otros. Fallback a política `default` si no existe policy custom. | `decision_with_waivers` recibe `tenant_id`. Test: tenant A con threshold `high` bloquea, tenant B con threshold `critical` permite el mismo finding. | 3 días |
+| **F6-A4** | Quotas y rate limiting por tenant | Límites configurables por tenant: scans/día, tamaño máximo de documento, storage en MinIO, rate RPM en MCP. Almacenados en tabla `tenant_quotas`. Enforcement en middleware. | Middleware rechaza con 429 al exceder quota. Test: tenant con limit=10 scans/día, scan #11 retorna 429. Dashboard muestra consumo vs límite. | 2 días |
+| **F6-A5** | API de administración de tenants | CRUD de tenants: `POST/GET/PATCH/DELETE /v1/admin/tenants`. Solo rol `platform_admin`. Provisionamiento incluye: crear tenant, asignar quota, crear realm en Keycloak, crear bucket en MinIO. | 4 endpoints con auth admin-only. Test: crear tenant provee bucket + realm. Test: usuario no-admin recibe 403. | 3 días |
+| **F6-A6** | Onboarding UI multi-tenant | Selector de tenant en login (para plataforma SaaS) o tenant fijo (on-prem single-tenant). Dashboard muestra datos filtrados por tenant. Admin puede cambiar de contexto entre tenants. | UI muestra tenant activo. Test E2E: admin cambia de tenant, ve datos diferentes. | 2 días |
+
+**Gate F6-A**: Test de integración end-to-end: dos tenants, misma instancia, datos completamente aislados. Pen-test de tenant isolation.
+
+---
+
+#### Bloque F6-B — Evidencias firmadas con validez legal
+
+| ID | Tarea | Descripción | Criterio de aceptación | Esfuerzo |
+|---|---|---|---|---|
+| **F6-B1** | Integración con Timestamp Authority (RFC 3161) | Firmar hash del audit export con TSA (FreeTSA o servicio interno). El timestamp externo proporciona no-repudio: demuestra que la evidencia existía en un momento dado, independiente del reloj del servidor. | `GET /v1/audit/{trace_id}` incluye campo `tsa_token` (base64 del RFC 3161 response). Test: token verificable con `openssl ts -verify`. | 3 días |
+| **F6-B2** | Cadena de custodia criptográfica | Cada operación genera un hash encadenado al hash de la operación anterior (similar a blockchain ligero). El campo `chain_hash = SHA256(prev_chain_hash + operation_hash)` en `operations`. Permite detectar manipulación o borrado de registros intermedios. | Migración agrega `chain_hash`. Worker calcula hash encadenado. `GET /v1/audit/chain/verify` valida cadena completa. Test: alterar un registro rompe la cadena. | 3 días |
+| **F6-B3** | Firma digital de artefactos con OpenBao | Firmar artefactos sanitizados y audit exports con clave asimétrica gestionada por OpenBao (Transit engine). Verificación sin acceso al vault (clave pública exportable). | Artefactos en MinIO tienen firma `.sig` adjunta. `GET /v1/audit/verification-key` retorna clave pública. Test: verificar firma con `openssl dgst -verify`. | 2 días |
+| **F6-B4** | Sellado WORM con retención legal | Bucket MinIO con Object Lock en modo `GOVERNANCE` para evidencias de auditoría. Retención configurable por tenant (default: 7 años para compliance financiero). Ni admin ni root pueden borrar antes de expiración. | Objetos en bucket `audit-evidence` tienen retención. Test: intento de borrado antes de expiración falla con 403. CLI de retención override solo con 4-eyes. | 2 días |
+
+**Gate F6-B**: Audit export verificable end-to-end: TSA timestamp + chain hash + firma digital + WORM retention. Demostrable a auditor externo.
+
+---
+
+#### Bloque F6-C — Compliance repetible y auditable
+
+| ID | Tarea | Descripción | Criterio de aceptación | Esfuerzo |
+|---|---|---|---|---|
+| **F6-C1** | SBOM firmado en cada release | Generar Software Bill of Materials (SPDX o CycloneDX) en CI. Firmar con cosign. Almacenar en Harbor junto a la imagen. Permite a clientes enterprise verificar supply chain. | GitHub Action genera SBOM. `cosign verify-attestation` valida firma. SBOM disponible en Harbor por tag. Test: pipeline genera y firma SBOM correctamente. | 2 días |
+| **F6-C2** | Compliance checks automatizados | Suite de verificaciones ejecutable en CI y on-demand: CIS Docker Benchmark, secrets scan, dependency audit, license compliance, OWASP dependency-check. Resultado exportable como reporte. | Script `compliance-check.sh` corre 5 checks y genera reporte JSON. CI job falla si algún check critical falla. Dashboard muestra estado de compliance por check. | 3 días |
+| **F6-C3** | Reportes de compliance exportables | Generación automática de evidencia para frameworks de compliance: ISO 27001 (controles Annex A), SOC 2 (Trust Service Criteria), GDPR Art. 30 (registro de actividades). Template por framework, poblado con datos reales del sistema. | `GET /v1/admin/compliance/report?framework=soc2` genera reporte PDF/JSON con controles mapeados a evidencia real. Test: reporte SOC 2 contiene 5 Trust Service Criteria con evidencia. | 5 días |
+| **F6-C4** | Pen-test gate en CI | Integrar OWASP ZAP o Nuclei como scan automatizado en CI contra el stack levantado. Bloquea merge si hay vulnerabilidades high/critical. Resultados almacenados como artefacto de compliance. | CI job `security-scan` corre ZAP baseline scan. Findings high/critical bloquean pipeline. Reporte SARIF publicado en GitHub Security tab. | 2 días |
+| **F6-C5** | Retención y purga GDPR | Proceso automatizado de purga de datos por tenant según política de retención configurada. Job cron que identifica datos expirados, genera certificado de borrado firmado, y elimina datos + artefactos asociados. | Job `retention-purge` elimina operaciones con `created_at > retention_days`. Certificado de borrado firmado almacenado. Test: datos expirados eliminados, no-expirados intactos. | 3 días |
+| **F6-C6** | Integración SIEM | Exportar eventos de seguridad (login, scan, approval, rejection, waiver) en formato CEF o LEEF a Splunk/Elastic via syslog o webhook configurable por tenant. | Configuración de destino SIEM por tenant. Eventos de seguridad publicados en formato CEF. Test: evento de scan genera log CEF parseable por Splunk. | 3 días |
+
+**Gate F6-C**: Reporte SOC 2 generado automáticamente con evidencia real. Pen-test CI pasa. SBOM firmado en Harbor. Retención GDPR verificada.
+
+---
+
+#### Resumen F6
+
+| Bloque | Tareas | Esfuerzo estimado | Dependencias |
+|---|---|---|---|
+| **F6-A** Multi-tenancy | 6 tareas (F6-A1 → F6-A6) | ~16 días | Keycloak realms, PostgreSQL RLS |
+| **F6-B** Evidencias firmadas | 4 tareas (F6-B1 → F6-B4) | ~10 días | OpenBao Transit, TSA externa |
+| **F6-C** Compliance repetible | 6 tareas (F6-C1 → F6-C6) | ~18 días | ZAP/Nuclei, SPDX tooling |
+| **Total** | **16 tareas** | **~44 días (~9 semanas)** | — |
+
+**Orden recomendado**: F6-A (multi-tenancy primero — todo lo demás es per-tenant) → F6-B (evidencias firmadas) → F6-C (compliance sobre la base anterior).
+
+**Gate F6 (Enterprise regulado 5/5)**: Dos tenants en producción con datos aislados. Audit trail verificable por auditor externo con TSA + chain hash. Reporte SOC 2 auto-generado. Pen-test CI verde. SBOM firmado en cada release.
+
+---
+
 ## 6. Frontend (completado en paralelo con F2)
 
 La UI fue replanteda y completada como proyecto independiente después de detectar que el frontend inicial era un esqueleto sin funcionalidad.
@@ -391,6 +457,9 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 | Offline / Air-gapped | ✅ Completa | — |
 | Base de datos | ✅ Completa (particionada) | — |
 | Tests | ✅ 43 UI + 144 backend/ML/MCP + 33 nuevos (operations/review/retention/verification-key) | — |
+| Multi-tenancy | 🔲 Pendiente (F6-A) | Aislamiento RLS, quotas, API admin |
+| Evidencias firmadas | 🔲 Pendiente (F6-B) | TSA, chain hash, firma digital |
+| Compliance repetible | 🔲 Pendiente (F6-C) | SBOM, reportes SOC 2/ISO, SIEM, GDPR purge |
 
 ---
 
@@ -402,11 +471,13 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 **Backlog de replanteo T1–T10**: ✅ COMPLETADO (2026-05-22)
 
-**No hay gaps de código pendientes.** Para alcanzar 5/5 (Enterprise regulado multi-tenant) se requieren: multi-tenancy, evidencias firmadas con timestamp authority, y hardening de compliance repetible — trabajo de F6 fuera del roadmap actual.
+**No hay gaps de código en F1–F5 ni T1–T10.** Todos completados y verificados.
+
+**Siguiente fase**: F6 — Enterprise regulado multi-tenant (16 tareas, ~44 días). Ver §5 (F6) para detalle. Orden: F6-A (multi-tenancy) → F6-B (evidencias firmadas) → F6-C (compliance repetible).
 
 **Antes de implementar cualquier cosa**: verifica que no esté ya implementado consultando los flags de esta tabla y leyendo el archivo correspondiente en el repo.
 
 ---
 
 *Generado a partir de: DOC-0_UNIFIED.md · DOC-3_SPEC.md · deep-research-report.md · estado real del repositorio*
-*Próxima actualización: al completar cualquier tarea T1–T10*
+*Próxima actualización: al completar primera tarea F6*
