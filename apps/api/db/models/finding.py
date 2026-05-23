@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,6 +10,10 @@ from db.base import Base
 class Finding(Base):
     __tablename__ = "findings"
     __table_args__ = (
+        UniqueConstraint(
+            "operation_id", "rule_id", "span_start", "span_end",
+            name="uq_finding_operation_rule_span",
+        ),
         CheckConstraint(
             "severity IN ('low', 'medium', 'high', 'critical')",
             name="ck_findings_severity",

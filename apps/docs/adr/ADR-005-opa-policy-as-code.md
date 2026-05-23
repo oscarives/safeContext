@@ -15,3 +15,27 @@ Todas las reglas de detección, sanitización y autorización son **políticas O
 
 ## Alternativa rechazada
 Reglas hardcodeadas en Python — no versionables, no auditables, no testeables de forma independiente.
+
+## Extensiones implementadas (2026-05-23)
+
+### Waiver-aware decisions
+La funcion `decision()` ahora delega a `decision_with_waivers(findings, waivers)` que filtra hallazgos waived antes de evaluar. Mantiene backward-compat: `decision(findings)` equivale a `decision_with_waivers(findings, [])`.
+
+Funciones agregadas en `safecontext.rego`:
+- `should_waive(finding, waivers)` — true si algun waiver activo matchea `rule_id` + `entity_pattern` (regex)
+- `active_findings_after_waivers(findings, waivers)` — subset de findings no waived
+- `decision_with_waivers(findings, waivers)` — decision consolidada con campo `waived_count`
+
+Respuesta de `decision_with_waivers`:
+```json
+{
+  "allow": true,
+  "requires_human_review": false,
+  "policy_version": "1.0.0",
+  "findings_count": 1,
+  "waived_count": 2,
+  "critical_count": 0
+}
+```
+
+Cobertura: 9 tests adicionales en `safecontext_test.rego` (waiver block, review, inactive, regex mismatch, counts, backward compat, partial, all waived).

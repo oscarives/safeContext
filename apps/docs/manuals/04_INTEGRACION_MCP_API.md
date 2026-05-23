@@ -115,11 +115,17 @@ class SafeContextAuth:
 
 ### Rate limiting
 
-SafeContext aplica rate limiting por `client_id`:
+SafeContext aplica rate limiting en dos capas:
 
-- **Límite**: 100 requests por minuto por `client_id`
+**Capa API** (por `client_id`):
+- **Limite**: 100 requests por minuto por `client_id`
 - **Header requerido**: `X-Client-ID: <identificador-de-tu-cliente>`
-- **Respuesta al superar el límite**: `429 Too Many Requests` con header `Retry-After: <segundos>`
+- **Respuesta al superar el limite**: `429 Too Many Requests` con header `Retry-After: <segundos>`
+
+**Capa Ingress/K8s** (por IP):
+- **Limite**: 50 requests por segundo por IP de origen
+- **Burst**: x3 (150 requests en rafaga)
+- **Conexiones concurrentes**: max 20 por IP
 
 ```
 X-Client-ID: github-actions-prod
@@ -1133,9 +1139,15 @@ clean_doc, trace_id = sc.scan_and_sanitize(
 
 Además del endpoint MCP, SafeContext expone los siguientes endpoints REST convencionales:
 
+### Limites de documentos
+
+| Constraint | Valor | Error si se excede |
+|---|---|---|
+| Tamano maximo de documento | 10 MB (10,485,760 bytes) | `422 Unprocessable Entity` |
+
 ### POST /v1/scan
 
-Inicia una operación de scan directamente sin pasar por el dispatcher MCP.
+Inicia una operacion de scan directamente sin pasar por el dispatcher MCP.
 
 ```bash
 curl -s -X POST http://safecontext-host:8000/v1/scan \
@@ -1170,7 +1182,7 @@ curl -s http://safecontext-host:8000/health | jq
     "postgresql": {"status": "healthy", "latency_ms": 2},
     "redis":      {"status": "healthy", "latency_ms": 1},
     "minio":      {"status": "healthy", "latency_ms": 5},
-    "opa":        {"status": "healthy", "latency_ms": 3}
+    "broker":     {"status": "healthy", "latency_ms": 1}
   },
   "timestamp": "2026-05-18T10:30:00Z"
 }
@@ -1182,23 +1194,20 @@ curl -s http://safecontext-host:8000/health | jq
     "postgresql": {"status": "healthy", "latency_ms": 2},
     "redis":      {"status": "unhealthy", "error": "connection refused"},
     "minio":      {"status": "healthy", "latency_ms": 5},
-    "opa":        {"status": "healthy", "latency_ms": 3}
+    "broker":     {"status": "healthy", "latency_ms": 1}
   }
 }
 ```
 
-### GET /v1/audit/{trace_id}
-
-Recupera la evidencia de auditoría por `trace_id` directamente via REST (equivalente a `safecontext.audit`).
-
-```bash
-curl -s "http://safecontext-host:8000/v1/audit/550e8400-e29b-41d4-a716-446655440001" \
-  -H "Authorization: Bearer ${SAFECONTEXT_TOKEN}" | jq
-```
-
 ### GET /v1/review/pending
 
-Lista operaciones escaladas que requieren revisión humana. Solo accesible para el rol `Reviewer` o superior.
+Lista operaciones escaladas que requieren revision humana. Solo accesible para el rol `Reviewer` o superior.
+
+**Parametros de paginacion**:
+| Parametro | Tipo | Default | Rango |
+|---|---|---|---|
+| `limit` | int | 20 | 1–100 |
+| `offset` | int | 0 | >= 0 |
 
 ```bash
 curl -s "http://safecontext-host:8000/v1/review/pending?limit=20&offset=0" \
@@ -1218,6 +1227,8 @@ curl -s "http://safecontext-host:8000/v1/review/pending?limit=20&offset=0" \
   "total": 1
 }
 ```
+
+> **Nota de seguridad**: Un reviewer no puede aprobar operaciones donde el `actor_id` coincide con su propio JWT `sub` (segregation of duties). Intentarlo retorna `403 Forbidden`.
 
 ### POST /v1/review/{id}/approve
 
@@ -1245,7 +1256,29 @@ curl -s -X POST "http://safecontext-host:8000/v1/review/a1b2c3d4-.../reject" \
   }'
 ```
 
-### Documentación OpenAPI interactiva
+### POST /v1/waivers
+
+Crea una excepcion de politica (waiver) para un `rule_id` especifico. Requiere rol `policy_editor` o `admin`.
+
+```bash
+curl -s -X POST http://safecontext-host:8000/v1/waivers \
+  -H "Authorization: Bearer ${SAFECONTEXT_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rule_id": "API_KEY",
+    "entity_pattern": "AKIA.*",
+    "justification": "AWS test keys used in CI environment",
+    "expires_at": "2026-12-31T23:59:59Z"
+  }'
+```
+
+> **Validacion**: `entity_pattern` debe ser un regex valido. Un regex invalido retorna `422 Unprocessable Entity`.
+
+### GET /v1/audit/{trace_id}
+
+Recupera la evidencia de auditoria por `trace_id`. Requiere ser el owner de la operacion, o tener rol `reviewer` o `admin`. Otros usuarios reciben `403 Forbidden`.
+
+### Documentacion OpenAPI interactiva
 
 ```
 http://safecontext-host:8000/docs      # Swagger UI

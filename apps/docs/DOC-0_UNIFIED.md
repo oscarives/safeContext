@@ -253,19 +253,19 @@ Surgieron del análisis externo de madurez realizado en mayo 2026. No invalidan 
 
 | ID | Tarea | Impacto | Estado |
 |---|---|---|---|
-| T1 | SARIF output | Integración enterprise con tooling estándar | ❌ Pendiente |
-| T2 | actor_id real desde JWT | Audit trail trazable por usuario | ❌ Pendiente |
-| T3 | Rescan post-sanitización | Verificar que no queden fugas tras redacción | ❌ Pendiente |
-| T4 | Capa de reglas determinísticas | Net de seguridad pre-ML | ❌ Pendiente |
-| T5 | Sistema de waivers/excepciones | Gobernanza operacional en enterprise | ❌ Pendiente |
-| T6 | Golden corpus formal con métricas en CI | Demostrar recall a cliente | ❌ Pendiente |
-| T7 | Particionado PostgreSQL | Escala y retención GDPR | ❌ Pendiente |
-| T8 | OAuth 2.1 + PKCE para MCP HTTP | MCP spec compliance enterprise | ❌ Pendiente |
-| T9 | Consent management en MCP | MCP spec compliance enterprise | ❌ Pendiente |
+| T1 | SARIF output | Integración enterprise con tooling estándar | ✅ Completado |
+| T2 | actor_id real desde JWT | Audit trail trazable por usuario | ✅ Completado |
+| T3 | Rescan post-sanitización | Verificar que no queden fugas tras redacción | ✅ Completado |
+| T4 | Capa de reglas determinísticas | Net de seguridad pre-ML | ✅ Completado |
+| T5 | Sistema de waivers/excepciones | Gobernanza operacional en enterprise | ✅ Completado |
+| T6 | Golden corpus formal con métricas en CI | Demostrar recall a cliente | ✅ Completado |
+| T7 | Particionado PostgreSQL | Escala y retención GDPR | ✅ Completado |
+| T8 | OAuth 2.1 + PKCE para MCP HTTP | MCP spec compliance enterprise | ✅ Completado |
+| T9 | Consent management en MCP | MCP spec compliance enterprise | ✅ Completado |
 | T10 | Actualización de versiones (Python 3.14, Next.js 16.2, PG 18.4, MinIO due diligence) | Mantenimiento y seguridad | ✅ Completado |
 
 ---
 
 *Documento generado a partir de: Madurez técnica de SafeContext (deep-research-report.md)*
-*Actualizado: 2026-05-21 — F1–F5 completadas, ADR-011 añadido, gaps T1–T10 documentados*
-*Próxima revisión requerida: al completar T1–T3 o antes del primer piloto enterprise*
+*Actualizado: 2026-05-23 — F1–F5 completadas, T1–T10 completados, code review aplicada (23 fixes)*
+*Próxima revisión requerida: antes del primer piloto enterprise*

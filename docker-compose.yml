@@ -1,6 +1,11 @@
 # SafeContext — Docker Compose stack (development)
 # Services: api, worker, ui, postgres, redis, minio, otel, prometheus, grafana, nginx, keycloak, vault (12 total)
-# Run: docker compose up
+#
+# Usage:
+#   docker compose up                  → minimal stack (no auth, no vault)
+#   docker compose --profile auth up   → stack with Keycloak + OpenBao (Vault)
+#   docker compose --profile full up   → everything (includes auth)
+#
 # Prerequisites: Run apps/infra/compose/generate-certs.sh before first start.
 #
 # Air-gapped / Harbor registry overlay:
@@ -103,7 +108,9 @@ services:
       - backend
 
   # ── Keycloak (SSO/MFA Identity Provider) ────────────────────────────────────
+  # Only started with --profile auth or --profile full
   keycloak:
+    profiles: ["auth", "full"]
     image: quay.io/keycloak/keycloak:26.2.0
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
@@ -135,7 +142,9 @@ services:
       - frontend
 
   # ── HashiCorp Vault (KMS — transit engine for MinIO SSE) ─────────────────────
+  # Only started with --profile auth or --profile full
   vault:
+    profiles: ["auth", "full"]
     image: openbao/openbao:2.5.4
     cap_add:
       - IPC_LOCK
@@ -237,11 +246,8 @@ services:
         condition: service_healthy
       opa:
         condition: service_healthy
-      # keycloak and vault are optional in dev — enable when F4 auth is needed
-      # keycloak:
-      #   condition: service_healthy
-      # vault:
-      #   condition: service_healthy
+      # Keycloak and Vault are in the "auth"/"full" profiles.
+      # Start them with: docker compose --profile auth up
     ports:
       - "8000:8000"
     healthcheck:

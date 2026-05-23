@@ -101,8 +101,17 @@ docker compose build
 ### Paso 5: Levantar el stack
 
 ```bash
+# Stack minimo (sin auth, sin vault) — ideal para desarrollo rapido
 docker compose up -d
+
+# Stack con Keycloak + OpenBao (Vault) — necesario para flujos con SSO/MFA
+docker compose --profile auth up -d
+
+# Stack completo (incluye auth)
+docker compose --profile full up -d
 ```
+
+> **Nota**: Keycloak y OpenBao (Vault) estan en profiles opcionales. El API arranca sin ellos (JWT validation falla gracefully con warning). Activar `--profile auth` cuando se necesite SSO/MFA o rotacion de claves KMS.
 
 El orden de arranque esta controlado por `depends_on` en `docker-compose.yml`. Esperar aproximadamente 60-90 segundos para que todos los servicios pasen sus healthchecks.
 
@@ -130,7 +139,7 @@ Respuesta esperada:
     "database": "healthy",
     "redis": "healthy",
     "minio": "healthy",
-    "opa": "healthy"
+    "broker": "healthy"
   }
 }
 ```
@@ -145,7 +154,9 @@ Si algun componente reporta `"unhealthy"`, consultar la seccion [5. Runbooks ope
 
 | Comando | Descripcion | Cuando usarlo |
 |---|---|---|
-| `docker compose up -d` | Levanta todos los servicios en background | Arranque inicial o tras un apagon |
+| `docker compose up -d` | Levanta stack minimo (sin auth/vault) | Desarrollo rapido sin SSO |
+| `docker compose --profile auth up -d` | Stack con Keycloak + OpenBao | Desarrollo con SSO/MFA |
+| `docker compose --profile full up -d` | Stack completo (incluye auth) | Entorno que replica produccion |
 | `docker compose down` | Para y elimina contenedores (conserva volumenes) | Apagado controlado |
 | `docker compose down -v` | Para, elimina contenedores Y volumenes | Solo en reset completo de datos |
 | `docker compose restart [servicio]` | Reinicia un servicio especifico | Tras cambio de configuracion |
@@ -642,6 +653,37 @@ openssl x509 -in infra/certs/server.crt -noout -dates
 
 Para produccion con certificados de una CA valida (Let's Encrypt, etc.), reemplazar los archivos en `infra/certs/` y seguir el mismo proceso de restart.
 
+### 7.4 Seguridad en Kubernetes
+
+Todos los deployments K8s incluyen las siguientes restricciones de seguridad:
+
+```yaml
+# Pod-level
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+# Container-level
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+  readOnlyRootFilesystem: true  # api + ui (worker excluido — necesita escribir modelos ML)
+```
+
+**Ingress rate limiting** (nginx ingress controller):
+- 50 requests/segundo por IP de origen
+- Burst x3 (150 requests en rafaga)
+- Max 20 conexiones concurrentes por IP
+
+**Grafana**: Expuesto a traves de un Ingress dedicado con basic auth (`grafana-basic-auth` secret). Requiere configurar el htpasswd secret antes del primer deploy:
+
+```bash
+htpasswd -c auth admin
+kubectl create secret generic grafana-basic-auth --from-file=auth -n safecontext
+```
+
 ---
 
 ## 8. Escalado
@@ -775,6 +817,13 @@ Completar esta lista antes de cada despliegue a produccion. Marcar cada item com
 - [ ] La politica OPA esta cargada: `GET /v1/mcp/tools/safecontext.policy.get` devuelve `policy_version` valido
 - [ ] La revision humana funciona: crear un hallazgo de prueba y aprobarlo desde `/review`
 - [ ] El audit trail es verificable: exportar un JSON y verificar la firma HMAC
+
+### Tests
+
+- [ ] Backend tests: `cd apps/api && python -m pytest tests/ -v` — 131+ passed
+- [ ] Frontend unit tests: `cd apps/ui && npm test` — 43 passed
+- [ ] OPA policy tests: `docker run --rm -v ./apps/policies:/policies openpolicyagent/opa:1.4.0 test /policies -v`
+- [ ] E2E tests (requiere `--profile auth`): `cd apps/ui && npx playwright test`
 
 ---
 

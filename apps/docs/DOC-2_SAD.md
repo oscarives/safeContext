@@ -155,7 +155,8 @@ findings (
   span_end      INT NOT NULL,
   confidence    FLOAT NOT NULL,       -- 0.0 - 1.0
   severity      TEXT NOT NULL,        -- 'low' | 'medium' | 'high' | 'critical'
-  explanation   JSONB NOT NULL        -- justificación completa estructurada
+  explanation   JSONB NOT NULL,       -- justificación completa estructurada
+  UNIQUE (operation_id, rule_id, span_start, span_end)  -- evita findings duplicados por span
 )
 
 -- Redacciones aplicadas
@@ -179,6 +180,19 @@ artifacts (
   digest        TEXT NOT NULL,        -- SHA-256 del artefacto en MinIO
   worm_locked   BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+)
+
+-- Waivers (excepciones de política aprobadas)
+waivers (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rule_id         VARCHAR(128) NOT NULL,    -- e.g., 'API_KEY', 'EMAIL_ADDRESS'
+  entity_pattern  TEXT NOT NULL,            -- regex para matchear texto específico
+  justification   TEXT NOT NULL,
+  approved_by     UUID NOT NULL,
+  status          VARCHAR(32) NOT NULL DEFAULT 'active',  -- 'active' | 'expired' | 'revoked'
+  expires_at      TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  metadata        JSONB NOT NULL DEFAULT '{}'
 )
 
 -- Outbox para coordinación PostgreSQL → Redis
@@ -282,7 +296,7 @@ outbox (
 ### 7.1 F1-F2: Docker Compose (single-node)
 
 ```yaml
-# Topología mínima
+# Topología mínima (docker compose up)
 services:
   api:          # FastAPI + MCP Server
   worker:       # Dramatiq workers (Detector, Sanitizador, Clasificador, Auditor, Revisor)
@@ -292,7 +306,13 @@ services:
   minio:        # MinIO artefactos
   otel:         # OpenTelemetry Collector
   prometheus:   # Prometheus + Grafana
+
+# Servicios opcionales via profiles:
+  keycloak:     # profiles: ["auth", "full"] — SSO/MFA Identity Provider
+  vault:        # profiles: ["auth", "full"] — KMS (OpenBao)
 ```
+
+Uso: `docker compose up` (minimo) | `--profile auth` (con SSO+KMS) | `--profile full` (todo).
 
 ### 7.2 F3-F4: Kubernetes (multi-node / HA)
 
@@ -300,8 +320,10 @@ services:
 - PodDisruptionBudget para API y PostgreSQL.
 - NetworkPolicy: deny-all por defecto, allow explícito.
 - Secrets gestionados por External Secrets Operator + KMS.
-- Ingress con TLS terminación y rate limiting.
+- Ingress con TLS terminación y rate limiting (50 RPS/IP, burst x3, max 20 conexiones).
+- Grafana en Ingress dedicado con basic auth (secret `grafana-basic-auth`).
 - PostgreSQL: operador CloudNativePG para HA y WAL archiving.
+- SecurityContext en todos los pods: `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`.
 
 ### 7.3 F5: Air-gapped
 

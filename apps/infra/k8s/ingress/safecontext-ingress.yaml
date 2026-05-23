@@ -8,6 +8,10 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    # Rate limiting: 50 requests/second per source IP
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "3"
+    nginx.ingress.kubernetes.io/limit-connections: "20"
 spec:
   ingressClassName: nginx
   tls:
@@ -32,13 +36,6 @@ spec:
                 name: api
                 port:
                   number: 8000
-          - path: /grafana
-            pathType: Prefix
-            backend:
-              service:
-                name: grafana
-                port:
-                  number: 3000
           - path: /
             pathType: Prefix
             backend:

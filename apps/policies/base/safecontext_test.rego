@@ -301,3 +301,201 @@ test_severity_map_ip_address_is_low if {
 test_severity_map_credit_card_is_high if {
     severity_map["CREDIT_CARD"] == "high"
 }
+
+# ---------------------------------------------------------------------------
+# Test: decision backward compat — waived_count is 0 with no waivers
+# ---------------------------------------------------------------------------
+
+test_decision_waived_count_zero_no_waivers if {
+    result := decision([])
+    result.waived_count == 0
+}
+
+# ---------------------------------------------------------------------------
+# Tests: decision_with_waivers — waiver integration
+# ---------------------------------------------------------------------------
+
+test_decision_waiver_removes_finding_from_block if {
+    findings := [{
+        "entity_type": "API_KEY",
+        "confidence":  0.97,
+        "severity":    "critical",
+        "rule_id":     "API_KEY",
+        "explanation": {"matched_text": "AKIA1234567890ABCDEF"},
+    }]
+    waivers := [{
+        "rule_id":        "API_KEY",
+        "entity_pattern": "AKIA.*",
+        "status":         "active",
+    }]
+    result := decision_with_waivers(findings, waivers)
+    result.allow == true
+    result.findings_count == 0
+    result.waived_count == 1
+}
+
+test_decision_waiver_removes_finding_from_review if {
+    findings := [{
+        "entity_type": "EMAIL_ADDRESS",
+        "confidence":  0.70,
+        "severity":    "medium",
+        "rule_id":     "EMAIL_ADDRESS",
+        "explanation": {"matched_text": "test@example.com"},
+    }]
+    waivers := [{
+        "rule_id":        "EMAIL_ADDRESS",
+        "entity_pattern": ".*@example\\.com",
+        "status":         "active",
+    }]
+    result := decision_with_waivers(findings, waivers)
+    result.requires_human_review == false
+    result.waived_count == 1
+}
+
+test_decision_waiver_inactive_ignored if {
+    findings := [{
+        "entity_type": "API_KEY",
+        "confidence":  0.97,
+        "severity":    "critical",
+        "rule_id":     "API_KEY",
+        "explanation": {"matched_text": "AKIA1234567890ABCDEF"},
+    }]
+    waivers := [{
+        "rule_id":        "API_KEY",
+        "entity_pattern": "AKIA.*",
+        "status":         "revoked",
+    }]
+    result := decision_with_waivers(findings, waivers)
+    result.allow == false
+    result.waived_count == 0
+}
+
+test_decision_waiver_regex_mismatch_ignored if {
+    findings := [{
+        "entity_type": "API_KEY",
+        "confidence":  0.97,
+        "severity":    "critical",
+        "rule_id":     "API_KEY",
+        "explanation": {"matched_text": "sk-live-abc123"},
+    }]
+    waivers := [{
+        "rule_id":        "API_KEY",
+        "entity_pattern": "AKIA.*",
+        "status":         "active",
+    }]
+    result := decision_with_waivers(findings, waivers)
+    result.allow == false
+    result.waived_count == 0
+}
+
+test_decision_waiver_reduces_counts if {
+    findings := [
+        {
+            "entity_type": "API_KEY",
+            "confidence":  0.97,
+            "severity":    "critical",
+            "rule_id":     "API_KEY",
+            "explanation": {"matched_text": "AKIA1234567890ABCDEF"},
+        },
+        {
+            "entity_type": "EMAIL_ADDRESS",
+            "confidence":  0.92,
+            "severity":    "medium",
+            "rule_id":     "EMAIL_ADDRESS",
+            "explanation": {"matched_text": "user@corp.com"},
+        },
+    ]
+    waivers := [{
+        "rule_id":        "API_KEY",
+        "entity_pattern": "AKIA.*",
+        "status":         "active",
+    }]
+    result := decision_with_waivers(findings, waivers)
+    result.findings_count == 1
+    result.waived_count == 1
+    result.critical_count == 0
+    result.allow == true
+}
+
+test_decision_no_waivers_backward_compat if {
+    findings := [
+        {"entity_type": "EMAIL_ADDRESS", "confidence": 0.90, "severity": "medium"},
+    ]
+    r1 := decision(findings)
+    r2 := decision_with_waivers(findings, [])
+    r1.allow == r2.allow
+    r1.findings_count == r2.findings_count
+    r1.requires_human_review == r2.requires_human_review
+}
+
+test_decision_waiver_partial_match if {
+    findings := [
+        {
+            "entity_type": "API_KEY",
+            "confidence":  0.97,
+            "severity":    "critical",
+            "rule_id":     "API_KEY",
+            "explanation": {"matched_text": "AKIA1234567890ABCDEF"},
+        },
+        {
+            "entity_type": "SSN",
+            "confidence":  0.90,
+            "severity":    "critical",
+            "rule_id":     "SSN",
+            "explanation": {"matched_text": "123-45-6789"},
+        },
+        {
+            "entity_type": "EMAIL_ADDRESS",
+            "confidence":  0.92,
+            "severity":    "medium",
+            "rule_id":     "EMAIL_ADDRESS",
+            "explanation": {"matched_text": "admin@internal.io"},
+        },
+    ]
+    waivers := [{
+        "rule_id":        "API_KEY",
+        "entity_pattern": "AKIA.*",
+        "status":         "active",
+    }]
+    result := decision_with_waivers(findings, waivers)
+    result.findings_count == 2
+    result.waived_count == 1
+    result.allow == false
+    result.critical_count == 1
+}
+
+test_decision_all_waived_allows if {
+    findings := [
+        {
+            "entity_type": "API_KEY",
+            "confidence":  0.97,
+            "severity":    "critical",
+            "rule_id":     "API_KEY",
+            "explanation": {"matched_text": "AKIA1234567890ABCDEF"},
+        },
+        {
+            "entity_type": "EMAIL_ADDRESS",
+            "confidence":  0.70,
+            "severity":    "medium",
+            "rule_id":     "EMAIL_ADDRESS",
+            "explanation": {"matched_text": "user@test.com"},
+        },
+    ]
+    waivers := [
+        {
+            "rule_id":        "API_KEY",
+            "entity_pattern": "AKIA.*",
+            "status":         "active",
+        },
+        {
+            "rule_id":        "EMAIL_ADDRESS",
+            "entity_pattern": ".*@test\\.com",
+            "status":         "active",
+        },
+    ]
+    result := decision_with_waivers(findings, waivers)
+    result.allow == true
+    result.requires_human_review == false
+    result.findings_count == 0
+    result.waived_count == 2
+}

@@ -104,17 +104,22 @@ operation_requires_review(findings) if {
 
 # ---------------------------------------------------------------------------
 # decision: respuesta consolidada — sin `not` dentro de literales de objeto
+# Accepts optional waivers to filter out waived findings before evaluation.
 # ---------------------------------------------------------------------------
 
-decision(findings) := d if {
-    blocking := _blocking_count(findings)
-    reviewing := _review_count(findings)
+decision(findings) := decision_with_waivers(findings, [])
+
+decision_with_waivers(findings, waivers) := d if {
+    active := active_findings_after_waivers(findings, waivers)
+    blocking := _blocking_count(active)
+    reviewing := _review_count(active)
     d := {
         "allow":                 blocking == 0,
         "requires_human_review": reviewing > 0,
         "policy_version":        policy_version,
-        "findings_count":        count(findings),
-        "critical_count":        count([f | f := findings[_]; f.severity == "critical"]),
+        "findings_count":        count(active),
+        "waived_count":          count(findings) - count(active),
+        "critical_count":        count([f | f := active[_]; f.severity == "critical"]),
     }
 }
 

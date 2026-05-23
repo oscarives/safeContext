@@ -35,3 +35,5 @@ resources:
   - pdb/api-pdb.yaml
   - pdb/postgres-pdb.yaml
   - ingress/safecontext-ingress.yaml
+  - ingress/grafana-ingress.yaml
+  - secrets/grafana-auth-secret.yaml
