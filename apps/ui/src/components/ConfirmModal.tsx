@@ -57,12 +57,15 @@ export function ConfirmModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-modal-title"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel()
       }}
     >
       <div className="w-full max-w-md bg-white rounded-xl shadow-xl p-6">
-        <h2 className={`text-lg font-semibold mb-1 ${titleColor}`}>{title}</h2>
+        <h2 id="confirm-modal-title" className={`text-lg font-semibold mb-1 ${titleColor}`}>{title}</h2>
         {description && <p className="text-sm text-gray-600 mb-4">{description}</p>}
 
         <label className="block mb-1">

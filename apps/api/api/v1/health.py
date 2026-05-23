@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from config import settings
+from core.constants import HEALTH_CHECK_TIMEOUT
 from core.logging import get_logger
 from db.session import AsyncSessionLocal
 from schemas.health import HealthResponse
@@ -26,7 +27,7 @@ async def _check_postgres() -> str:
 async def _check_redis() -> str:
     client: aioredis.Redis | None = None  # type: ignore[type-arg]
     try:
-        client = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
+        client = aioredis.from_url(settings.redis_url, socket_connect_timeout=HEALTH_CHECK_TIMEOUT)
         await client.ping()
         return "ok"
     except Exception as exc:
@@ -63,7 +64,7 @@ def _check_minio() -> str:
 
 async def _check_broker() -> str:
     try:
-        client = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
+        client = aioredis.from_url(settings.redis_url, socket_connect_timeout=HEALTH_CHECK_TIMEOUT)
         await client.ping()
         await client.aclose()
         return "ok"

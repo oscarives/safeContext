@@ -10,3 +10,17 @@ import uuid
 # Any Operation or Redaction row with this actor_id was created before F4.
 # Search for this constant to find all places that need upgrading.
 SENTINEL_ACTOR_ID: uuid.UUID = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+# ── Timeouts (seconds) ──────────────────────────────────────────────────────
+HEALTH_CHECK_TIMEOUT: float = 2.0          # Redis/MinIO health check socket timeout
+HTTP_CLIENT_TIMEOUT_DEFAULT: float = 5.0   # Default httpx.AsyncClient timeout
+DB_POOL_TIMEOUT: float = 10.0              # SQLAlchemy pool checkout timeout
+
+# ── Limits ───────────────────────────────────────────────────────────────────
+DOCUMENT_MAX_LENGTH: int = 10_485_760      # 10 MB max document size
+REVIEW_PAGE_LIMIT_DEFAULT: int = 20        # Default pagination page size
+REVIEW_PAGE_LIMIT_MAX: int = 100           # Max pagination page size
+MCP_RATE_LIMIT_RPM_DEFAULT: int = 100      # Default MCP rate limit (requests/min)
+
+# ── Policy ───────────────────────────────────────────────────────────────────
+FALLBACK_POLICY_VERSION: str = "1.0.0"     # Used when OPA is unreachable

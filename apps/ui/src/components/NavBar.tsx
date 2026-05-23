@@ -53,6 +53,7 @@ function UserBadge() {
       <button
         onClick={handleLogout}
         className="text-sm px-3 py-1.5 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors"
+        aria-label="Sign out"
       >
         Sign out
       </button>
@@ -62,7 +63,7 @@ function UserBadge() {
 
 export default function NavBar() {
   return (
-    <nav className="bg-white border-b px-8 py-3 flex items-center gap-6">
+    <nav className="bg-white border-b px-8 py-3 flex items-center gap-6" aria-label="Main navigation">
       <a href="/" className="font-bold text-brand mr-2">SafeContext</a>
       {NAV_ITEMS.map(item =>
         'external' in item && item.external ? (

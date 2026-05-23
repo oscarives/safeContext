@@ -1,18 +1,23 @@
 import React from 'react'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CopyButton } from '../CopyButton'
 
+// navigator.clipboard is read-only in jsdom — define via property descriptor
+// before each test and keep a reference to the mock for assertions.
+const writeTextMock = jest.fn().mockImplementation(() => Promise.resolve())
+
+beforeAll(() => {
+  Object.defineProperty(global.navigator, 'clipboard', {
+    value: { writeText: writeTextMock },
+    writable: true,
+    configurable: true,
+  })
+})
+
 describe('CopyButton', () => {
   beforeEach(() => {
-    Object.assign(navigator, {
-      clipboard: { writeText: jest.fn().mockResolvedValue(undefined) },
-    })
-    jest.useFakeTimers()
-  })
-
-  afterEach(() => {
-    jest.useRealTimers()
+    writeTextMock.mockClear()
   })
 
   it('renders with "Copiar" label by default', () => {
@@ -21,18 +26,35 @@ describe('CopyButton', () => {
   })
 
   it('copies text to clipboard on click', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
     render(<CopyButton text="mi-trace-id-123" />)
-    await user.click(screen.getByRole('button'))
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('mi-trace-id-123')
+    const btn = screen.getByRole('button')
+
+    await act(async () => {
+      btn.click()
+      // Let the microtask from writeText().then() settle
+      await Promise.resolve()
+    })
+
+    expect(writeTextMock).toHaveBeenCalledWith('mi-trace-id-123')
   })
 
   it('shows "✓" after successful copy and reverts after 2s', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime })
+    jest.useFakeTimers()
     render(<CopyButton text="abc" />)
-    await user.click(screen.getByRole('button'))
-    expect(screen.getByRole('button')).toHaveTextContent('✓')
-    act(() => jest.advanceTimersByTime(2000))
-    expect(screen.getByRole('button')).toHaveTextContent('Copiar')
+    const btn = screen.getByRole('button')
+
+    await act(async () => {
+      btn.click()
+      await Promise.resolve()
+    })
+
+    expect(btn).toHaveTextContent('✓')
+
+    act(() => {
+      jest.advanceTimersByTime(2000)
+    })
+
+    expect(btn).toHaveTextContent('Copiar')
+    jest.useRealTimers()
   })
 })

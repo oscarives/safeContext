@@ -12,6 +12,7 @@ module.exports = {
     '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',
   },
   testMatch: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/e2e/', 'cache-handler.integration'],
   collectCoverageFrom: [
     'src/components/**/*.{ts,tsx}',
     'src/app/**/*.tsx',

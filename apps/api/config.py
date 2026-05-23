@@ -39,6 +39,12 @@ class Settings(BaseSettings):
 
     http_client_timeout: float = 5.0
 
+    # PostgreSQL connection pool tuning
+    db_pool_size: int = 10             # Persistent connections per worker
+    db_pool_max_overflow: int = 20     # Burst connections above pool_size
+    db_pool_recycle: int = 1800        # Recycle connections after 30 min
+    db_pool_timeout: float = 10.0      # Fail fast if no connection in 10s
+
     otel_exporter_otlp_endpoint: str = "http://otel:4317"
     otel_service_name: str = "safecontext-api"
 

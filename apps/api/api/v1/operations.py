@@ -17,6 +17,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth_oidc import require_auth
+from db.enums import OperationStatus
 from db.models.finding import Finding
 from db.models.operation import Operation
 from db.session import get_db
@@ -128,10 +129,10 @@ async def list_operations(
     # Uses conditional COUNT so we get total + per-status breakdown in one round-trip.
     stats_stmt = select(
         func.count().label("total"),
-        func.count(case((Operation.status == "pending", 1))).label("total_pending"),
-        func.count(case((Operation.status == "escalated", 1))).label("total_escalated"),
-        func.count(case((Operation.status == "completed", 1))).label("total_completed"),
-        func.count(case((Operation.status == "rejected", 1))).label("total_rejected"),
+        func.count(case((Operation.status == OperationStatus.PENDING, 1))).label("total_pending"),
+        func.count(case((Operation.status == OperationStatus.ESCALATED, 1))).label("total_escalated"),
+        func.count(case((Operation.status == OperationStatus.COMPLETED, 1))).label("total_completed"),
+        func.count(case((Operation.status == OperationStatus.REJECTED, 1))).label("total_rejected"),
     ).select_from(Operation)
     if filters:
         stats_stmt = stats_stmt.where(*filters)

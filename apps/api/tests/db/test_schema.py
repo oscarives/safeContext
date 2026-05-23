@@ -201,19 +201,32 @@ class TestPartitionMigration:
         """upgrade() must define 24 monthly partitions (2025-01 to 2026-12)."""
         m = self._load_migration()
         source = inspect.getsource(m.upgrade)
-        # Each monthly partition follows the naming scheme operations_y<year>m<month>
-        expected_partitions = [
-            "operations_y2025m01", "operations_y2025m02", "operations_y2025m03",
-            "operations_y2025m04", "operations_y2025m05", "operations_y2025m06",
-            "operations_y2025m07", "operations_y2025m08", "operations_y2025m09",
-            "operations_y2025m10", "operations_y2025m11", "operations_y2025m12",
-            "operations_y2026m01", "operations_y2026m02", "operations_y2026m03",
-            "operations_y2026m04", "operations_y2026m05", "operations_y2026m06",
-            "operations_y2026m07", "operations_y2026m08", "operations_y2026m09",
-            "operations_y2026m10", "operations_y2026m11", "operations_y2026m12",
-        ]
-        for name in expected_partitions:
-            assert name in source, f"Partition {name} not found in upgrade()"
+
+        # The migration uses a dynamic loop over a `months` list of
+        # (start, end) tuples and generates partition names at runtime via
+        # f"operations_y{year}m{month}".  We verify:
+        # 1. The naming pattern is correct
+        assert 'operations_y{year}m{month}' in source, (
+            "Partition naming pattern not found in upgrade()"
+        )
+
+        # 2. All 24 monthly date ranges are declared in the months list
+        expected_ranges = []
+        for y in (2025, 2026):
+            for mo in range(1, 13):
+                expected_ranges.append(f'"{y}-{mo:02d}-01"')
+        for date_str in expected_ranges:
+            assert date_str in source, (
+                f"Date boundary {date_str} not found in upgrade() months list"
+            )
+
+        # 3. The months list has exactly 24 date-range tuples
+        #    Each tuple appears as ("YYYY-MM-DD", "YYYY-MM-DD") in source
+        import re
+        tuple_pattern = re.findall(r'\("\d{4}-\d{2}-\d{2}",\s*"\d{4}-\d{2}-\d{2}"\)', source)
+        assert len(tuple_pattern) == 24, (
+            f"Expected 24 monthly range tuples in months list, found {len(tuple_pattern)}"
+        )
 
     def test_upgrade_creates_default_partition(self):
         """upgrade() must include a DEFAULT catch-all partition."""

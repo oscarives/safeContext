@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from db.base import Base
+from db.enums import ActorType, OperationStatus
 
 
 class Operation(Base):
@@ -21,6 +22,10 @@ class Operation(Base):
             name="ck_operations_status",
         ),
     )
+
+    # Re-export enums for convenient access: Operation.Status.PENDING, etc.
+    Status = OperationStatus
+    Actor = ActorType
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     trace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)

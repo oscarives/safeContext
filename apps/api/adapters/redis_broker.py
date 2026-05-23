@@ -41,3 +41,19 @@ class RedisBrokerAdapter(BrokerPort):
         payload = json.dumps(message)
         await self._client.rpush(queue, payload)
         logger.debug("redis_broker.enqueued", queue=queue)
+
+    async def enqueue_batch(self, queue: str, messages: list[dict[str, Any]]) -> None:
+        """Enqueue multiple messages atomically using a Redis pipeline.
+
+        All messages are pushed to the queue in a single round-trip,
+        reducing latency proportional to the batch size.
+        """
+        if self._client is None:
+            raise RuntimeError("RedisBrokerAdapter not connected — call connect() first")
+        if not messages:
+            return
+        async with self._client.pipeline(transaction=True) as pipe:
+            for msg in messages:
+                pipe.rpush(queue, json.dumps(msg))
+            await pipe.execute()
+        logger.debug("redis_broker.enqueued_batch", queue=queue, count=len(messages))

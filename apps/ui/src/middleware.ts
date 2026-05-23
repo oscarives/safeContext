@@ -50,7 +50,32 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  return NextResponse.next()
+  // ── Security headers (CSP) ──────────────────────────────────────────────
+  // Apply Content-Security-Policy to every response.  A random nonce per
+  // request allows Next.js inline scripts while blocking injected ones.
+  // Generate a unique nonce per request. Edge runtime has crypto.randomUUID();
+  // fall back to a hex string from getRandomValues for older environments.
+  const nonce = typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+  const csp = [
+    `default-src 'self'`,
+    `script-src 'self' 'nonce-${nonce}'`,
+    `style-src 'self' 'unsafe-inline'`,       // Tailwind injects inline styles
+    `img-src 'self' data: blob:`,
+    `font-src 'self'`,
+    `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'} ${process.env.NEXT_PUBLIC_GRAFANA_URL ?? 'http://localhost:3001'}`,
+    `frame-ancestors 'none'`,
+    `form-action 'self'`,
+    `base-uri 'self'`,
+  ].join('; ')
+
+  const response = NextResponse.next()
+  response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('X-Nonce', nonce)
+  return response
 }
 
 export const config = {

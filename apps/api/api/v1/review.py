@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 
 from core.auth_oidc import check_self_approval, require_reviewer
 from core.constants import SENTINEL_ACTOR_ID
+from db.enums import OperationStatus
 from db.models.finding import Finding
 from db.models.operation import Operation
 from db.models.outbox import Outbox
@@ -81,7 +82,7 @@ async def _load_escalated_finding(
         raise HTTPException(status_code=404, detail="Finding not found")
 
     operation = finding.operation
-    if operation.status != "escalated":
+    if operation.status != OperationStatus.ESCALATED:
         raise HTTPException(
             status_code=409,
             detail=f"Operation status is '{operation.status}', expected 'escalated'",
@@ -127,7 +128,7 @@ async def get_pending_reviews(
     """Return escalated operations and their findings, paginated."""
     ops_result = await db.execute(
         select(Operation)
-        .where(Operation.status == "escalated")
+        .where(Operation.status == OperationStatus.ESCALATED)
         .options(selectinload(Operation.findings))
     )
     operations = ops_result.scalars().all()
@@ -194,7 +195,7 @@ async def approve_finding(
             .with_for_update()
         )
         operation = locked_op_result.scalar_one()
-        if operation.status != "escalated":
+        if operation.status != OperationStatus.ESCALATED:
             raise HTTPException(
                 status_code=409,
                 detail=f"Operation status is '{operation.status}', expected 'escalated' (concurrent update)",
@@ -223,7 +224,7 @@ async def approve_finding(
         )).scalar_one()
 
         if total_redactions >= total_findings:
-            operation.status = "completed"
+            operation.status = OperationStatus.COMPLETED
             operation.completed_at = datetime.now(UTC)
             db.add(operation)
 
@@ -252,7 +253,7 @@ async def reject_finding(
     reviewer_id = uuid.UUID(sub) if sub else SENTINEL_ACTOR_ID
 
     async with db.begin():
-        operation.status = "rejected"
+        operation.status = OperationStatus.REJECTED
         operation.completed_at = datetime.now(UTC)
         db.add(operation)
 

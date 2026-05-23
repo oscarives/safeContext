@@ -3,9 +3,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from core.constants import DOCUMENT_MAX_LENGTH
+
 
 class ScanRequest(BaseModel):
-    document: str = Field(..., max_length=10_485_760)
+    document: str = Field(..., max_length=DOCUMENT_MAX_LENGTH)
     document_encoding: Literal["text", "base64"] = "text"
     policy_name: str
     policy_version: str | None = None

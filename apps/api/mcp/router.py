@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth_oidc import check_rate_limit, check_rate_limit_redis
 from core.tracing import get_trace_id, tracer
+from db.enums import ActorType, OperationStatus
 from db.models.operation import Operation
 from db.models.outbox import Outbox
 from db.models.redaction import Redaction
@@ -168,11 +169,11 @@ async def tool_scan(
         operation = Operation(
             trace_id=trace_uuid,
             actor_id=uuid.UUID(hashlib.sha256(_actor_token.encode()).hexdigest()[:32]),
-            actor_type="mcp_agent",
+            actor_type=ActorType.MCP_AGENT,
             document_id=uuid.uuid4(),
             artifact_digest=artifact_digest,
             policy_version=request.policy_version or "1.0.0",
-            status="pending",
+            status=OperationStatus.PENDING,
         )
         outbox_event = Outbox(
             event_type="scan_requested",
@@ -194,7 +195,7 @@ async def tool_scan(
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR) from exc
 
         response.headers["X-Trace-ID"] = str(trace_uuid)
-        log.info("mcp.scan.enqueued", trace_id=str(trace_uuid), actor_type="mcp_agent")
+        log.info("mcp.scan.enqueued", trace_id=str(trace_uuid), actor_type=ActorType.MCP_AGENT)
 
         scan_result = ScanToolResponse(
             trace_id=trace_uuid,
@@ -236,7 +237,7 @@ async def tool_sanitize(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No operation found for trace_id {request.trace_id}",
             )
-        if operation.status == "escalated":
+        if operation.status == OperationStatus.ESCALATED:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Operation requires human review before sanitization",
@@ -379,11 +380,11 @@ async def tool_classify(
         operation = Operation(
             trace_id=trace_uuid,
             actor_id=uuid.UUID(hashlib.sha256(_actor_token.encode()).hexdigest()[:32]),
-            actor_type="mcp_agent",
+            actor_type=ActorType.MCP_AGENT,
             document_id=uuid.uuid4(),
             artifact_digest=hashlib.sha256(request.document.encode()).hexdigest(),
             policy_version="1.0.0",
-            status="completed",
+            status=OperationStatus.COMPLETED,
         )
         async with db.begin():
             db.add(operation)
@@ -528,7 +529,7 @@ async def tool_approve(
         # Load operation to verify it's escalated
         result2 = await db.execute(select(Operation).where(Operation.id == finding.operation_id))
         operation = result2.scalar_one_or_none()
-        if operation is None or operation.status != "escalated":
+        if operation is None or operation.status != OperationStatus.ESCALATED:
             raise HTTPException(409, "Operation is not in escalated state")
 
         trace_uuid = operation.trace_id
@@ -550,7 +551,7 @@ async def tool_approve(
                 operation.completed_at = datetime.now(UTC)
         else:
             async with db.begin():
-                operation.status = "rejected"
+                operation.status = OperationStatus.REJECTED
                 from datetime import datetime
 
                 operation.completed_at = datetime.now(UTC)

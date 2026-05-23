@@ -3,12 +3,21 @@ import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock API client
-jest.mock('@/lib/api-client', () => ({
-  apiClient: {
-    getAuditExport: jest.fn(),
-  },
-  ForbiddenError: class ForbiddenError extends Error {},
-}))
+jest.mock('@/lib/api-client', () => {
+  class NotFoundError extends Error {
+    constructor(msg: string) {
+      super(msg)
+      this.name = 'NotFoundError'
+    }
+  }
+  return {
+    apiClient: {
+      getAuditExport: jest.fn(),
+    },
+    ForbiddenError: class ForbiddenError extends Error {},
+    NotFoundError,
+  }
+})
 
 import { apiClient } from '@/lib/api-client'
 import AuditPage from '../audit/page'
@@ -88,7 +97,8 @@ describe('AuditPage', () => {
   })
 
   it('shows "Trace ID no encontrado" error when getAuditExport throws 404', async () => {
-    mockGetAuditExport.mockRejectedValue(new Error('Audit export failed (404): not found'))
+    const { NotFoundError } = jest.requireMock('@/lib/api-client')
+    mockGetAuditExport.mockRejectedValue(new NotFoundError('Audit export failed (404): not found'))
     const user = userEvent.setup()
     render(<AuditPage />)
 

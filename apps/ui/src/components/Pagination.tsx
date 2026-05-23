@@ -20,7 +20,7 @@ export function Pagination({
   const pages = buildPageRange(page, totalPages)
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3">
+    <nav className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3" aria-label="Pagination">
       <p className="text-sm text-gray-500">
         Mostrando {total === 0 ? 0 : start}–{end} de {total} resultados
       </p>
@@ -28,6 +28,7 @@ export function Pagination({
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
+          aria-label="Previous page"
           className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Anterior
@@ -42,6 +43,8 @@ export function Pagination({
             <button
               key={p}
               onClick={() => onPageChange(p as number)}
+              aria-label={`Page ${p}`}
+              aria-current={p === page ? 'page' : undefined}
               className={`px-3 py-1.5 text-sm border rounded transition-colors ${
                 p === page
                   ? 'bg-brand text-white border-brand'
@@ -56,12 +59,13 @@ export function Pagination({
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages || totalPages === 0}
+          aria-label="Next page"
           className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Siguiente
         </button>
       </div>
-    </div>
+    </nav>
   )
 }
 

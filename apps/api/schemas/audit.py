@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -12,14 +12,14 @@ class FindingAuditSchema(BaseModel):
     span_start: int
     span_end: int
     confidence: float
-    severity: str
+    severity: Literal["low", "medium", "high", "critical"]
     explanation: dict[str, Any]
 
 
 class RedactionAuditSchema(BaseModel):
     id: UUID
     finding_id: UUID
-    redaction_type: str
+    redaction_type: Literal["mask", "remove", "replace"]
     policy_version: str
     applied_at: datetime
     approved_by: UUID | None
@@ -28,7 +28,7 @@ class RedactionAuditSchema(BaseModel):
 
 class ArtifactAuditSchema(BaseModel):
     id: UUID
-    artifact_type: str
+    artifact_type: Literal["original", "sanitized", "audit_export"]
     minio_key: str
     digest: str
     worm_locked: bool

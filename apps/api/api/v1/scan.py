@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from core.auth_oidc import _decode_token
 from core.constants import SENTINEL_ACTOR_ID
+from db.enums import ActorType, OperationStatus
 from db.models.operation import Operation as OperationModel
 from core.logging import get_logger
 from core.metrics import operations_total, scan_duration
@@ -22,7 +23,7 @@ from schemas.scan import ScanRequest, ScanResponse
 router = APIRouter()
 logger = get_logger(__name__)
 
-_FALLBACK_POLICY_VERSION = "1.0.0"
+from core.constants import FALLBACK_POLICY_VERSION
 
 
 async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> str:
@@ -32,7 +33,7 @@ async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> st
         resp = await client.get(url)
         if resp.status_code == 200:
             data = resp.json()
-            version = data.get("result", _FALLBACK_POLICY_VERSION)
+            version = data.get("result", FALLBACK_POLICY_VERSION)
             return str(version)
         logger.warning("scan.opa_version.http_error", status=resp.status_code)
     except httpx.TimeoutException:
@@ -41,7 +42,7 @@ async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> st
         logger.warning("scan.opa_version.connect_error", policy_name=policy_name)
     except Exception as exc:
         logger.error("scan.opa_version.unexpected_error", error=str(exc))
-    return _FALLBACK_POLICY_VERSION
+    return FALLBACK_POLICY_VERSION
 
 
 async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str]:
@@ -62,7 +63,7 @@ async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str]:
 
     # MCP agent token — static secret, not a JWT
     if token == settings.mcp_auth_token:
-        return SENTINEL_ACTOR_ID, "mcp_agent"
+        return SENTINEL_ACTOR_ID, ActorType.MCP_AGENT
 
     # Keycloak JWT — decode and extract the sub claim
     try:
@@ -70,7 +71,7 @@ async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str]:
         sub = payload.get("sub", "")
         if not sub:
             raise ValueError("empty sub claim in JWT")
-        return uuid.UUID(sub), "human"
+        return uuid.UUID(sub), ActorType.HUMAN
     except HTTPException:
         raise  # re-raise 401 from _decode_token
     except Exception as exc:
@@ -125,7 +126,7 @@ async def scan(
             .where(
                 OperationModel.artifact_digest == artifact_digest,
                 OperationModel.policy_version == policy_version,
-                OperationModel.status.in_(["completed", "escalated"]),
+                OperationModel.status.in_([OperationStatus.COMPLETED, OperationStatus.ESCALATED]),
             )
             .order_by(OperationModel.created_at.desc())
             .limit(1)
@@ -143,7 +144,7 @@ async def scan(
                 artifact_digest=artifact_digest,
                 policy_version=existing_op.policy_version,
                 findings=[],
-                requires_human_review=existing_op.status == "escalated",
+                requires_human_review=existing_op.status == OperationStatus.ESCALATED,
             )
 
         # --- outbox pattern: single transaction ---
@@ -158,7 +159,7 @@ async def scan(
             document_id=document_id,
             artifact_digest=artifact_digest,
             policy_version=policy_version,
-            status="pending",
+            status=OperationStatus.PENDING,
         )
         outbox_event = Outbox(
             event_type="scan_requested",
@@ -211,7 +212,7 @@ async def scan(
         # --- metrics ---
         elapsed = time.perf_counter() - t_start
         scan_duration.labels(policy_name=body.policy_name).observe(elapsed)
-        operations_total.labels(status="pending").inc()
+        operations_total.labels(status=OperationStatus.PENDING).inc()
 
         logger.info(
             "scan.created",
