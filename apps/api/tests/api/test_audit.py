@@ -91,6 +91,7 @@ def _make_mock_operation() -> MagicMock:
     op.redactions = [redaction]
     op.artifacts = [artifact]
     op.sanitized_text = None  # None until sanitizer_agent runs; must not be MagicMock
+    op.chain_hash = None  # F6-B2: None until chain is computed
 
     return op
 
@@ -145,6 +146,8 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         patch("api.v1.health._check_redis", return_value="ok"),
         patch("api.v1.health._check_minio", return_value="ok"),
         patch("api.v1.health._check_broker", new_callable=AsyncMock, return_value="ok"),
+        patch("api.v1.audit.request_tsa_token", new_callable=AsyncMock, return_value=None),
+        patch("api.v1.audit.sign_data", new_callable=AsyncMock, return_value=None),
     ):
         app.dependency_overrides[real_get_db] = _fake_get_db
         app.dependency_overrides[real_require_auth] = _fake_require_auth

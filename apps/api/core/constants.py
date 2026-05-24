@@ -11,6 +11,11 @@ import uuid
 # Search for this constant to find all places that need upgrading.
 SENTINEL_ACTOR_ID: uuid.UUID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
+# Default tenant for pre-F6 data and single-tenant deployments.
+# Migration 0008 creates this tenant and backfills all existing rows.
+DEFAULT_TENANT_ID: uuid.UUID = uuid.UUID("00000000-0000-0000-0000-000000000000")
+DEFAULT_TENANT_SLUG: str = "default"
+
 # ── Timeouts (seconds) ──────────────────────────────────────────────────────
 HEALTH_CHECK_TIMEOUT: float = 2.0          # Redis/MinIO health check socket timeout
 HTTP_CLIENT_TIMEOUT_DEFAULT: float = 5.0   # Default httpx.AsyncClient timeout

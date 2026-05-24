@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from core.auth_oidc import _decode_token
-from core.constants import SENTINEL_ACTOR_ID
+from core.constants import DEFAULT_TENANT_ID, SENTINEL_ACTOR_ID
 from db.enums import ActorType, OperationStatus
 from db.models.operation import Operation as OperationModel
 from core.logging import get_logger
@@ -45,13 +45,14 @@ async def _get_policy_version(policy_name: str, client: httpx.AsyncClient) -> st
     return FALLBACK_POLICY_VERSION
 
 
-async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str]:
-    """Resolve actor_id and actor_type from the Authorization header.
+async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str, uuid.UUID]:
+    """Resolve actor_id, actor_type, and tenant_id from the Authorization header.
 
     Accepts two authentication mechanisms:
     - MCP agent token (static secret = settings.mcp_auth_token) → sentinel actor, "mcp_agent"
     - Keycloak JWT (from the web UI) → actor_id = uuid(sub claim), "human"
 
+    Tenant resolution: JWT claim ``tenant_id`` if present, otherwise DEFAULT_TENANT_ID.
     This replaces the hardcoded SENTINEL_ACTOR_ID so that scans made from the
     web UI are correctly attributed to the authenticated user (TECH-DEBT-001).
     """
@@ -63,7 +64,7 @@ async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str]:
 
     # MCP agent token — static secret, not a JWT
     if token == settings.mcp_auth_token:
-        return SENTINEL_ACTOR_ID, ActorType.MCP_AGENT
+        return SENTINEL_ACTOR_ID, ActorType.MCP_AGENT, DEFAULT_TENANT_ID
 
     # Keycloak JWT — decode and extract the sub claim
     try:
@@ -71,7 +72,10 @@ async def _resolve_scan_actor(request: Request) -> tuple[uuid.UUID, str]:
         sub = payload.get("sub", "")
         if not sub:
             raise ValueError("empty sub claim in JWT")
-        return uuid.UUID(sub), ActorType.HUMAN
+        # Tenant from custom JWT claim; falls back to default tenant
+        tenant_id_str = payload.get("tenant_id", "")
+        tenant_id = uuid.UUID(tenant_id_str) if tenant_id_str else DEFAULT_TENANT_ID
+        return uuid.UUID(sub), ActorType.HUMAN, tenant_id
     except HTTPException:
         raise  # re-raise 401 from _decode_token
     except Exception as exc:
@@ -106,7 +110,7 @@ async def scan(
         t_start = time.perf_counter()
 
         # --- resolve actor from Authorization header (MCP token OR Keycloak JWT) ---
-        actor_id, actor_type = await _resolve_scan_actor(request)
+        actor_id, actor_type, tenant_id = await _resolve_scan_actor(request)
 
         # --- artifact digest ---
         artifact_digest = hashlib.sha256(body.document.encode()).hexdigest()
@@ -153,6 +157,7 @@ async def scan(
 
         operation = Operation(
             id=operation_id,
+            tenant_id=tenant_id,
             trace_id=trace_uuid,
             actor_id=actor_id,
             actor_type=actor_type,

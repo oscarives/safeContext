@@ -47,3 +47,9 @@ class AuditExportResponse(BaseModel):
     # None if the operation is still pending sanitization.
     # Use this field to safely pass the document to an LLM or downstream system.
     sanitized_document: str | None = None
+    # F6-B1: RFC 3161 TSA token (base64-encoded DER) — non-repudiation proof
+    tsa_token: str | None = None
+    # F6-B2: Chain hash for tamper detection
+    chain_hash: str | None = None
+    # F6-B3: Digital signature from OpenBao Transit engine (base64)
+    digital_signature: str | None = None

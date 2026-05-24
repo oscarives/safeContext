@@ -142,3 +142,92 @@ active_findings_after_waivers(findings, waivers) := [f |
     f := findings[_]
     not should_waive(f, waivers)
 ]
+
+# ---------------------------------------------------------------------------
+# Tenant-aware policy (F6-A3) — per-tenant threshold and severity overrides
+#
+# Usage: POST /v1/data/safecontext/policy/tenant_decision with input:
+#   {
+#     "tenant_id": "<uuid>",
+#     "findings": [...],
+#     "waivers":  [...],
+#     "tenant_config": {
+#       "confidence_overrides": {"API_KEY": 0.80},
+#       "severity_overrides":   {"IP_ADDRESS": "high"},
+#       "blocked_entity_types": ["SSN", "CREDIT_CARD"]
+#     }
+#   }
+#
+# If tenant_config is absent or empty, behaves identically to decision().
+# ---------------------------------------------------------------------------
+
+# Resolve effective confidence threshold for a given entity type,
+# using tenant overrides if present, otherwise base thresholds.
+_tenant_threshold(entity_type, tenant_config) := t if {
+    t := tenant_config.confidence_overrides[entity_type]
+} else := t if {
+    t := confidence_thresholds[entity_type]
+}
+
+# Resolve effective severity for a given entity type,
+# using tenant overrides if present, otherwise base severity_map.
+_tenant_severity(entity_type, tenant_config) := s if {
+    s := tenant_config.severity_overrides[entity_type]
+} else := s if {
+    s := severity_map[entity_type]
+}
+
+# Tenant-specific should_block: also blocks entity types in blocked_entity_types list
+_tenant_should_block(finding, tenant_config) if {
+    finding.entity_type == tenant_config.blocked_entity_types[_]
+}
+
+_tenant_should_block(finding, tenant_config) if {
+    sev := _tenant_severity(finding.entity_type, tenant_config)
+    sev == "critical"
+    threshold := _tenant_threshold(finding.entity_type, tenant_config)
+    finding.confidence >= threshold
+}
+
+# Tenant-specific review check
+_tenant_requires_review(finding, tenant_config) if {
+    threshold := _tenant_threshold(finding.entity_type, tenant_config)
+    finding.confidence < threshold
+}
+
+_tenant_requires_review(finding, tenant_config) if {
+    sev := _tenant_severity(finding.entity_type, tenant_config)
+    sev == "critical"
+}
+
+# Tenant-aware decision — main entry point for multi-tenant evaluation
+tenant_decision(findings, waivers, tenant_config) := d if {
+    active := active_findings_after_waivers(findings, waivers)
+    blocking := count([f |
+        f := active[_]
+        _tenant_should_block(f, tenant_config)
+    ])
+    reviewing := count([f |
+        f := active[_]
+        _tenant_requires_review(f, tenant_config)
+    ])
+    d := {
+        "allow":                 blocking == 0,
+        "requires_human_review": reviewing > 0,
+        "policy_version":        policy_version,
+        "findings_count":        count(active),
+        "waived_count":          count(findings) - count(active),
+        "critical_count":        count([f |
+            f := active[_]
+            sev := _tenant_severity(f.entity_type, tenant_config)
+            sev == "critical"
+        ]),
+    }
+}
+
+# Backward compat: tenant_decision with empty config falls back to base behavior
+tenant_decision_default(findings, waivers) := tenant_decision(findings, waivers, {
+    "confidence_overrides": {},
+    "severity_overrides": {},
+    "blocked_entity_types": [],
+})

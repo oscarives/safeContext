@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Vault KMS
     vault_addr: str = "http://vault:8200"
     vault_dev_token: str = "safecontext-dev-token"
+    vault_transit_key: str = "safecontext-signing"  # Transit engine key name
+
+    # TSA (RFC 3161) — Timestamp Authority for audit evidence non-repudiation
+    tsa_url: str = "https://freetsa.org/tsr"
+    tsa_enabled: bool = True  # Set False to skip TSA in dev/air-gapped
 
     http_client_timeout: float = 5.0
 

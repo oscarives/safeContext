@@ -464,6 +464,105 @@ test_decision_waiver_partial_match if {
     result.critical_count == 1
 }
 
+# ---------------------------------------------------------------------------
+# Tests: tenant_decision — per-tenant policy overrides (F6-A3)
+# ---------------------------------------------------------------------------
+
+# Empty tenant_config → same as base decision
+test_tenant_decision_empty_config_matches_base if {
+    findings := [
+        {"entity_type": "EMAIL_ADDRESS", "confidence": 0.90, "severity": "medium"},
+    ]
+    cfg := {"confidence_overrides": {}, "severity_overrides": {}, "blocked_entity_types": []}
+    r := tenant_decision(findings, [], cfg)
+    r.allow == true
+    r.findings_count == 1
+}
+
+# Tenant lowers confidence threshold → finding that was OK now triggers review
+test_tenant_decision_lower_threshold_triggers_review if {
+    findings := [{
+        "entity_type": "EMAIL_ADDRESS",
+        "confidence":  0.90,
+        "severity":    "medium",
+    }]
+    cfg := {
+        "confidence_overrides": {"EMAIL_ADDRESS": 0.95},
+        "severity_overrides":   {},
+        "blocked_entity_types": [],
+    }
+    r := tenant_decision(findings, [], cfg)
+    r.requires_human_review == true
+}
+
+# Tenant overrides severity to critical → finding now blocks
+test_tenant_decision_severity_override_blocks if {
+    findings := [{
+        "entity_type": "IP_ADDRESS",
+        "confidence":  0.80,
+        "severity":    "low",
+    }]
+    cfg := {
+        "confidence_overrides": {},
+        "severity_overrides":   {"IP_ADDRESS": "critical"},
+        "blocked_entity_types": [],
+    }
+    r := tenant_decision(findings, [], cfg)
+    r.allow == false
+    r.critical_count == 1
+}
+
+# Tenant adds entity type to blocked list → blocks even non-critical
+test_tenant_decision_blocked_entity_type if {
+    findings := [{
+        "entity_type": "PHONE_NUMBER",
+        "confidence":  0.90,
+        "severity":    "medium",
+    }]
+    cfg := {
+        "confidence_overrides": {},
+        "severity_overrides":   {},
+        "blocked_entity_types": ["PHONE_NUMBER"],
+    }
+    r := tenant_decision(findings, [], cfg)
+    r.allow == false
+}
+
+# Tenant decision with waivers — waived findings excluded
+test_tenant_decision_with_waivers if {
+    findings := [{
+        "entity_type": "API_KEY",
+        "confidence":  0.97,
+        "severity":    "critical",
+        "rule_id":     "API_KEY",
+        "explanation": {"matched_text": "AKIA1234567890ABCDEF"},
+    }]
+    waivers := [{
+        "rule_id":        "API_KEY",
+        "entity_pattern": "AKIA.*",
+        "status":         "active",
+    }]
+    cfg := {"confidence_overrides": {}, "severity_overrides": {}, "blocked_entity_types": []}
+    r := tenant_decision(findings, waivers, cfg)
+    r.allow == true
+    r.waived_count == 1
+}
+
+# Tenant backward compat — tenant_decision_default matches decision
+test_tenant_decision_default_matches_decision if {
+    findings := [
+        {"entity_type": "EMAIL_ADDRESS", "confidence": 0.90, "severity": "medium"},
+        {"entity_type": "API_KEY",       "confidence": 0.98, "severity": "critical"},
+    ]
+    r1 := decision(findings)
+    r2 := tenant_decision_default(findings, [])
+    r1.allow == r2.allow
+    r1.findings_count == r2.findings_count
+    r1.critical_count == r2.critical_count
+}
+
+# ---------------------------------------------------------------------------
+
 test_decision_all_waived_allows if {
     findings := [
         {

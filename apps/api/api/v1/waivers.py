@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth_oidc import get_roles, require_auth
+from core.constants import DEFAULT_TENANT_ID
 from db.models.waiver import Waiver
 from db.session import get_db
 
@@ -81,7 +82,11 @@ async def create_waiver(
         ) from exc
 
     approved_by = uuid.UUID(auth_payload["sub"])
+    # Resolve tenant from JWT claim or fall back to default
+    tenant_id_str = auth_payload.get("tenant_id", "")
+    tenant_id = uuid.UUID(tenant_id_str) if tenant_id_str else DEFAULT_TENANT_ID
     waiver = Waiver(
+        tenant_id=tenant_id,
         rule_id=body.rule_id,
         entity_pattern=body.entity_pattern,
         justification=body.justification,

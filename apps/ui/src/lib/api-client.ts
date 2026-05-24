@@ -315,6 +315,205 @@ export const apiClient = {
     }
     return res.json() as Promise<OperationsListResponse>
   },
+
+  // ── Tenant admin (F6-A5/A6) ─────────────────────────────────────────────
+
+  async listTenants(): Promise<TenantListItem[]> {
+    const res = await apiFetch('/api/admin/tenants')
+    if (!res.ok) throw new Error(`Failed to list tenants (${res.status})`)
+    return res.json() as Promise<TenantListItem[]>
+  },
+
+  async createTenant(data: TenantCreateRequest): Promise<TenantListItem> {
+    const res = await apiFetch('/api/admin/tenants', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+    if (res.status === 409) throw new Error('Tenant slug already exists')
+    if (!res.ok) throw new Error(`Failed to create tenant (${res.status})`)
+    return res.json() as Promise<TenantListItem>
+  },
+
+  async updateTenant(tenantId: string, data: Partial<TenantCreateRequest>): Promise<TenantListItem> {
+    const res = await apiFetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) throw new Error(`Failed to update tenant (${res.status})`)
+    return res.json() as Promise<TenantListItem>
+  },
+
+  async deactivateTenant(tenantId: string): Promise<void> {
+    const res = await apiFetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error(`Failed to deactivate tenant (${res.status})`)
+  },
+
+  async getTenant(tenantId: string): Promise<TenantListItem> {
+    const res = await apiFetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}`)
+    if (res.status === 404) throw new NotFoundError('Tenant not found')
+    if (!res.ok) throw new Error(`Failed to get tenant (${res.status})`)
+    return res.json() as Promise<TenantListItem>
+  },
+
+  // ── SIEM ────────────────────────────────────────────────────────────────
+
+  async testSIEMConfig(tenantId: string): Promise<SIEMTestResult> {
+    const res = await apiFetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/siem/test`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error(`SIEM test failed (${res.status})`)
+    return res.json() as Promise<SIEMTestResult>
+  },
+
+  // ── GDPR Retention ──────────────────────────────────────────────────────
+
+  async triggerPurge(tenantId: string): Promise<PurgeResult> {
+    const res = await apiFetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/purge`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error(`Purge failed (${res.status})`)
+    return res.json() as Promise<PurgeResult>
+  },
+
+  async listCertificates(tenantId: string): Promise<CertificateSummary[]> {
+    const res = await apiFetch(`/api/admin/tenants/${encodeURIComponent(tenantId)}/certificates`)
+    if (!res.ok) throw new Error(`Failed to list certificates (${res.status})`)
+    return res.json() as Promise<CertificateSummary[]>
+  },
+
+  async getCertificate(tenantId: string, certId: string): Promise<CertificateDetail> {
+    const res = await apiFetch(
+      `/api/admin/tenants/${encodeURIComponent(tenantId)}/certificates/${encodeURIComponent(certId)}`
+    )
+    if (res.status === 404) throw new NotFoundError('Certificate not found')
+    if (!res.ok) throw new Error(`Failed to get certificate (${res.status})`)
+    return res.json() as Promise<CertificateDetail>
+  },
+
+  // ── Waivers ─────────────────────────────────────────────────────────────
+
+  async listWaivers(): Promise<WaiverItem[]> {
+    const res = await apiFetch('/api/waivers')
+    if (!res.ok) throw new Error(`Failed to list waivers (${res.status})`)
+    return res.json() as Promise<WaiverItem[]>
+  },
+
+  async createWaiver(data: WaiverCreateRequest): Promise<WaiverItem> {
+    const res = await apiFetch('/api/waivers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) {
+      const detail = await res.text()
+      throw new Error(`Failed to create waiver (${res.status}): ${detail}`)
+    }
+    return res.json() as Promise<WaiverItem>
+  },
+
+  async revokeWaiver(waiverId: string): Promise<void> {
+    const res = await apiFetch(`/api/waivers/${encodeURIComponent(waiverId)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error(`Failed to revoke waiver (${res.status})`)
+  },
+}
+
+// ─── Tenant types ─────────────────────────────────────────────────────────────
+
+export interface PolicyConfig {
+  confidence_overrides: Record<string, number>
+  severity_overrides: Record<string, string>
+  blocked_entity_types: string[]
+}
+
+export interface SIEMConfig {
+  enabled: boolean
+  format: 'cef' | 'leef' | 'json'
+  webhook_url: string | null
+  webhook_token: string | null
+  syslog_host: string | null
+  syslog_port: number
+  syslog_protocol: 'udp' | 'tcp'
+}
+
+export interface TenantListItem {
+  id: string
+  name: string
+  slug: string
+  plan: string
+  is_active: boolean
+  contact_email: string | null
+  max_scans_per_day: number | null
+  max_document_size: number | null
+  max_storage_mb: number | null
+  rate_limit_rpm: number | null
+  policy_config: PolicyConfig | null
+  siem_config: SIEMConfig | null
+  retention_days: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TenantCreateRequest {
+  name: string
+  slug: string
+  plan?: string
+  contact_email?: string
+  max_scans_per_day?: number | null
+  max_document_size?: number | null
+  max_storage_mb?: number | null
+  rate_limit_rpm?: number | null
+  policy_config?: PolicyConfig | null
+  siem_config?: SIEMConfig | null
+  retention_days?: number | null
+}
+
+export interface SIEMTestResult {
+  webhook: boolean
+  syslog: boolean
+}
+
+export interface PurgeResult {
+  purged: boolean
+  operations_deleted: number
+  findings_deleted: number
+  redactions_deleted: number
+  artifacts_deleted: number
+  certificate_id: string | null
+  certificate_stored: boolean
+  certificate: Record<string, unknown> | null
+}
+
+export interface CertificateSummary {
+  certificate_id: string
+  object_name: string
+  size: number
+  last_modified: string | null
+}
+
+export interface CertificateDetail {
+  certificate_id: string
+  data: Record<string, unknown>
+}
+
+export interface WaiverItem {
+  id: string
+  rule_id: string
+  entity_pattern: string
+  justification: string
+  approved_by: string
+  status: string
+  expires_at: string | null
+  created_at: string
+}
+
+export interface WaiverCreateRequest {
+  rule_id: string
+  entity_pattern: string
+  justification: string
+  expires_at?: string | null
 }
 
 // Legacy named export kept for backwards compatibility with existing page components

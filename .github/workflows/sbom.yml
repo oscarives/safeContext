@@ -1,0 +1,86 @@
+name: SBOM & Supply Chain
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+jobs:
+  sbom:
+    name: Generate & sign SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Generate SPDX SBOM for Python backend ──────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install SBOM tools
+        run: pip install cyclonedx-bom pip-audit
+
+      - name: Generate CycloneDX SBOM (API)
+        run: |
+          cd apps/api
+          pip install -r requirements.txt
+          cyclonedx-py environment \
+            --output-format json \
+            --output ../../sbom-api.cdx.json
+
+      # ── Generate SBOM for Node.js frontend ─────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Generate CycloneDX SBOM (UI)
+        run: |
+          cd apps/ui
+          npm ci --legacy-peer-deps
+          npx @cyclonedx/cyclonedx-npm --output-file ../../sbom-ui.cdx.json
+
+      # ── Dependency audit ───────────────────────────────────────────────
+      - name: Python dependency audit
+        run: pip-audit --format json --output pip-audit-results.json || true
+
+      # ── Sign with cosign (keyless / OIDC) ──────────────────────────────
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign SBOM (API)
+        run: cosign sign-blob --yes sbom-api.cdx.json --bundle sbom-api.cdx.json.bundle
+
+      - name: Sign SBOM (UI)
+        run: cosign sign-blob --yes sbom-ui.cdx.json --bundle sbom-ui.cdx.json.bundle
+
+      # ── Upload artifacts ───────────────────────────────────────────────
+      - name: Upload SBOMs as release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.ref_name }}
+          path: |
+            sbom-api.cdx.json
+            sbom-api.cdx.json.bundle
+            sbom-ui.cdx.json
+            sbom-ui.cdx.json.bundle
+            pip-audit-results.json
+          retention-days: 90
+
+      # ── Push to Harbor (if configured) ─────────────────────────────────
+      - name: Push SBOM to Harbor
+        if: env.HARBOR_REGISTRY != ''
+        env:
+          HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
+          HARBOR_USER: ${{ secrets.HARBOR_USER }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+        run: |
+          echo "$HARBOR_PASSWORD" | cosign login "$HARBOR_REGISTRY" -u "$HARBOR_USER" --password-stdin
+          TAG="${GITHUB_REF_NAME}"
+          cosign attach sbom \
+            --sbom sbom-api.cdx.json \
+            "${HARBOR_REGISTRY}/safecontext/api:${TAG}"

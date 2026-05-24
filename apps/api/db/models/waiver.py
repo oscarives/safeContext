@@ -4,9 +4,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from db.base import Base
@@ -22,6 +22,12 @@ class Waiver(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     rule_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     entity_pattern: Mapped[str] = mapped_column(Text, nullable=False)  # regex pattern
     justification: Mapped[str] = mapped_column(Text, nullable=False)
@@ -32,3 +38,5 @@ class Waiver(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, default=dict, nullable=False)
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="waivers")  # type: ignore[name-defined]  # noqa: F821

@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth_oidc import check_rate_limit, check_rate_limit_redis
+from core.constants import DEFAULT_TENANT_ID
 from core.tracing import get_trace_id, tracer
 from db.enums import ActorType, OperationStatus
 from db.models.operation import Operation
@@ -166,7 +167,12 @@ async def tool_scan(
         # Derive actor_id from JWT sub claim (or raw token in dev mode for compat)
         _actor_token = _token_payload.get("_raw_token") or _token_payload.get("sub", "unknown")
         # actor_type='mcp_agent' — ADR-004, E1.4 acceptance criterion
+        # Resolve tenant from JWT claim or fall back to default
+        _tenant_id_str = _token_payload.get("tenant_id", "")
+        _tenant_id = uuid.UUID(_tenant_id_str) if _tenant_id_str else DEFAULT_TENANT_ID
+
         operation = Operation(
+            tenant_id=_tenant_id,
             trace_id=trace_uuid,
             actor_id=uuid.UUID(hashlib.sha256(_actor_token.encode()).hexdigest()[:32]),
             actor_type=ActorType.MCP_AGENT,
@@ -376,8 +382,12 @@ async def tool_classify(
 
         # Derive actor_id from JWT sub claim (or raw token in dev mode for compat)
         _actor_token = _token_payload.get("_raw_token") or _token_payload.get("sub", "unknown")
+        # Resolve tenant from JWT claim or fall back to default
+        _tenant_id_str2 = _token_payload.get("tenant_id", "")
+        _tenant_id2 = uuid.UUID(_tenant_id_str2) if _tenant_id_str2 else DEFAULT_TENANT_ID
         # Record operation for audit trail
         operation = Operation(
+            tenant_id=_tenant_id2,
             trace_id=trace_uuid,
             actor_id=uuid.UUID(hashlib.sha256(_actor_token.encode()).hexdigest()[:32]),
             actor_type=ActorType.MCP_AGENT,

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -28,6 +28,12 @@ class Operation(Base):
     Actor = ActorType
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     trace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     actor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     actor_type: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -42,7 +48,11 @@ class Operation(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # F6-B2: Cryptographic chain hash — SHA256(prev_chain_hash + operation_hash)
+    # NULL for operations created before F6-B2 or when chain is not yet computed.
+    chain_hash: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
 
+    tenant: Mapped["Tenant"] = relationship(back_populates="operations")  # type: ignore[name-defined]  # noqa: F821
     findings: Mapped[list["Finding"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="operation", cascade="all, delete-orphan"
     )

@@ -11,7 +11,8 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,8 @@ from sqlalchemy.orm import selectinload
 from config import settings
 from core.auth_oidc import require_auth
 from core.logging import get_logger
+from core.tsa import request_tsa_token
+from core.vault_transit import sign_data
 from db.models.finding import Finding
 from db.models.operation import Operation
 from db.session import get_db
@@ -45,6 +48,7 @@ async def get_audit_export(
     trace_id: UUID,
     db: AsyncSession,
     actor_id: str = "anonymous",
+    http_client: httpx.AsyncClient | None = None,
 ) -> AuditExportResponse | None:
     """Core audit logic — reusable by HTTP endpoint and MCP tool.
 
@@ -138,6 +142,26 @@ async def get_audit_export(
 
     signature = compute_hmac(signable, settings.api_secret_key)
 
+    # F6-B1: Request TSA timestamp for non-repudiation
+    tsa_token_b64: str | None = None
+    if settings.tsa_enabled:
+        signable_bytes = json.dumps(signable, sort_keys=True, default=str).encode()
+        tsa_result = await request_tsa_token(signable_bytes, http_client=http_client)
+        if tsa_result:
+            tsa_token_b64 = tsa_result.token_b64
+
+    # F6-B2: Chain hash — read from operation if available
+    _raw_chain = getattr(operation, "chain_hash", None)
+    chain_hash_val: str | None = _raw_chain if isinstance(_raw_chain, str) else None
+
+    # F6-B3: Digital signature via OpenBao Transit
+    digital_sig: str | None = None
+    try:
+        sig_data = json.dumps(signable, sort_keys=True, default=str).encode()
+        digital_sig = await sign_data(sig_data, http_client=http_client)
+    except Exception as exc:
+        logger.warning("audit.vault_sign_failed", error=str(exc))
+
     logger.info(
         "audit.export",
         trace_id=str(trace_id),
@@ -145,6 +169,9 @@ async def get_audit_export(
         findings_count=len(findings),
         redactions_count=len(redactions),
         artifacts_count=len(artifacts),
+        has_tsa=tsa_token_b64 is not None,
+        has_chain_hash=chain_hash_val is not None,
+        has_digital_sig=digital_sig is not None,
     )
 
     return AuditExportResponse(
@@ -155,7 +182,10 @@ async def get_audit_export(
         redactions=redactions,
         artifacts=artifacts,
         hmac_signature=signature,
-        sanitized_document=operation.sanitized_text,  # None until sanitizer_agent runs
+        sanitized_document=operation.sanitized_text,
+        tsa_token=tsa_token_b64,
+        chain_hash=chain_hash_val,
+        digital_signature=digital_sig,
     )
 
 
@@ -163,41 +193,57 @@ class VerificationKeyResponse(BaseModel):
     algorithm: str
     key_hint: str
     instructions: str
+    # F6-B3: Transit public key for digital signature verification
+    transit_public_key: str | None = None
+    transit_algorithm: str | None = None
 
 
 @router.get("/audit/verification-key", response_model=VerificationKeyResponse, tags=["audit"])
-async def verification_key() -> VerificationKeyResponse:
+async def verification_key(request: Request) -> VerificationKeyResponse:
     """
-    Return the public HMAC verification hint and usage instructions.
+    Return the public HMAC verification hint and Transit public key.
 
     No authentication required — this is informational metadata only.
-    The secret key itself is never exposed; only the first 8 characters
-    are returned as an identifier hint.
+    The HMAC secret key itself is never exposed; only the first 8 characters
+    are returned as an identifier hint. The Transit public key is fully
+    exportable for offline signature verification.
     """
     key_hint = settings.api_secret_key[:8] + "..."
     instructions = (
         "Para verificar la integridad de un export de auditoría:\n"
         "\n"
-        "import hashlib, hmac, json\n"
-        "\n"
-        "def verify_export(export: dict, secret: str) -> bool:\n"
-        "    received_sig = export.pop('hmac_signature')\n"
-        "    data = json.dumps(export, sort_keys=True, default=str).encode()\n"
-        "    expected = hmac.new(secret.encode(), data, hashlib.sha256).hexdigest()\n"
-        "    return hmac.compare_digest(received_sig, expected)\n"
-        "\n"
-        "La clave completa debe obtenerse del administrador del sistema."
+        "1. HMAC: verificar hmac_signature con la clave secreta compartida.\n"
+        "2. Digital signature: verificar digital_signature con la clave pública Transit.\n"
+        "3. TSA: verificar tsa_token con openssl ts -verify.\n"
+        "4. Chain hash: GET /v1/audit/chain/verify para validar cadena completa.\n"
     )
+
+    # Try to fetch Transit public key
+    transit_pub_key: str | None = None
+    transit_algo: str | None = None
+    try:
+        from core.vault_transit import get_public_key
+        http_client = getattr(request.app.state, "http_client", None)
+        key_info = await get_public_key(http_client=http_client)
+        if key_info:
+            transit_pub_key = key_info.get("public_key_pem")
+            transit_algo = key_info.get("algorithm")
+    except Exception:
+        pass  # Vault unavailable — return without Transit key
+
     logger.info("audit.verification_key.requested")
     return VerificationKeyResponse(
         algorithm="HMAC-SHA256",
         key_hint=key_hint,
         instructions=instructions,
+        transit_public_key=transit_pub_key,
+        transit_algorithm=transit_algo,
     )
 
 
 @router.get("/audit/{trace_id}", tags=["audit"])
 async def audit_export_endpoint(
+    request: Request,
     trace_id: UUID,
     actor: Annotated[dict, Depends(require_auth)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -214,7 +260,8 @@ async def audit_export_endpoint(
     compatible with GitHub Advanced Security, VS Code, and other SARIF tools.
     """
     actor_id: str = str(actor.get("sub", "unknown"))
-    result = await get_audit_export(trace_id, db, actor_id=actor_id)
+    http_client: httpx.AsyncClient | None = getattr(request.app.state, "http_client", None)
+    result = await get_audit_export(trace_id, db, actor_id=actor_id, http_client=http_client)
     if result is None:
         raise HTTPException(status_code=404, detail="trace_id not found")
 
@@ -233,3 +280,45 @@ async def audit_export_endpoint(
         return sarif_output.model_dump(by_alias=True)
 
     return result
+
+
+# ── F6-B2: Chain verification endpoint ──────────────────────────────────────
+
+
+class ChainVerifyResponse(BaseModel):
+    valid: bool
+    checked: int
+    first_broken_at: str | None
+    gaps: list[str]
+
+
+@router.get("/audit/chain/verify", response_model=ChainVerifyResponse, tags=["audit"])
+async def verify_chain_endpoint(
+    actor: Annotated[dict, Depends(require_auth)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChainVerifyResponse:
+    """Verify the integrity of the operation hash chain for the caller's tenant.
+
+    Walks the chain from the first operation and verifies each chain_hash
+    matches SHA256(prev_chain_hash + operation_hash). Any tampering or
+    deletion of intermediate records will break the chain.
+
+    Requires admin or reviewer role.
+    """
+    from core.auth_oidc import get_roles
+    from core.chain import verify_chain
+    from core.constants import DEFAULT_TENANT_ID
+
+    roles = get_roles(actor)
+    if "admin" not in roles and "reviewer" not in roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="admin or reviewer role required to verify chain",
+        )
+
+    # Resolve tenant from JWT
+    tenant_id_str = actor.get("tenant_id", "")
+    tenant_id = UUID(tenant_id_str) if tenant_id_str else DEFAULT_TENANT_ID
+
+    result = await verify_chain(db, tenant_id)
+    return ChainVerifyResponse(**result)

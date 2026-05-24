@@ -46,3 +46,9 @@ class WaiverStatus(StrEnum):
     ACTIVE = "active"
     EXPIRED = "expired"
     REVOKED = "revoked"
+
+
+class TenantPlan(StrEnum):
+    FREE = "free"
+    STARTER = "starter"
+    ENTERPRISE = "enterprise"

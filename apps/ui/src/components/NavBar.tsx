@@ -3,6 +3,7 @@
 // Items are shown to all authenticated users; role checks happen inside each page.
 
 import { useSession } from '@/hooks/useSession'
+import { TenantSelector } from '@/components/TenantSelector'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -12,6 +13,8 @@ const NAV_ITEMS = [
   // External link — opens in new tab; rel noopener for security
   { label: 'Grafana', href: 'http://localhost:3001', external: true },
 ] as const
+
+const ADMIN_ROLES = ['platform_admin', 'admin'] as const
 
 function UserBadge() {
   const { user, isLoading } = useSession()
@@ -61,6 +64,16 @@ function UserBadge() {
   )
 }
 
+function AdminLink() {
+  const { user } = useSession()
+  if (!user || !ADMIN_ROLES.some(r => user.roles.includes(r))) return null
+  return (
+    <a href="/admin" className="text-sm font-medium text-indigo-600 hover:text-indigo-800">
+      Admin
+    </a>
+  )
+}
+
 export default function NavBar() {
   return (
     <nav className="bg-white border-b px-8 py-3 flex items-center gap-6" aria-label="Main navigation">
@@ -82,6 +95,8 @@ export default function NavBar() {
           </a>
         )
       )}
+      <AdminLink />
+      <TenantSelector />
       <UserBadge />
     </nav>
   )

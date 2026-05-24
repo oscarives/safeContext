@@ -1,0 +1,195 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  zap-baseline:
+    name: OWASP ZAP baseline scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start stack
+        run: docker compose up -d --wait
+        timeout-minutes: 5
+
+      - name: Wait for API
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/api/v1/health >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: ZAP baseline scan (API)
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: "http://localhost:8000"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options: "-J zap-api-report.json -r zap-api-report.html"
+          allow_issue_writing: false
+        continue-on-error: true
+
+      - name: ZAP baseline scan (UI)
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: "http://localhost:3000"
+          cmd_options: "-J zap-ui-report.json"
+          allow_issue_writing: false
+        continue-on-error: true
+
+      - name: Check high/critical findings
+        run: |
+          if [ -f zap-api-report.json ]; then
+            HC=$(python3 -c "
+          import json
+          with open('zap-api-report.json') as f: data=json.load(f)
+          alerts=data.get('site',[{}])[0].get('alerts',[]) if data.get('site') else []
+          print(len([a for a in alerts if int(a.get('riskcode',0))>=3]))
+          " 2>/dev/null || echo 0)
+            echo "High/Critical: ${HC}"
+            [ "${HC}" -gt 0 ] && { echo "::error::ZAP found ${HC} high/critical vulns"; exit 1; }
+          fi
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports-${{ github.sha }}
+          path: zap-*-report.*
+          retention-days: 30
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v
+
+  nuclei-scan:
+    name: Nuclei vulnerability scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start stack
+        run: docker compose up -d --wait
+        timeout-minutes: 5
+
+      - name: Wait for API
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/api/v1/health >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Install Nuclei
+        run: |
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          nuclei -update-templates
+
+      - name: Run Nuclei scan
+        run: |
+          nuclei -u http://localhost:8000 \
+            -severity high,critical -type http \
+            -sarif-export nuclei-results.sarif \
+            -json-export nuclei-results.json \
+            -silent || true
+
+      - name: Check results
+        run: |
+          if [ -f nuclei-results.json ]; then
+            FINDINGS=$(wc -l < nuclei-results.json || echo 0)
+            echo "High/critical: ${FINDINGS}"
+            [ "${FINDINGS}" -gt 0 ] && { echo "::error::Nuclei found ${FINDINGS} vulns"; cat nuclei-results.json; exit 1; }
+          fi
+          echo "No high/critical vulnerabilities"
+
+      - name: Upload SARIF
+        if: always() && hashFiles('nuclei-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: nuclei-results.sarif
+          category: nuclei
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuclei-reports-${{ github.sha }}
+          path: nuclei-results.*
+          retention-days: 30
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v
+
+  dependency-audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Python audit
+        run: |
+          pip install pip-audit
+          pip-audit -r apps/api/requirements.txt --format json --output pip-audit-results.json || true
+
+      - name: Node.js audit
+        run: |
+          cd apps/ui && npm audit --json > ../../npm-audit-results.json 2>/dev/null || true
+          python3 -c "
+          import json
+          with open('../../npm-audit-results.json') as f: data=json.load(f)
+          v=data.get('metadata',{}).get('vulnerabilities',{})
+          c=v.get('critical',0)
+          print(f'npm: {v.get(\"high\",0)} high, {c} critical')
+          if c>0: exit(1)
+          "
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ github.sha }}
+          path: |
+            pip-audit-results.json
+            npm-audit-results.json
+          retention-days: 30
+
+  compliance-checks:
+    name: Compliance check suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install tools
+        run: pip install detect-secrets pip-audit pip-licenses
+      - name: Run compliance checks
+        run: |
+          chmod +x scripts/compliance-check.sh
+          ./scripts/compliance-check.sh --ci
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-report-${{ github.sha }}
+          path: compliance-report.json
+          retention-days: 90
