@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { apiClient, NotFoundError, type AuditExportResponse, type OperationItem } from '@/lib/api-client'
 import {
@@ -55,6 +55,18 @@ export default function AuditPage() {
   // Collapsible panel state — Set of section keys that are collapsed.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
+  // Auto-search when the page loads with a ?trace= param (e.g. from dashboard "Ver →" links).
+  // Reading from window.location (client-only) avoids needing a Suspense boundary for useSearchParams.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('trace')?.trim()
+    if (id) {
+      setTraceId(id)
+      runSearch(id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function toggleSection(key: string) {
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -63,10 +75,7 @@ export default function AuditPage() {
     })
   }
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    const id = traceId.trim()
-    if (!id) return
+  async function runSearch(id: string) {
     setLoading(true)
     setError(null)
     setResult(null)
@@ -83,6 +92,13 @@ export default function AuditPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const id = traceId.trim()
+    if (!id) return
+    await runSearch(id)
   }
 
   function handleDownload() {

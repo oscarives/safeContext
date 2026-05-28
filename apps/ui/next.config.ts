@@ -10,13 +10,24 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
 
   // Proxy API calls to the FastAPI backend to avoid CORS in development.
-  // In production the ingress routes /api/v1/* to the backend directly.
+  // Client code calls /api/<resource> (e.g. /api/operations).
+  // This rewrite strips the /api prefix and adds /v1 to match FastAPI's router prefix.
+  // Next.js applies afterFiles rewrites AFTER checking route handlers, so /api/auth/*
+  // route handlers are NOT intercepted by this rule.
   async rewrites() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
     return [
+      // /health → backend /health (Docker healthcheck endpoint, no /v1 prefix)
       {
-        source: '/api/v1/:path*',
-        destination: `${apiUrl}/api/v1/:path*`,
+        source: '/health',
+        destination: `${apiUrl}/health`,
+      },
+      // /api/<resource> → backend /v1/<resource>
+      // Next.js applies afterFiles rewrites AFTER route handlers, so /api/auth/*
+      // route handlers (e.g. /api/auth/token) are NOT intercepted by this rule.
+      {
+        source: '/api/:path*',
+        destination: `${apiUrl}/v1/:path*`,
       },
     ]
   },

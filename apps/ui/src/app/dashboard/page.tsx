@@ -25,6 +25,7 @@ interface OperationStats {
 
 interface OperationRow {
   id: string
+  trace_id: string
   digest: string
   status: 'pending' | 'completed' | 'escalated' | 'rejected'
   findings: number
@@ -38,6 +39,7 @@ interface OperationRow {
 const ADMIN_ROLES = ['reviewer', 'policy_editor', 'viewer'] as const
 
 function roleLabel(roles: string[]): string {
+  if (roles.includes('admin')) return 'Admin'
   if (ADMIN_ROLES.every((r) => roles.includes(r))) return 'Admin'
   if (roles.includes('policy_editor')) return 'Policy Editor'
   if (roles.includes('reviewer')) return 'Reviewer'
@@ -221,6 +223,7 @@ export default function DashboardPage() {
           setOperations(
             (data.items ?? []).map(op => ({
               id: op.id.toString(),
+              trace_id: op.trace_id,
               digest: op.artifact_digest,
               status: op.status as OperationRow['status'],
               findings: op.findings_count,
@@ -402,7 +405,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-3 text-gray-700">{op.findings}</td>
                     <td className="px-4 py-3">
                       <Link
-                        href={`/audit?trace=${op.id}`}
+                        href={`/audit?trace=${op.trace_id}`}
                         className="text-brand hover:underline text-xs"
                       >
                         Ver &rarr;

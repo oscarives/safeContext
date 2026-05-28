@@ -4,7 +4,7 @@
   "refresh": "30s",
   "schemaVersion": 36,
   "version": 1,
-  "time": {"from": "now-30d", "to": "now"},
+  "time": {"from": "now-3h", "to": "now"},
   "templating": {
     "list": [
       {
@@ -28,6 +28,7 @@
         {
           "expr": "safecontext:error_budget:availability:remaining * 100",
           "legendFormat": "% remaining",
+          "instant": true,
           "refId": "A"
         }
       ],

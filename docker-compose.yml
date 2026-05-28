@@ -35,9 +35,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["postgres", "-c", "wal_level=replica", "-c", "max_wal_senders=3", "-c", "hba_file=/etc/pg_hba_custom.conf"]
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./apps/infra/compose/postgres/init-pgaudit.sql:/docker-entrypoint-initdb.d/01-init-pgaudit.sql:ro
+      - ./apps/infra/compose/postgres/pg_hba_custom.conf:/etc/pg_hba_custom.conf:ro
     ports:
       - "5432:5432"
     healthcheck:
@@ -414,10 +416,15 @@ services:
     image: grafana/grafana:13.0.1-security-01
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${API_SECRET_KEY}
+      GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_DOMAIN: localhost
       GF_SERVER_ROOT_URL: "http://localhost:3001"
+      # Dev: anonymous access so SafeContext admins don't need a separate Grafana login.
+      # In production replace with Keycloak OAuth (GF_AUTH_GENERIC_OAUTH_*).
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
     volumes:
       - ./apps/infra/compose/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana

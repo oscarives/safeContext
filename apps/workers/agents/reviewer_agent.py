@@ -72,8 +72,7 @@ async def _process_review_async(operation_id: str) -> None:
 
             # Structured audit log — consumed by OTel collector / SIEM
             logger.warning(
-                "reviewer_agent.escalated_operation",
-                event="operation_escalated",
+                "operation_escalated",
                 operation_id=operation_id,
                 actor_id=str(operation.actor_id),
                 actor_type=operation.actor_type,
