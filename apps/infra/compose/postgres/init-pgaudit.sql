@@ -1,6 +1,9 @@
--- SafeContext — PostgreSQL pgAudit initialization
--- pgaudit is optional: if the extension is not installed in the image,
--- we log a notice and continue. All other initialization still runs.
+-- SafeContext — PostgreSQL initialization
+-- Configures pgAudit (optional), replication permissions, and security_barrier.
+
+-- ── Grant replication privilege for pg_basebackup (pg-backup sidecar) ──────
+ALTER ROLE current_user WITH REPLICATION;
+
 
 DO $$
 BEGIN
