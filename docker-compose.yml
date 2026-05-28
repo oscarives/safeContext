@@ -236,6 +236,13 @@ services:
       # Vault KMS
       VAULT_ADDR: ${VAULT_ADDR:-http://vault:8200}
       VAULT_DEV_TOKEN: ${VAULT_DEV_TOKEN:-safecontext-dev-token}
+      VAULT_TRANSIT_KEY: ${VAULT_TRANSIT_KEY:-safecontext-signing}
+      # Audit no-repudiation (F7 / ADR-014)
+      # AUDIT_SIGN_ON_WRITE: sella firma+chain al completar la operación.
+      # AUDIT_REQUIRE_DIGITAL_SIGNATURE: fail-closed (503) si el export no tiene
+      # firma asimétrica — debe ser "true" en producción, "false" en dev/air-gapped.
+      AUDIT_SIGN_ON_WRITE: ${AUDIT_SIGN_ON_WRITE:-true}
+      AUDIT_REQUIRE_DIGITAL_SIGNATURE: ${AUDIT_REQUIRE_DIGITAL_SIGNATURE:-false}
       # OpenTelemetry
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME}
@@ -291,6 +298,14 @@ services:
       # OPA
       OPA_URL: ${OPA_URL}
       OPA_POLICY_PATH: ${OPA_POLICY_PATH}
+      # Vault KMS — write-time evidence signing (F7-5 / ADR-014/H1)
+      # El auditor_agent sella cada operación al completarse. Sin Vault accesible
+      # (stack mínimo sin --profile auth) solo se escribe el chain_hash y la firma
+      # queda NULL; con --profile auth se firma con la clave Transit ECDSA-P256.
+      VAULT_ADDR: ${VAULT_ADDR:-http://vault:8200}
+      VAULT_DEV_TOKEN: ${VAULT_DEV_TOKEN:-safecontext-dev-token}
+      VAULT_TRANSIT_KEY: ${VAULT_TRANSIT_KEY:-safecontext-signing}
+      AUDIT_SIGN_ON_WRITE: ${AUDIT_SIGN_ON_WRITE:-true}
       # Worker config
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY}
       WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES}
