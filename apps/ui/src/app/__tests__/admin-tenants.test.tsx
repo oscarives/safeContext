@@ -14,9 +14,9 @@ jest.mock('@/lib/api-client', () => ({
 // Mock useSession — admin user
 jest.mock('@/hooks/useSession', () => ({
   useSession: () => ({
-    user: { sub: 'u1', name: 'Admin', email: 'admin@t.com', roles: ['platform_admin'] },
+    user: { sub: 'u1', name: 'Admin', email: 'admin@t.com', roles: ['admin'] },
     isLoading: false,
-    hasRole: (r: string) => r === 'platform_admin',
+    hasRole: (r: string) => r === 'admin',
   }),
 }))
 

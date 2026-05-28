@@ -20,7 +20,7 @@ from main import app
 _ADMIN_PAYLOAD = {
     "sub": "11111111-1111-1111-1111-111111111111",
     "preferred_username": "admin",
-    "realm_access": {"roles": ["platform_admin"]},
+    "realm_access": {"roles": ["admin"]},
     "amr": ["otp"],
 }
 

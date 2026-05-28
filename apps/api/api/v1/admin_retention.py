@@ -24,17 +24,17 @@ from db.session import get_db
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin/tenants", tags=["admin"])
 
-_ALLOWED_ROLES = ("platform_admin", "admin")
-_READ_ROLES = ("platform_admin", "admin", "reviewer")
+_ADMIN_ROLE = "admin"
+_READ_ROLES = ("admin", "reviewer")
 
 
 def _require_admin(payload: dict) -> None:
-    """Raise 403 if the caller lacks platform_admin or admin role."""
+    """Raise 403 if the caller does not have the admin role."""
     roles = get_roles(payload)
-    if not any(r in roles for r in _ALLOWED_ROLES):
+    if _ADMIN_ROLE not in roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="platform_admin or admin role required",
+            detail="admin role required",
         )
 
 
@@ -44,7 +44,7 @@ def _require_reader(payload: dict) -> None:
     if not any(r in roles for r in _READ_ROLES):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="platform_admin, admin, or reviewer role required",
+            detail="admin or reviewer role required",
         )
 
 
@@ -87,7 +87,7 @@ async def trigger_purge(
 
     Deletes operations older than the tenant's configured retention_days.
     Produces a signed deletion certificate stored in WORM.
-    Requires platform_admin or admin role.
+    Requires admin role.
     """
     _require_admin(auth_payload)
 
@@ -127,7 +127,7 @@ async def list_certificates(
 ) -> list[CertificateSummary]:
     """List deletion certificates for a tenant from WORM storage.
 
-    Requires platform_admin, admin, or reviewer role.
+    Requires admin or reviewer role.
     """
     _require_reader(auth_payload)
 
@@ -173,7 +173,7 @@ async def get_certificate(
 ) -> CertificateDetail:
     """Retrieve a specific deletion certificate from WORM storage.
 
-    Requires platform_admin, admin, or reviewer role.
+    Requires admin or reviewer role.
     """
     _require_reader(auth_payload)
 

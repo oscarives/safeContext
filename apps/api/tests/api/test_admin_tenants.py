@@ -23,7 +23,7 @@ _NON_ADMIN_SUB = "22222222-2222-2222-2222-222222222222"
 _ADMIN_PAYLOAD = {
     "sub": _ADMIN_SUB,
     "preferred_username": "admin",
-    "realm_access": {"roles": ["platform_admin"]},
+    "realm_access": {"roles": ["admin"]},
     "amr": ["otp"],
 }
 
@@ -65,7 +65,7 @@ def _make_mock_tenant(**overrides):
 
 @pytest_asyncio.fixture
 async def admin_client() -> AsyncGenerator[AsyncClient, None]:
-    """Client authenticated as platform_admin."""
+    """Client authenticated as admin."""
     mock_session = AsyncMock()
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.__aexit__ = AsyncMock(return_value=False)

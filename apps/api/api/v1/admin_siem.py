@@ -21,16 +21,16 @@ from db.session import get_db
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin/tenants", tags=["admin"])
 
-_ALLOWED_ROLES = ("platform_admin", "admin")
+_ADMIN_ROLE = "admin"
 
 
 def _require_admin(payload: dict) -> None:
-    """Raise 403 if the caller lacks platform_admin or admin role."""
+    """Raise 403 if the caller does not have the admin role."""
     roles = get_roles(payload)
-    if not any(r in roles for r in _ALLOWED_ROLES):
+    if _ADMIN_ROLE not in roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="platform_admin or admin role required",
+            detail="admin role required",
         )
 
 
@@ -50,7 +50,7 @@ async def test_siem_config(
 ) -> SIEMTestResponse:
     """Send a test event to the tenant's configured SIEM destinations.
 
-    Requires platform_admin or admin role.
+    Requires admin role.
     """
     _require_admin(auth_payload)
 

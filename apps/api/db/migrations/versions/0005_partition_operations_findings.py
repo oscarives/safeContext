@@ -30,11 +30,34 @@ def upgrade() -> None:
     # LIKE … INCLUDING ALL copies: constraints (PK, CHECK), defaults,
     # indexes, storage parameters — but NOT foreign keys *pointing to*
     # this table (those live on child tables and are handled below).
+    # LIKE … INCLUDING DEFAULTS copies column defaults but NOT constraints
+    # or indexes — we define the PK manually as (id, created_at) because
+    # PostgreSQL requires the partition key in every unique/PK constraint.
     op.execute("""
         CREATE TABLE operations_partitioned (
-            LIKE operations INCLUDING ALL
+            LIKE operations INCLUDING DEFAULTS INCLUDING STORAGE
         ) PARTITION BY RANGE (created_at);
     """)
+    # Add composite PK that includes the partition column
+    op.execute("""
+        ALTER TABLE operations_partitioned
+            ADD PRIMARY KEY (id, created_at);
+    """)
+    # Re-add CHECK constraints from the original table
+    op.execute("""
+        ALTER TABLE operations_partitioned
+            ADD CONSTRAINT ck_operations_part_actor_type
+            CHECK (actor_type IN ('human', 'mcp_agent', 'pipeline'));
+    """)
+    op.execute("""
+        ALTER TABLE operations_partitioned
+            ADD CONSTRAINT ck_operations_part_status
+            CHECK (status IN ('pending', 'completed', 'escalated', 'approved', 'rejected'));
+    """)
+    # NOTE: Child table FKs (findings, redactions, artifacts) that referenced
+    # operations(id) are dropped in step 4 and NOT recreated — PostgreSQL
+    # doesn't allow single-column FK to a table with composite PK.
+    # Referential integrity is enforced at the application layer.
 
     # ------------------------------------------------------------------
     # 2. Create monthly partitions 2025-01 → 2026-12
@@ -131,31 +154,13 @@ def upgrade() -> None:
     """)
 
     # ------------------------------------------------------------------
-    # 7. Recreate FK constraints on child tables pointing at the new
-    #    partitioned parent.
-    #    Note: PostgreSQL 11+ supports FK references to partitioned tables.
+    # 7. FK constraints NOT recreated — PostgreSQL partitioned tables
+    #    with composite PK (id, created_at) cannot serve as FK target
+    #    for single-column references.  Referential integrity is
+    #    enforced at the application layer (CASCADE via GDPR purge).
+    #    An application-level index on operations(id) within each
+    #    partition still ensures fast lookups by id.
     # ------------------------------------------------------------------
-    op.execute("""
-        ALTER TABLE findings
-            ADD CONSTRAINT findings_operation_id_fkey
-            FOREIGN KEY (operation_id)
-            REFERENCES operations (id)
-            ON DELETE CASCADE;
-    """)
-    op.execute("""
-        ALTER TABLE redactions
-            ADD CONSTRAINT redactions_operation_id_fkey
-            FOREIGN KEY (operation_id)
-            REFERENCES operations (id)
-            ON DELETE CASCADE;
-    """)
-    op.execute("""
-        ALTER TABLE artifacts
-            ADD CONSTRAINT artifacts_operation_id_fkey
-            FOREIGN KEY (operation_id)
-            REFERENCES operations (id)
-            ON DELETE CASCADE;
-    """)
 
     # ------------------------------------------------------------------
     # 8. Drop the old (non-partitioned) table

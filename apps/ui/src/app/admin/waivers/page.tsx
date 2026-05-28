@@ -8,7 +8,7 @@ import { useToast } from '@/components/useToast'
 import { SimpleConfirmModal as ConfirmModal } from '@/components/SimpleConfirmModal'
 import { RelativeTime } from '@/components/RelativeTime'
 
-const PRIVILEGED_ROLES = ['policy_editor', 'admin', 'platform_admin']
+const PRIVILEGED_ROLES = ['policy_editor', 'admin']
 
 export default function WaiversPage() {
   const { user } = useSession()

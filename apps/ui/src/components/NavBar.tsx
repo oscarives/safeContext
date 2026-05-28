@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { label: 'Grafana', href: 'http://localhost:3001', external: true },
 ] as const
 
-const ADMIN_ROLES = ['platform_admin', 'admin'] as const
+const ADMIN_ROLES = ['admin'] as const
 
 function UserBadge() {
   const { user, isLoading } = useSession()

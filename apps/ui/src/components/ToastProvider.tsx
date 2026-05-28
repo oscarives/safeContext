@@ -6,6 +6,7 @@ import type { ToastItem, ToastType } from './Toast'
 
 interface ToastContextValue {
   showToast: (message: string, type: ToastType) => void
+  addToast: (opts: { type: ToastType; message: string }) => void
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
@@ -22,8 +23,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
+  const addToast = useCallback(({ type, message }: { type: ToastType; message: string }) => {
+    showToast(message, type)
+  }, [showToast])
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, addToast }}>
       {children}
       <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 items-end">
         {toasts.map((toast) => (

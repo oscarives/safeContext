@@ -3,7 +3,7 @@
 import { useSession } from '@/hooks/useSession'
 import { LoadingSpinner } from '@/components'
 
-const ADMIN_ROLES = ['platform_admin', 'admin']
+const ADMIN_ROLES = ['admin']
 
 const SIDEBAR_ITEMS = [
   { label: 'Tenants', href: '/admin/tenants', icon: '🏢' },
@@ -28,7 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="rounded-xl border border-red-200 bg-red-50 p-8 max-w-md text-center">
           <h2 className="text-xl font-bold text-red-800 mb-2">Access Denied</h2>
           <p className="text-sm text-red-600 mb-4">
-            You need the <strong>admin</strong> or <strong>platform_admin</strong> role to access this section.
+            You need the <strong>admin</strong> role to access this section.
           </p>
           <a
             href="/dashboard"

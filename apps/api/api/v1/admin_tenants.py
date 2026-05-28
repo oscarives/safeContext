@@ -1,6 +1,6 @@
 """Tenant administration endpoints (F6-A5).
 
-CRUD operations for tenant management, restricted to ``platform_admin`` role.
+CRUD operations for tenant management, restricted to ``admin`` role.
 
 GET    /v1/admin/tenants              — list all tenants
 POST   /v1/admin/tenants              — create a new tenant
@@ -28,16 +28,16 @@ from db.session import get_db
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/admin/tenants", tags=["admin"])
 
-_ADMIN_ROLE = "platform_admin"
+_ADMIN_ROLE = "admin"
 
 
-def _require_platform_admin(payload: dict) -> None:
-    """Raise 403 if the caller does not have the platform_admin role."""
+def _require_admin(payload: dict) -> None:
+    """Raise 403 if the caller does not have the admin role."""
     roles = get_roles(payload)
     if _ADMIN_ROLE not in roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="platform_admin role required",
+            detail="admin role required",
         )
 
 
@@ -157,8 +157,8 @@ async def list_tenants(
     auth_payload: Annotated[dict, Depends(require_auth)],
     db: AsyncSession = Depends(get_db),
 ) -> list[TenantResponse]:
-    """List all tenants. Requires platform_admin role."""
-    _require_platform_admin(auth_payload)
+    """List all tenants. Requires admin role."""
+    _require_admin(auth_payload)
 
     result = await db.execute(select(Tenant).order_by(Tenant.created_at.desc()))
     tenants = result.scalars().all()
@@ -171,8 +171,8 @@ async def create_tenant(
     auth_payload: Annotated[dict, Depends(require_auth)],
     db: AsyncSession = Depends(get_db),
 ) -> TenantResponse:
-    """Create a new tenant. Requires platform_admin role."""
-    _require_platform_admin(auth_payload)
+    """Create a new tenant. Requires admin role."""
+    _require_admin(auth_payload)
 
     # Check slug uniqueness
     existing = await db.execute(select(Tenant).where(Tenant.slug == body.slug))
@@ -216,8 +216,8 @@ async def get_tenant(
     auth_payload: Annotated[dict, Depends(require_auth)],
     db: AsyncSession = Depends(get_db),
 ) -> TenantResponse:
-    """Get tenant details. Requires platform_admin role."""
-    _require_platform_admin(auth_payload)
+    """Get tenant details. Requires admin role."""
+    _require_admin(auth_payload)
 
     result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
     tenant = result.scalar_one_or_none()
@@ -234,8 +234,8 @@ async def update_tenant(
     auth_payload: Annotated[dict, Depends(require_auth)],
     db: AsyncSession = Depends(get_db),
 ) -> TenantResponse:
-    """Update tenant settings. Requires platform_admin role."""
-    _require_platform_admin(auth_payload)
+    """Update tenant settings. Requires admin role."""
+    _require_admin(auth_payload)
 
     result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
     tenant = result.scalar_one_or_none()
@@ -269,8 +269,8 @@ async def deactivate_tenant(
     auth_payload: Annotated[dict, Depends(require_auth)],
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Soft-delete a tenant by setting is_active=False. Requires platform_admin role."""
-    _require_platform_admin(auth_payload)
+    """Soft-delete a tenant by setting is_active=False. Requires admin role."""
+    _require_admin(auth_payload)
 
     result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
     tenant = result.scalar_one_or_none()
