@@ -1,6 +1,7 @@
 # SafeContext — Manual de Usuario
 
-**Version**: 1.0.0 | **Fecha**: 2026-05-18 | **Audiencia**: Compliance, Revisores, Tech Leads
+**Versión**: 2.0.0 | **Fecha**: 2026-05-25 | **Audiencia**: Compliance, Revisores, Tech Leads
+**Documentos relacionados**: [Manual 08 — Roles y Permisos](./08_ROLES_Y_PERMISOS.md), [Manual 07 — Administración](./07_ADMIN_CONFIGURACION.md)
 
 ---
 
@@ -30,12 +31,14 @@ El resultado es un **registro de auditoria inmutable y verificable** de cada ope
 
 ### Roles y sus responsabilidades
 
-| Rol | Quien lo usa habitualmente | Para que |
-|---|---|---|
-| **Viewer** | Cualquier miembro del equipo | Ver el estado del sistema y el historial de operaciones. Solo lectura. |
-| **Reviewer** | Compliance Officer, revisor designado | Aprobar o rechazar hallazgos que requieren revision humana. Puede aprobar pero no crear operaciones. |
-| **PolicyEditor** | Tech Lead, Security Lead | Modificar los umbrales y reglas de deteccion. Puede cambiar cuando se activa la revision humana. |
-| **Admin** | SRE, DevOps | Gestion completa: usuarios, configuracion, acceso a todas las funciones. |
+| Rol | Quien lo usa habitualmente | Para que | Paginas accesibles |
+|---|---|---|---|
+| **viewer** | Cualquier miembro del equipo | Ver el estado del sistema, enviar escaneos y consultar historial de operaciones | `/dashboard`, `/scan`, `/audit` |
+| **reviewer** | Compliance Officer, revisor designado | Aprobar o rechazar hallazgos que requieren revision humana. Sujeto a SoD | `/dashboard`, `/scan`, `/audit`, `/review` |
+| **policy_editor** | Tech Lead, Security Lead | Gestionar waivers (excepciones de politica) con justificacion documentada | `/dashboard`, `/scan`, `/audit`, `/admin/waivers` |
+| **admin** | SRE, DevOps, Administrador | Gestion completa: tenants, SIEM, retencion, waivers, purga GDPR, todas las funciones | Todas las paginas incluyendo `/admin/*` |
+
+> Para la matriz completa de permisos por endpoint REST y tool MCP, ver [Manual 08 — Roles y Permisos](./08_ROLES_Y_PERMISOS.md).
 
 > **Regla de segregacion de funciones**: El mismo usuario que submite un documento para scan NO puede aprobar sus propios hallazgos. Esta restriccion es automatica y no puede desactivarse.
 
@@ -609,5 +612,22 @@ Un pipeline queda bloqueado cuando una operacion esta en estado `pending_review`
 
 ---
 
-*Manual de Usuario SafeContext v1.0.0 — 2026-05-18*
+## 10. Módulo de administración (solo rol admin)
+
+Si tienes rol `admin`, en la barra de navegación aparece el enlace **Admin** que te lleva al panel de administración. Este módulo permite gestionar la plataforma completa.
+
+### Páginas del módulo admin
+
+| Página | Ruta | Qué puedes hacer |
+|---|---|---|
+| **Tenants** | `/admin/tenants` | Ver, crear y desactivar organizaciones (tenants). Cada tenant opera con datos aislados. |
+| **Detalle de tenant** | `/admin/tenants/[id]` | Configurar políticas de detección, integración SIEM y retención de datos por tenant. Probar conectividad SIEM. |
+| **Waivers** | `/admin/waivers` | Crear excepciones de política (requiere justificación de al menos 20 caracteres) y revocar waivers existentes. También accesible para `policy_editor`. |
+| **Retención** | `/admin/retention` | Configurar días de retención, ejecutar purga GDPR manual y consultar certificados de borrado. |
+
+Para detalle técnico de cada flujo administrativo, ver [Manual 07 — Administración y Configuración](./07_ADMIN_CONFIGURACION.md).
+
+---
+
+*Manual de Usuario SafeContext v2.0.0 — 2026-05-25*
 *Para soporte operativo, contactar al equipo SRE. Para dudas de cumplimiento, contactar al CISO.*

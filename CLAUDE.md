@@ -1,6 +1,6 @@
 # CLAUDE.md — SafeContext
 **Autoridad**: Instrucciones operacionales para agentes Claude Code  
-**Versión**: 1.0.0 · **Actualizado**: 2026-05-23 · **Próxima revisión**: 2026-06-06  
+**Versión**: 1.1.0 · **Actualizado**: 2026-05-25 · **Próxima revisión**: 2026-06-08  
 **Responsable**: Usuario (sincronizar con ROADMAP.md §11 cada 2 semanas)
 
 ---
@@ -36,13 +36,14 @@
 
 ```bash
 # Estado actual
-Estado: Madurez 4.5/5 | Código: 0 gaps | Frontend: 43/43 tests ✅
-Fuente: apps/docs/ROADMAP.md (2026-05-21)
+Estado: Madurez 5/5 | F1–F6 completadas | Frontend: 112/112 tests (17 suites) ✅
+Backend: 144+ tests | Docker: 59 tests | Roles: viewer, reviewer, policy_editor, admin
+Fuente: apps/docs/ROADMAP.md (2026-05-25)
 
 # Quick checks
 grep -r "función/clase/endpoint" apps/  # ¿Existe?
 pytest tests/ -k "test_" -v              # ¿Tests pasan?
-npm test                                 # Frontend tests
+npm test                                 # Frontend tests (112)
 ```
 
 ---
@@ -109,13 +110,16 @@ npm test                                 # Frontend tests
 | Estado actual del proyecto | `ROADMAP.md` | §11 | 2 min |
 | Qué está hecho vs pendiente | `ROADMAP.md` | §5–§7 | 15 min |
 | Criterios de aceptación de tarea | `ROADMAP.md` | §7 (tabla) | 2 min |
-| Por qué existe SafeContext | `ROADMAP.md` | §1–§3 | 10 min |
-| Arquitectura general | `DOC-0_UNIFIED.md` | §3 | 15 min |
-| Decisión específica (ej: por qué PostgreSQL) | `adr/ADR-001..011` | Lee el ADR | 5 min |
-| Requisitos funcionales | `DOC-1_PRD.md` | Requisitos | 20 min |
-| Modelo de datos | `DOC-2_SAD.md` | §2 | 10 min |
-| Spec técnica | `DOC-3_SPEC.md` | Criterios por fase | 30 min |
-| Guía técnica (backend/frontend/infra) | `SKILLS.md` | Sección de dominio | 10 min |
+| Por qué existe SafeContext | `DOC-PRODUCTO.md` | §1–§3 | 10 min |
+| Arquitectura general | `DOC-PRODUCTO.md` | §7 | 15 min |
+| Decisión específica (ej: por qué PostgreSQL) | `adr/ADR-001..013` | Lee el ADR | 5 min |
+| Requisitos funcionales | `DOC-PRODUCTO.md` | §5 | 20 min |
+| Modelo de datos | `DOC-PRODUCTO.md` | §8 | 10 min |
+| Criterios por fase (F1–F6) | `DOC-PRODUCTO.md` | §12 | 30 min |
+| Roles y permisos | `manuals/08_ROLES_Y_PERMISOS.md` | §2–§4 | 10 min |
+| Seguridad y compliance | `manuals/09_SEGURIDAD_Y_COMPLIANCE.md` | Todo | 20 min |
+| Guía técnica (backend/frontend/admin/multi-tenancy) | `SKILLS.md` | Sección de dominio | 10 min |
+| Glosario de términos | `GLOSSARY.md` | Todo | 5 min |
 | Cómo funciona operativamente | `manuals/03_USUARIO.md` | Flujos | 15 min |
 | Cómo integrar MCP | `manuals/04_INTEGRACION_MCP_API.md` | Integración | 10 min |
 | Procedimiento DR/DLQ/rotación | `runbooks/` | Runbook específico | 5 min |

@@ -1,6 +1,7 @@
-# SafeContext — Manual de Administracion y Configuracion
+# SafeContext — Manual de Administración y Configuración
 
-**Version**: 1.0.0 | **Fecha**: 2026-05-24 | **Audiencia**: Administradores de plataforma, SRE, DevOps
+**Versión**: 1.1.0 | **Fecha**: 2026-05-25 | **Audiencia**: Administradores de plataforma, SRE, DevOps
+**Documentos relacionados**: [Manual 08 — Roles y Permisos](./08_ROLES_Y_PERMISOS.md), [Manual 09 — Seguridad](./09_SEGURIDAD_Y_COMPLIANCE.md), [Manual 02 — Operación](./02_OPERACION.md)
 
 ---
 
@@ -26,8 +27,7 @@ Para acceder al panel de administracion necesitas uno de estos roles asignados e
 
 | Rol | Alcance |
 |---|---|
-| `platform_admin` | Acceso completo: crear/editar/desactivar tenants, purgar datos, gestionar waivers |
-| `admin` | Acceso completo al panel de administracion |
+| `admin` | Acceso completo: crear/editar/desactivar tenants, purgar datos, gestionar waivers, panel de administracion |
 
 Los roles `policy_editor` y `reviewer` tienen acceso parcial (ver seccion 8).
 
@@ -43,7 +43,7 @@ Los roles `policy_editor` y `reviewer` tienen acceso parcial (ver seccion 8).
 
 ### Navegacion
 
-1. Haz clic en **Admin** en la barra de navegacion superior (solo visible para roles `admin` o `platform_admin`)
+1. Haz clic en **Admin** en la barra de navegacion superior (solo visible para rol `admin`)
 2. Se abre el panel con un sidebar lateral con tres secciones:
    - **Tenants** — Gestion de organizaciones
    - **Waivers** — Excepciones a politicas de deteccion
@@ -225,8 +225,8 @@ Los waivers son excepciones a las politicas de deteccion. Permiten marcar cierto
 | Accion | Roles permitidos |
 |---|---|
 | Ver waivers | Cualquier rol admin |
-| Crear waiver | `policy_editor`, `admin`, `platform_admin` |
-| Revocar waiver | `policy_editor`, `admin`, `platform_admin` |
+| Crear waiver | `policy_editor`, `admin` |
+| Revocar waiver | `policy_editor`, `admin` |
 
 ### Listar waivers
 
@@ -312,27 +312,27 @@ Cada purga genera un certificado de eliminacion firmado que se almacena en WORM 
 
 ### Matriz de permisos del panel de administracion
 
-| Accion | `platform_admin` | `admin` | `policy_editor` | `reviewer` | `viewer` |
-|---|---|---|---|---|---|
-| Acceder al panel admin | Si | Si | No | No | No |
-| Crear tenant | Si | No | No | No | No |
-| Editar tenant | Si | Si | No | No | No |
-| Desactivar tenant | Si | Si | No | No | No |
-| Configurar politicas | Si | Si | No | No | No |
-| Configurar SIEM | Si | Si | No | No | No |
-| Crear waiver | Si | Si | Si | No | No |
-| Revocar waiver | Si | Si | Si | No | No |
-| Ver waivers | Si | Si | Si | No | No |
-| Configurar retencion | Si | Si | No | No | No |
-| Ejecutar purga | Si | Si | No | No | No |
-| Ver certificados | Si | Si | No | Si | No |
+| Accion | `admin` | `policy_editor` | `reviewer` | `viewer` |
+|---|---|---|---|---|
+| Acceder al panel admin | Si | No | No | No |
+| Crear tenant | Si | No | No | No |
+| Editar tenant | Si | No | No | No |
+| Desactivar tenant | Si | No | No | No |
+| Configurar politicas | Si | No | No | No |
+| Configurar SIEM | Si | No | No | No |
+| Crear waiver | Si | Si | No | No |
+| Revocar waiver | Si | Si | No | No |
+| Ver waivers | Si | Si | No | No |
+| Configurar retencion | Si | No | No | No |
+| Ejecutar purga | Si | No | No | No |
+| Ver certificados | Si | No | Si | No |
 
 ### Asignar roles en Keycloak
 
 1. Acceder a la consola de administracion de Keycloak
 2. Ir a **Users** > seleccionar usuario
 3. Ir a la tab **Role Mappings**
-4. Asignar el rol de realm correspondiente (`platform_admin`, `admin`, `policy_editor`, `reviewer`, `viewer`)
+4. Asignar el rol de realm correspondiente (`admin`, `policy_editor`, `reviewer`, `viewer`)
 
 ---
 
@@ -340,7 +340,7 @@ Cada purga genera un certificado de eliminacion firmado que se almacena en WORM 
 
 ### "Access Denied" al acceder al panel admin
 
-**Causa**: Tu usuario no tiene el rol `admin` o `platform_admin` en Keycloak.
+**Causa**: Tu usuario no tiene el rol `admin` en Keycloak.
 
 **Solucion**: Solicitar al administrador de Keycloak que asigne el rol correspondiente.
 
@@ -375,4 +375,7 @@ Cada purga genera un certificado de eliminacion firmado que se almacena en WORM 
 
 ---
 
-*Ultima actualizacion: 2026-05-24 | Version 1.0.0*
+> **Para la matriz completa de permisos** por endpoint, página UI y tool MCP, ver [Manual 08 — Roles y Permisos](./08_ROLES_Y_PERMISOS.md).
+> **Para detalles de seguridad** (cadena de custodia, WORM, cifrado, compliance frameworks), ver [Manual 09 — Seguridad y Compliance](./09_SEGURIDAD_Y_COMPLIANCE.md).
+
+*Última actualización: 2026-05-25 | Versión 1.1.0*

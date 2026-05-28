@@ -1,6 +1,7 @@
 # SafeContext — Resumen Ejecutivo
 
-**Version**: 1.0.0 | **Fecha**: 2026-05-18 | **Audiencia**: CTO, CISO, Compliance Officer, Stakeholders Enterprise
+**Versión**: 2.0.0 | **Fecha**: 2026-05-25 | **Audiencia**: CTO, CISO, Compliance Officer, Stakeholders Enterprise
+**Documentos relacionados**: [DOC-PRODUCTO.md](../DOC-PRODUCTO.md), [Manual 09 — Seguridad](./09_SEGURIDAD_Y_COMPLIANCE.md)
 
 ---
 
@@ -50,6 +51,11 @@ No es un escaner de secretos (esos buscan credenciales hardcodeadas en codigo). 
 | **Almacenamiento WORM de evidencias** | Los artefactos de auditoria (documentos originales y sanitizados) se almacenan con bloqueo de objetos: son inmutables durante el periodo de retencion configurado | Inmutabilidad verificable, cumple requisitos de retencion de evidencia de GDPR, HIPAA y SOC2 |
 | **Gestion de claves criptograficas (KMS)** | El cifrado de artefactos usa claves gestionadas por un sistema de gestion de claves dedicado, con rotacion programada y trazabilidad completa | Claves separadas de los datos, rotacion sin tiempo de inactividad, log de acceso completo |
 | **Monitoreo y SLO integrados** | Dashboards operacionales en tiempo real con alertas automaticas ante degradacion del servicio, consumo del error budget y anomalias de deteccion | SLO de disponibilidad 99.9% con metricas publicas auditables |
+| **Multi-tenancy con aislamiento completo** | Cada organizacion (tenant) opera con datos completamente aislados, politicas propias, quotas independientes y configuracion SIEM dedicada | Aislamiento por Row-Level Security en PostgreSQL + politicas OPA por tenant |
+| **Integracion SIEM nativa** | Eventos de seguridad emitidos en tiempo real a plataformas de monitoreo corporativo en formatos estandar de la industria (CEF, LEEF, JSON) | Webhook HTTPS y syslog (UDP/TCP), configurable por tenant |
+| **Cadena de custodia criptografica** | Cada operacion genera un hash encadenado, firma digital ECDSA-P256 y sello temporal RFC 3161, formando una evidencia legalmente verificable | Evidencia con validez forense: no-repudiacion, integridad y prueba temporal independiente |
+| **Purga GDPR con certificados** | Eliminacion programada de datos con certificados de borrado firmados y almacenados en WORM, cumpliendo el derecho de supresion | Certificados inmutables por 7 anos, verificables ante auditores |
+| **Administracion enterprise** | Panel de administracion para gestion centralizada de tenants, politicas, SIEM, retencion y waivers | Interfaz web completa para el rol admin |
 
 ---
 
@@ -200,7 +206,7 @@ SafeContext es compatible con cualquier modelo de lenguaje que soporte el protoc
 | Modalidad | Descripcion | Disponible |
 |---|---|---|
 | **On-premise** | Desplegado en infraestructura propia del cliente. Sin datos saliendo del perimetro corporativo. | Disponible ahora |
-| **Air-gapped** | Operacion completamente desconectada de internet. Sin dependencias externas en produccion. Los modelos de deteccion se distribuyen como paquetes offline. | Fase 5 (roadmap) |
+| **Air-gapped** | Operacion completamente desconectada de internet. Sin dependencias externas en produccion. Los modelos de deteccion se distribuyen como paquetes offline. | ✅ Disponible (F5 completada) |
 | **Cloud privada** | Desplegado en VPC dedicada del cliente (AWS, Azure, GCP). Gestionado por el equipo de SafeContext o por el equipo del cliente. | Disponible ahora |
 
 SafeContext no opera un SaaS compartido. Cada despliegue es dedicado al cliente, sin datos compartidos entre organizaciones.
@@ -234,13 +240,20 @@ SafeContext se desarrolla en cinco fases que progresivamente amplian la cobertur
 
 | Fase | Nombre | Capacidades principales | Estado |
 |---|---|---|---|
-| **F1** | Base | Deteccion de PII, politica OPA, audit trail firmado, revision humana, integracion GitHub Actions, MFA/SSO | En desarrollo |
-| **F2** | Producto | Dashboard de compliance con metricas de SLO, gestion de politicas via UI, notificaciones en tiempo real, reporte ejecutivo automatico | Planificada |
-| **F3** | Supply Chain | Escaneo de dependencias de terceros, analisis de documentos de proveedores, gestion de cadena de suministro de contexto IA | Planificada |
-| **F4** | Enterprise | SSO con SAML 2.0, integracion con SIEM (Splunk, Elastic), API de gestion multi-tenant, soporte para GitLab CI y Azure DevOps nativo | Planificada |
-| **F5** | Air-gapped | Operacion completamente offline, modelos de deteccion distribuidos como paquetes firmados, sin dependencias de internet en ningun componente | Planificada |
+| **F1** | Base segura | Deteccion de PII, politica OPA, audit trail firmado, revision humana, integracion GitHub Actions, MFA/SSO | ✅ Completada |
+| **F2** | Producto endurecido | Dashboard de compliance, gestion de politicas via UI, notificaciones en tiempo real, reporte ejecutivo automatico | ✅ Completada |
+| **F3** | Supply chain | SBOM CycloneDX, firma cosign, SLSA provenance, detect-secrets, golden corpus 200+ muestras | ✅ Completada |
+| **F4** | Enterprise operativo | OAuth 2.1 + PKCE para MCP, consentimiento por scope, rate limiting Redis, backlog T1–T10 completo | ✅ Completada |
+| **F5** | Desconectado regulado | Operacion air-gapped, modelos offline, DR drill sin internet, bundle de actualizacion offline | ✅ Completada |
+| **F6** | Enterprise + Admin | Multi-tenancy (RLS, OPA per-tenant), cadena de custodia (chain_hash, TSA, Transit signing, WORM), compliance repetible (GDPR purge, SIEM, SBOM), Admin Module completo | ✅ Completada |
 
-Las fases son aditivas: cada fase mantiene todas las capacidades de las fases anteriores.
+**Madurez actual: 5/5** — Todas las fases completadas. Las fases son aditivas: cada fase mantiene todas las capacidades de las anteriores.
+
+**Cifras clave**:
+- 14 servicios Docker orquestados
+- 112 tests frontend (17 suites), 144+ tests backend, 59 tests de integracion Docker
+- 11 migraciones Alembic, 13 ADRs, 7 runbooks operacionales
+- 4 roles RBAC, segregacion de funciones enforced
 
 ---
 
@@ -280,12 +293,17 @@ La Fase 5 del roadmap incluye la certificacion formal para despliegues air-gappe
 
 **Documentacion tecnica adicional**:
 
+- Documento fundacional: `docs/DOC-PRODUCTO.md`
+- Manual de Arquitectura: `docs/manuals/01_ARQUITECTURA_TECNICA.md`
 - Manual de Operacion: `docs/manuals/02_OPERACION.md`
 - Manual de Usuario: `docs/manuals/03_USUARIO.md`
-- Referencia de API: `docs/manuals/04_API.md` (en preparacion)
+- Referencia de API y MCP: `docs/manuals/04_INTEGRACION_MCP_API.md`
+- Manual de Administracion: `docs/manuals/07_ADMIN_CONFIGURACION.md`
+- Manual de Roles y Permisos: `docs/manuals/08_ROLES_Y_PERMISOS.md`
+- Manual de Seguridad y Compliance: `docs/manuals/09_SEGURIDAD_Y_COMPLIANCE.md`
 - Runbooks operacionales: `docs/runbooks/`
 
 ---
 
-*SafeContext Resumen Ejecutivo v1.0.0 — 2026-05-18*
+*SafeContext Resumen Ejecutivo v2.0.0 — 2026-05-25*
 *Confidencial — Distribucion restringida a stakeholders autorizados.*

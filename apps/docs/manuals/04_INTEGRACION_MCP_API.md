@@ -1,5 +1,6 @@
 # SafeContext — Manual de Integración MCP y API REST
-**Versión**: 1.0.0 | **Fecha**: 2026-05-18 | **Audiencia**: Desarrolladores de integración
+**Versión**: 2.0.0 | **Fecha**: 2026-05-25 | **Audiencia**: Desarrolladores de integración
+**Documentos relacionados**: [DOC-PRODUCTO.md](../DOC-PRODUCTO.md) §5, [Manual 08 — Roles](./08_ROLES_Y_PERMISOS.md)
 
 ---
 
@@ -1618,5 +1619,61 @@ print(response)
 
 ---
 
-*Documento generado a partir de DOC-0 v0.1.0, DOC-3 v0.1.0, infra/github-action/README.md y policies/README.md*
-*Próxima revisión requerida: inicio de Fase 2 (adición de safecontext.approve v1.1.0)*
+---
+
+## Apéndice: Endpoints de administración (F6)
+
+Los siguientes endpoints fueron agregados en F6 y requieren rol `admin` (excepto certificados que aceptan `reviewer`).
+
+### Gestión de tenants
+
+| Endpoint | Método | Rol | Descripción |
+|---|---|---|---|
+| `/v1/admin/tenants` | GET | admin | Listar todos los tenants |
+| `/v1/admin/tenants` | POST | admin | Crear tenant (name, slug, plan, quotas) |
+| `/v1/admin/tenants/{id}` | GET | admin | Detalle de tenant |
+| `/v1/admin/tenants/{id}` | PATCH | admin | Actualizar configuración (policy_config, siem_config, retention_days) |
+| `/v1/admin/tenants/{id}` | DELETE | admin | Desactivar tenant (soft-delete) |
+
+### SIEM
+
+| Endpoint | Método | Rol | Descripción |
+|---|---|---|---|
+| `/v1/admin/tenants/{id}/siem/test` | POST | admin | Enviar evento de prueba a destinos SIEM configurados |
+
+### Retención GDPR
+
+| Endpoint | Método | Rol | Descripción |
+|---|---|---|---|
+| `/v1/admin/tenants/{id}/purge` | POST | admin | Ejecutar purga GDPR manual con certificado firmado |
+| `/v1/admin/tenants/{id}/certificates` | GET | admin, reviewer | Listar certificados de borrado desde WORM |
+| `/v1/admin/tenants/{id}/certificates/{cert}` | GET | admin, reviewer | Obtener certificado específico |
+
+### Waivers
+
+| Endpoint | Método | Rol | Descripción |
+|---|---|---|---|
+| `/v1/waivers` | GET | cualquier autenticado | Listar waivers activos |
+| `/v1/waivers` | POST | policy_editor, admin | Crear waiver con justificación |
+| `/v1/waivers/{id}` | DELETE | policy_editor, admin | Revocar waiver |
+
+### Autenticación OAuth 2.1 + PKCE para MCP
+
+Los clientes MCP usan OAuth 2.1 con PKCE (S256) para autenticación. Scopes disponibles:
+
+| Scope | Tool MCP | Descripción |
+|---|---|---|
+| `mcp:scan` | `safecontext.scan` | Escanear documentos |
+| `mcp:sanitize` | `safecontext.sanitize` | Sanitizar contenido |
+| `mcp:classify` | `safecontext.classify` | Clasificar sensibilidad |
+| `mcp:audit` | `safecontext.audit` | Consultar audit trail |
+| `mcp:policy` | `safecontext.policy.get` | Obtener política activa |
+| `mcp:approve` | `safecontext.approve` | Aprobar/rechazar hallazgos |
+
+Rate limiting: configurable por `client_id` (MPC_RATE_LIMIT_RPM) y por `tenant_id` (rate_limit_rpm en tabla tenants).
+
+Para la matriz completa de permisos, ver [Manual 08 — Roles y Permisos](./08_ROLES_Y_PERMISOS.md).
+
+---
+
+*Documento actualizado: 2026-05-25 · Fuente: DOC-PRODUCTO.md + código en api/v1/*

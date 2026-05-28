@@ -1,12 +1,8 @@
-> ⚠️ **DEPRECADO** (2026-05-25) — Este documento fue reemplazado por [`DOC-PRODUCTO.md`](./DOC-PRODUCTO.md).
-> Consultar `DOC-PRODUCTO.md` como fuente de verdad única. Este archivo se conserva solo como referencia histórica.
-> Copia archivada en `docs/archive/DOC-3_SPEC.md`.
-
 # DOC-3 · SafeContext — Spec Ejecutable
-**Versión**: 0.2.0 · **Estado**: ~~Activo~~ DEPRECADO · **Fecha**: 2026-05-17 · **Actualizado**: 2026-05-21
-**Derivado de**: DOC-0 v0.2.0 + DOC-2 v0.1.1 → Reemplazado por DOC-PRODUCTO.md
+**Versión**: 0.2.0 · **Estado**: Activo · **Fecha**: 2026-05-17 · **Actualizado**: 2026-05-21
+**Derivado de**: DOC-0 v0.2.0 + DOC-2 v0.1.1
 **Audiencia**: Claude Code, Tech Lead, equipo de desarrollo
-**Uso**: ~~Este documento define los criterios de aceptación por fase.~~ Ver DOC-PRODUCTO.md §9. Para el estado actual de implementación ver `docs/ROADMAP.md`.
+**Uso**: Este documento define los criterios de aceptación por fase. Para el estado actual de implementación (qué está hecho, qué está probado) ver `docs/ROADMAP.md`.
 
 > **Estado general**: F1–F5 completadas ✅. Las tareas pendientes (T1–T10 del replanteo) están en `docs/ROADMAP.md §7`.
 

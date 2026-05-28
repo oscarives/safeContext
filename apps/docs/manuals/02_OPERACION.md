@@ -1,6 +1,7 @@
 # SafeContext — Manual de Operacion
 
-**Version**: 1.0.0 | **Fecha**: 2026-05-18 | **Audiencia**: SRE, DevOps, Operadores
+**Versión**: 2.0.0 | **Fecha**: 2026-05-25 | **Audiencia**: SRE, DevOps, Operadores
+**Documentos relacionados**: [Manual 07 — Administración](./07_ADMIN_CONFIGURACION.md), [Manual 09 — Seguridad](./09_SEGURIDAD_Y_COMPLIANCE.md)
 
 ---
 
@@ -820,12 +821,33 @@ Completar esta lista antes de cada despliegue a produccion. Marcar cada item com
 
 ### Tests
 
-- [ ] Backend tests: `cd apps/api && python -m pytest tests/ -v` — 131+ passed
-- [ ] Frontend unit tests: `cd apps/ui && npm test` — 43 passed
+- [ ] Backend tests: `cd apps/api && python -m pytest tests/ -v` — 144+ passed
+- [ ] Frontend unit tests: `cd apps/ui && npm test` — 112 passed (17 suites)
 - [ ] OPA policy tests: `docker run --rm -v ./apps/policies:/policies openpolicyagent/opa:1.4.0 test /policies -v`
 - [ ] E2E tests (requiere `--profile auth`): `cd apps/ui && npx playwright test`
 
+### Operación SIEM
+
+Si hay tenants con SIEM configurado:
+
+- [ ] Verificar que los eventos llegan al destino: `POST /v1/admin/tenants/{id}/siem/test`
+- [ ] Monitorear logs del API por errores `siem.webhook.failed` o `siem.syslog.failed`
+- [ ] Verificar formatos de eventos en la plataforma SIEM receptora (CEF/LEEF/JSON)
+
+### Operación GDPR / Retención
+
+- [ ] Verificar configuración de `retention_days` por tenant (default 365)
+- [ ] Verificar que los certificados de borrado se almacenan en WORM: `GET /v1/admin/tenants/{id}/certificates`
+- [ ] Para purga manual: `POST /v1/admin/tenants/{id}/purge` (solo rol admin)
+- [ ] Los certificados de borrado son inmutables por 7 años en MinIO
+
+### Multi-tenancy
+
+- [ ] Verificar que RLS está activo: `SHOW row_security` en PostgreSQL
+- [ ] Verificar que cada tenant solo ve sus datos (probar con diferentes JWT)
+- [ ] Verificar quotas por tenant: `max_scans_per_day`, `rate_limit_rpm`, `max_document_size`
+
 ---
 
-*Manual de Operacion SafeContext v1.0.0 — 2026-05-18*
-*Mantener actualizado en cada release que cambie la configuracion del stack.*
+*Manual de Operación SafeContext v2.0.0 — 2026-05-25*
+*Mantener actualizado en cada release que cambie la configuración del stack.*

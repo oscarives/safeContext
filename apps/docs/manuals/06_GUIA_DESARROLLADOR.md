@@ -1,5 +1,6 @@
 # SafeContext — Guía del Desarrollador
-**Versión**: 1.0.0 | **Fecha**: 2026-05-18 | **Audiencia**: Desarrolladores que mantienen, extienden o escalan SafeContext
+**Versión**: 2.0.0 | **Fecha**: 2026-05-25 | **Audiencia**: Desarrolladores que mantienen, extienden o escalan SafeContext
+**Documentos relacionados**: [Manual 01 — Arquitectura](./01_ARQUITECTURA_TECNICA.md), [Manual 08 — Roles](./08_ROLES_Y_PERMISOS.md), [SKILLS.md](../SKILLS.md)
 
 > Este documento responde a *cómo trabajar* con el código. Para entender *qué hace* cada componente, ver `01_ARQUITECTURA_TECNICA.md`.
 
@@ -891,3 +892,71 @@ detect-secrets scan --baseline .secrets.baseline
 # Ver log de OPA (hot-reload)
 docker compose logs opa | grep "policy"
 ```
+
+---
+
+## Apéndice: Patrones F6 — Multi-tenancy y Admin
+
+### Migraciones Alembic (11 total)
+
+| # | Migración | Descripción |
+|---|---|---|
+| 0001-0004 | Schema base | Tablas operations, findings, redactions, artifacts, outbox + índices |
+| 0005 | Particionado | RANGE MONTHLY en `operations` (PK compuesta `id, created_at`) |
+| 0006 | Waivers | Tabla `waivers` con rule_id, entity_pattern, justification |
+| 0007 | Findings unique | Constraint unique en findings |
+| 0008 | Tenants | Tabla `tenants` con slug, plan, quotas |
+| 0009 | RLS | Row-Level Security policies por tenant_id |
+| 0010 | Chain hash | Columna `chain_hash` en operations |
+| 0011 | Tenant config | Columnas JSONB `policy_config`, `siem_config`, INTEGER `retention_days` en tenants |
+
+### Patrón: Endpoint admin (backend)
+
+```python
+from core.auth_oidc import get_roles, require_auth
+
+_ADMIN_ROLE = "admin"
+
+def _require_admin(payload: dict) -> None:
+    if _ADMIN_ROLE not in get_roles(payload):
+        raise HTTPException(status_code=403, detail="admin role required")
+
+@router.post("/admin/mi-endpoint")
+async def mi_endpoint(
+    auth_payload: Annotated[dict, Depends(require_auth)],
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(auth_payload)
+    # ... lógica
+```
+
+### Patrón: Multi-tenancy con RLS
+
+El tenant se resuelve del JWT claim `tenant_id`:
+```python
+tenant_id_str = auth_payload.get("tenant_id", "")
+tenant_id = uuid.UUID(tenant_id_str) if tenant_id_str else DEFAULT_TENANT_ID
+```
+
+### Patrón: Página admin (frontend)
+
+```tsx
+// Guard de rol en layout
+const session = useSession();
+if (!session?.roles.includes('admin')) redirect('/dashboard');
+
+// Link condicional en NavBar
+{hasRole('admin') && <Link href="/admin">Admin</Link>}
+```
+
+### Tests actuales
+
+| Suite | Cantidad | Framework |
+|---|---|---|
+| Frontend (Jest) | 112 tests, 17 suites | Jest + React Testing Library |
+| Backend API | 144+ tests | pytest + pytest-asyncio |
+| Políticas OPA | 15+ tests | opa test |
+| ML recall | 36+ tests | pytest (golden corpus) |
+| Docker integración | 59 tests, 7 fases | bash + curl |
+
+Para patrones detallados de código, ver [SKILLS.md](../SKILLS.md).

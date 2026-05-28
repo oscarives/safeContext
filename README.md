@@ -151,4 +151,4 @@ Para el estado detallado y las tareas pendientes ver [`apps/docs/ROADMAP.md`](ap
 
 ## Tecnologías
 
-Python 3.12 · FastAPI · PostgreSQL · Redis · MinIO · OPA/Rego · Next.js 14 · TypeScript · Keycloak · HashiCorp Vault · OpenTelemetry · Prometheus · Grafana · Docker · Kubernetes · Cosign · Harbor
+Python 3.14 · FastAPI · PostgreSQL 18.4 · Redis 7.4 · MinIO · OPA/Rego 1.4 · Next.js 16.2 · TypeScript · Keycloak 26.2 · OpenBao 2.5.4 · OpenTelemetry · Prometheus · Grafana · Docker · Kubernetes · Cosign · Harbor

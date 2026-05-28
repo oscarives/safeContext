@@ -1,6 +1,7 @@
 # SKILLS · SafeContext — Habilidades por dominio de agente
-**Versión**: 0.1.0 · **Fecha**: 2026-05-17
+**Versión**: 1.0.0 · **Fecha**: 2026-05-25
 **Uso**: Claude Code consulta este archivo antes de ejecutar tareas de cada dominio. Los sub-agentes reciben solo la sección de su dominio.
+**Documentos relacionados**: [Manual 08 — Roles](manuals/08_ROLES_Y_PERMISOS.md), [Manual 06 — Guía Desarrollador](manuals/06_GUIA_DESARROLLADOR.md)
 
 ---
 
@@ -412,5 +413,111 @@ def evaluate_recall(detector, corpus):
 
 ---
 
+---
+
+## SKILL-ADMIN · Endpoints de administración (F6)
+
+### Patrón: Endpoint admin protegido
+
+```python
+from core.auth_oidc import get_roles, require_auth
+from fastapi import Depends, HTTPException, status
+from typing import Annotated
+
+_ADMIN_ROLE = "admin"
+
+def _require_admin(payload: dict) -> None:
+    if _ADMIN_ROLE not in get_roles(payload):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="admin role required")
+
+@router.post("/admin/mi-accion")
+async def mi_accion(
+    auth_payload: Annotated[dict, Depends(require_auth)],
+    db: AsyncSession = Depends(get_db),
+):
+    _require_admin(auth_payload)
+    # ... lógica
+```
+
+### Patrón: Múltiples roles permitidos
+
+```python
+_PRIVILEGED_ROLES = ("policy_editor", "admin")
+
+def _require_privileged(payload: dict) -> None:
+    roles = get_roles(payload)
+    if not any(r in roles for r in _PRIVILEGED_ROLES):
+        raise HTTPException(status_code=403, detail="Requires policy_editor or admin role")
+```
+
+### Patrón: Página admin (frontend)
+
+```tsx
+// Guard en layout — redirige si no es admin
+const session = useSession();
+if (!session?.roles.includes('admin')) redirect('/dashboard');
+
+// Link condicional en NavBar
+{hasRole('admin') && <Link href="/admin">Admin</Link>}
+
+// Botón condicional por rol
+const canReview = hasRole('reviewer') || hasRole('admin');
+{canReview && <Button onClick={handleApprove}>Aprobar</Button>}
+```
+
+### Reglas críticas
+- Solo existen 4 roles: `viewer`, `reviewer`, `policy_editor`, `admin`
+- `platform_admin` fue eliminado — no usar
+- Cada endpoint declara explícitamente qué roles acepta (sin herencia)
+- SoD (check_self_approval) se aplica en approve, no en reject
+
+---
+
+## SKILL-MULTITENANCY · Multi-tenancy y aislamiento (F6)
+
+### Patrón: Resolver tenant desde JWT
+
+```python
+from core.constants import DEFAULT_TENANT_ID
+
+tenant_id_str = auth_payload.get("tenant_id", "")
+tenant_id = uuid.UUID(tenant_id_str) if tenant_id_str else DEFAULT_TENANT_ID
+```
+
+### Patrón: Evaluación de política por tenant (OPA)
+
+```python
+# POST a OPA con tenant_config
+response = await http_client.post(
+    f"{OPA_URL}/v1/data/safecontext/policy/tenant_decision",
+    json={
+        "input": {
+            "findings": findings,
+            "waivers": active_waivers,
+            "tenant_config": tenant.policy_config or {},
+        }
+    }
+)
+```
+
+### Patrón: Quotas por tenant
+
+```python
+from core.quotas import check_daily_scan_quota, check_document_size, check_tenant_rate_limit
+
+# Verificar antes de procesar
+check_document_size(body.document, tenant.max_document_size)
+await check_daily_scan_quota(tenant_id, tenant.max_scans_per_day, request)
+check_tenant_rate_limit(tenant_id, tenant.rate_limit_rpm)
+```
+
+### Reglas críticas
+- RLS se configura por migración `0009_rls.py` — no tocar sin revisar impacto
+- DEFAULT_TENANT_ID = `00000000-0000-0000-0000-000000000000`
+- chain_hash es per-tenant — no mezclar cadenas entre tenants
+- Los certificados de borrado se almacenan bajo path `{tenant_id}/deletion-certificates/`
+
+---
+
 *Consultar este archivo antes de ejecutar cualquier tarea del dominio correspondiente.*
-*Para ambigüedades no cubiertas aquí, escalar al agente principal.*
+*Para la matriz completa de permisos, ver Manual 08. Para ambigüedades, escalar al agente principal.*

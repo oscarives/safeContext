@@ -1,10 +1,6 @@
-> ⚠️ **DEPRECADO** (2026-05-25) — Este documento fue reemplazado por [`DOC-PRODUCTO.md`](./DOC-PRODUCTO.md).
-> Consultar `DOC-PRODUCTO.md` como fuente de verdad única. Este archivo se conserva solo como referencia histórica.
-> Copia archivada en `docs/archive/DOC-0_UNIFIED.md`.
-
 # DOC-0 · SafeContext — Documento Unificado
-**Versión**: 0.2.0 · **Estado**: ~~Activo~~ DEPRECADO · **Fecha**: 2026-05-17 · **Actualizado**: 2026-05-21
-**Autoridad**: ~~Este documento es la fuente de verdad.~~ Reemplazado por DOC-PRODUCTO.md.
+**Versión**: 0.2.0 · **Estado**: Activo · **Fecha**: 2026-05-17 · **Actualizado**: 2026-05-21
+**Autoridad**: Este documento es la fuente de verdad. PRD, SAD y Spec Ejecutable son derivados.
 Ante contradicción entre documentos derivados y este, este prevalece.
 
 > **Estado del proyecto (2026-05-21)**: F1–F5 completadas. Madurez actual: 3.5–4/5.

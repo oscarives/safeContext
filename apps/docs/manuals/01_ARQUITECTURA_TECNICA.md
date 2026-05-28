@@ -1,5 +1,6 @@
 # SafeContext — Manual Técnico de Arquitectura
-**Versión**: 1.0.0 | **Fecha**: 2026-05-18 | **Audiencia**: Desarrolladores, Arquitectos, AppSec
+**Versión**: 2.0.0 | **Fecha**: 2026-05-25 | **Audiencia**: Desarrolladores, Arquitectos, AppSec
+**Documentos relacionados**: [DOC-PRODUCTO.md](../DOC-PRODUCTO.md), [Manual 08 — Roles](./08_ROLES_Y_PERMISOS.md), [Manual 09 — Seguridad](./09_SEGURIDAD_Y_COMPLIANCE.md)
 
 ---
 
@@ -1171,5 +1172,51 @@ curl -X PUT http://opa:8181/v1/policies/hipaa \
 
 ---
 
-*Documento generado a partir de DOC-0 v0.1.0, DOC-2 v0.1.0, DOC-3 v0.1.0 y ADRs cerrados ADR-001 a ADR-011*
-*Próxima revisión requerida: inicio de Fase 2*
+---
+
+## Apéndice: Módulos F6 — Enterprise + Admin (2026-05-24)
+
+Los siguientes módulos fueron agregados en la Fase 6 y amplían la arquitectura descrita en secciones anteriores.
+
+### Multi-tenancy
+
+| Módulo | Archivo | Función |
+|---|---|---|
+| Row-Level Security | Migración `0009_rls.py` | Aislamiento de datos por `tenant_id` en PostgreSQL |
+| Políticas OPA per-tenant | `safecontext.rego:tenant_decision()` | Umbrales y severidades configurables por tenant |
+| Quotas | `core/quotas.py` | Límites diarios, RPM y tamaño de documento por tenant |
+| Gestión de tenants | `api/v1/admin_tenants.py` | CRUD de tenants (solo rol `admin`) |
+
+### Cadena de custodia criptográfica
+
+| Módulo | Archivo | Función |
+|---|---|---|
+| Chain hash | `core/chain.py` | Hash encadenado SHA-256 per-tenant para detección de manipulación |
+| Firma digital | `core/vault_transit.py` | ECDSA-P256 via OpenBao Transit para no-repudiación |
+| Sellado temporal | `core/tsa.py` | RFC 3161 TSA para prueba temporal independiente |
+| WORM storage | `core/worm.py` | MinIO Object Lock GOVERNANCE (7 años) |
+
+### Compliance repetible
+
+| Módulo | Archivo | Función |
+|---|---|---|
+| Retención GDPR | `core/retention_gdpr.py` | Purga con certificados firmados HMAC-SHA256 |
+| SIEM | `core/siem.py` | Eventos CEF/LEEF/JSON via webhook y syslog |
+| Admin SIEM | `api/v1/admin_siem.py` | Prueba de conectividad SIEM por tenant |
+| Admin retención | `api/v1/admin_retention.py` | Purga manual y consulta de certificados |
+
+### Admin Module (Frontend)
+
+| Página | Ruta | Rol requerido |
+|---|---|---|
+| Lista de tenants | `/admin/tenants` | `admin` |
+| Detalle de tenant | `/admin/tenants/[id]` | `admin` |
+| Gestión de waivers | `/admin/waivers` | `policy_editor`, `admin` |
+| Retención GDPR | `/admin/retention` | `admin` |
+
+Para detalle completo de roles y permisos, ver [Manual 08 — Roles y Permisos](./08_ROLES_Y_PERMISOS.md).
+Para detalle completo de seguridad y compliance, ver [Manual 09 — Seguridad y Compliance](./09_SEGURIDAD_Y_COMPLIANCE.md).
+
+---
+
+*Documento actualizado: 2026-05-25 · Fuente: DOC-PRODUCTO.md + ADRs ADR-001 a ADR-013*

@@ -1,10 +1,6 @@
-> ⚠️ **DEPRECADO** (2026-05-25) — Este documento fue reemplazado por [`DOC-PRODUCTO.md`](./DOC-PRODUCTO.md).
-> Consultar `DOC-PRODUCTO.md` como fuente de verdad única. Este archivo se conserva solo como referencia histórica.
-> Copia archivada en `docs/archive/DOC-1_PRD.md`.
-
 # DOC-1 · SafeContext — Product Requirements Document (Enterprise)
-**Versión**: 0.1.0 · **Estado**: ~~Draft~~ DEPRECADO · **Fecha**: 2026-05-17
-**Derivado de**: DOC-0 v0.1.0 → Reemplazado por DOC-PRODUCTO.md
+**Versión**: 0.1.0 · **Estado**: Draft · **Fecha**: 2026-05-17
+**Derivado de**: DOC-0 v0.1.0
 **Audiencia**: Stakeholders, Product Owner, Tech Lead, Compliance
 
 ---

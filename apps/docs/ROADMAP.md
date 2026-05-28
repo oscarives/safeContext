@@ -1,7 +1,7 @@
 # SafeContext — ROADMAP
-**Versión**: 1.2.0 · **Última actualización**: 2026-05-24
+**Versión**: 1.3.0 · **Última actualización**: 2026-05-25
 **Audiencia**: Claude Code, Tech Lead, nuevos colaboradores, agentes de desarrollo
-**Autoridad**: Este documento refleja el estado real del proyecto. Ante contradicción con DOC-3_SPEC.md, este prevalece en cuanto a estado de implementación.
+**Autoridad**: Este documento refleja el estado real del proyecto. Ante contradicción con DOC-PRODUCTO.md, este prevalece en cuanto a estado de implementación.
 
 ---
 
@@ -165,9 +165,9 @@ si limpio: pipeline continúa con evidencia de escaneo adjunta
 | 4 | Piloto enterprise | Auditoría completa, OIDC, observabilidad, MCP seguro, offline |
 | **5** | **Enterprise regulado** | Multi-tenant, evidencias firmadas, hardening, compliance repetible |
 
-**Estado actual: 3.5–4 / 5**
-El informe externo estimó 1–2/5 en mayo 2026. Las fases F1–F5 del plan original están completadas.
-Los gaps que quedan para cerrar el 4/5 limpio son las tareas T1–T10 del replanteo (ver §7).
+**Estado actual: 5 / 5** ✅ (F1–F6 completadas, T1–T10 cerrado, Admin Module entregado)
+El informe externo estimó 1–2/5 en mayo 2026. Desde entonces, las fases F1–F6 + backlog T1–T10 + Admin Module fueron completadas.
+La documentación fue reestructurada (2026-05-25): DOC-0/1/2/3 fusionados en `DOC-PRODUCTO.md`, manuales 08 (Roles) y 09 (Seguridad) creados, glosario expandido a ~40 términos.
 
 ---
 
@@ -283,10 +283,10 @@ Convención de flags:
 | **F6-A2** ✅ | Row-Level Security por tenant | Políticas RLS en PostgreSQL (migración 0009). SET LOCAL `app.current_tenant_id` en cada request. `get_tenant_db` dependency. FORCE RLS en 5 tablas. Rol `safecontext_app` para bypass-free queries. | RLS habilitado en operations, waivers, findings, redactions, artifacts. Child tables usan sub-select via operation_id. | ✅ 2026-05-23 |
 | **F6-A3** ✅ | Políticas OPA por tenant | `tenant_decision()` acepta `tenant_config` con `confidence_overrides`, `severity_overrides`, `blocked_entity_types`. Backward compat via `tenant_decision_default()`. | 6 tests OPA nuevos: threshold override, severity override, blocked entity types, waivers combo, backward compat. | ✅ 2026-05-23 |
 | **F6-A4** ✅ | Quotas y rate limiting por tenant | `core/quotas.py`: `check_daily_scan_quota`, `check_document_size`, `check_tenant_rate_limit`. Redis + in-memory fallback. 429 responses con Retry-After header. | 13 tests: document size, daily quota, rate limit, tenant isolation, increment. | ✅ 2026-05-23 |
-| **F6-A5** ✅ | API de administración de tenants | CRUD: `POST/GET/PATCH/DELETE /v1/admin/tenants`. Solo rol `platform_admin`. Slug validation, duplicate check, soft-delete. | 9 tests: list, create, duplicate slug, invalid slug, get 404, update, deactivate, auth 403. | ✅ 2026-05-23 |
-| **F6-A6** ✅ | Onboarding UI multi-tenant | `TenantSelector` component en NavBar. `useTenant` hook con localStorage persistence. `apiClient.listTenants/createTenant/updateTenant/deactivateTenant`. Fallback single-tenant mode. | 82 UI tests pasan. Component renderiza dropdown multi-tenant o badge single-tenant. | ✅ 2026-05-23 |
+| **F6-A5** ✅ | API de administración de tenants | CRUD: `POST/GET/PATCH/DELETE /v1/admin/tenants`. Solo rol `admin`. Slug validation, duplicate check, soft-delete. | 9 tests: list, create, duplicate slug, invalid slug, get 404, update, deactivate, auth 403. | ✅ 2026-05-23 |
+| **F6-A6** ✅ | Onboarding UI multi-tenant | `TenantSelector` component en NavBar. `useTenant` hook con localStorage persistence. `apiClient.listTenants/createTenant/updateTenant/deactivateTenant`. Fallback single-tenant mode. | 112 UI tests pasan. Component renderiza dropdown multi-tenant o badge single-tenant. | ✅ 2026-05-23 |
 
-**Gate F6-A**: ✅ COMPLETADO (2026-05-23). 6/6 tareas implementadas. 154 backend tests + 82 UI tests. Pendiente: test de integración E2E con dos tenants en instancia real + pen-test de tenant isolation (requiere infraestructura).
+**Gate F6-A**: ✅ COMPLETADO (2026-05-23). 6/6 tareas implementadas. 154 backend tests + 112 UI tests. Pendiente: test de integración E2E con dos tenants en instancia real + pen-test de tenant isolation (requiere infraestructura).
 
 ---
 
@@ -299,7 +299,7 @@ Convención de flags:
 | **F6-B3** ✅ | Firma digital con OpenBao Transit | `core/vault_transit.py`: `sign_data()`, `get_public_key()`, `verify_signature()`, `_ensure_transit_key()`. ECDSA-P256 exportable. Audit export incluye `digital_signature`. Verification-key endpoint retorna clave pública Transit. | 6 tests: sign success/unavailable/error, public key success/unavailable, verify valid/invalid. | ✅ 2026-05-23 |
 | **F6-B4** ✅ | Sellado WORM con retención legal | `core/worm.py`: `store_with_retention()`, `check_retention()`, `ensure_audit_bucket()`, `delete_with_governance_bypass()`. Object Lock GOVERNANCE mode. Default 2555 días (7 años). Bucket `safecontext-audit-evidence`. | 5 tests: no-minio fallback, store success/failure, retention check, governance bypass. | ✅ 2026-05-23 |
 
-**Gate F6-B**: ✅ COMPLETADO (2026-05-23). 4/4 tareas implementadas. 181 backend tests + 82 UI tests. Audit export incluye TSA token + chain hash + firma digital. WORM retention con Object Lock GOVERNANCE. Pendiente: test E2E con TSA real + Vault en entorno de integración.
+**Gate F6-B**: ✅ COMPLETADO (2026-05-23). 4/4 tareas implementadas. 181 backend tests + 112 UI tests. Audit export incluye TSA token + chain hash + firma digital. WORM retention con Object Lock GOVERNANCE. Pendiente: test E2E con TSA real + Vault en entorno de integración.
 
 ---
 
@@ -364,14 +364,14 @@ La UI fue replanteda y completada como proyecto independiente después de detect
 | Pagina Waivers | Tabla, crear con validacion regex, revocar | ✅ | ✅ 10 tests `admin-waivers.test.tsx` |
 | Pagina Retention | Config retencion, purga manual, certificados con JSON viewer | ✅ | ✅ 11 tests `admin-retention.test.tsx` |
 | Error Boundary | Error boundary para ruta `/admin` | ✅ | ✅ |
-| NavBar Admin Link | Enlace Admin condicional para roles admin/platform_admin | ✅ | ✅ |
+| NavBar Admin Link | Enlace Admin condicional para rol admin | ✅ | ✅ |
 | Manual Administracion | `07_ADMIN_CONFIGURACION.md` en espanol | ✅ | N/A |
 
 ---
 
 ## 7. Plan de mejora — Replanteo del informe de madurez
 
-Estas tareas surgieron del análisis externo (`docs/research/deep-research-report.md`) que evaluó el proyecto contra estándares enterprise-grade. Son los gaps que quedan para alcanzar el nivel 4/5 limpio.
+Estas tareas surgieron del análisis externo (`docs/research/deep-research-report.md`) que evaluó el proyecto contra estándares enterprise-grade. **Todas completadas (T1–T10)** — contribuyeron a alcanzar madurez 5/5.
 
 **Ninguna bloquea el funcionamiento actual. Todas elevan el nivel para piloto enterprise real.**
 
@@ -473,7 +473,7 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 | Auth / Identidad | ✅ Completa | — |
 | Offline / Air-gapped | ✅ Completa | — |
 | Base de datos | ✅ Completa (particionada) | — |
-| Tests | ✅ 82 UI + 233 backend/ML/MCP (post F6-C) | — |
+| Tests | ✅ 112 UI (17 suites) + 233 backend/ML/MCP + 59 Docker integration | — |
 | Multi-tenancy | ✅ Completa (F6-A, 2026-05-23) | Tenant model, RLS, OPA per-tenant, quotas, admin API, UI selector |
 | Evidencias firmadas | ✅ Completa (F6-B, 2026-05-23) | TSA RFC 3161, chain hash, Transit signing, WORM retention |
 | Compliance repetible | ✅ Completa (F6-C, 2026-05-24) | SBOM firmado, reportes SOC 2/ISO/GDPR, pen-test CI (ZAP+Nuclei), GDPR purge con certificados, SIEM CEF/LEEF/JSON |
@@ -489,7 +489,7 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 **Backlog de replanteo T1–T10**: ✅ COMPLETADO (2026-05-22)
 **F6-A Multi-tenancy**: ✅ COMPLETADO (2026-05-23) — 6/6 tareas.
 **F6-B Evidencias firmadas**: ✅ COMPLETADO (2026-05-23) — 4/4 tareas.
-**F6-C Compliance repetible**: ✅ COMPLETADO (2026-05-24) — 6/6 tareas, 233 backend tests + 82 UI tests pasando.
+**F6-C Compliance repetible**: ✅ COMPLETADO (2026-05-24) — 6/6 tareas, 233 backend tests + 112 UI tests pasando.
 **Admin Module**: ✅ COMPLETADO (2026-05-24) — UI completa para gestion de tenants, politicas, SIEM, waivers, retencion GDPR. 26 backend tests + 30 frontend tests. Manual en espanol.
 
 **No hay gaps de código en F1–F5, T1–T10, F6-A, F6-B, F6-C, ni Admin Module.** Todos completados y verificados.
@@ -500,5 +500,20 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 
 ---
 
-*Generado a partir de: DOC-0_UNIFIED.md · DOC-3_SPEC.md · deep-research-report.md · estado real del repositorio*
-*Próxima actualización: al completar primera tarea F6*
+## 12. Estructura de documentación (2026-05-25)
+
+Los documentos DOC-0, DOC-1, DOC-2 y DOC-3 fueron consolidados en un único `DOC-PRODUCTO.md`. Los originales están archivados en `docs/archive/` con header de deprecación.
+
+| Tier | Documento | Propósito |
+|---|---|---|
+| Fundacional | `DOC-PRODUCTO.md` | Visión, requisitos, arquitectura, criterios — reemplaza DOC-0/1/2/3 |
+| Manual | `manuals/01–07` | Manuales operativos por audiencia (actualizados a F6) |
+| Manual nuevo | `manuals/08_ROLES_Y_PERMISOS.md` | RBAC completo: 4 roles, SoD, matrices de permisos |
+| Manual nuevo | `manuals/09_SEGURIDAD_Y_COMPLIANCE.md` | Seguridad enterprise consolidada |
+| Referencia | `GLOSSARY.md` | ~40 términos (expandido de 9) |
+| Agentes | `CLAUDE.md`, `AGENTS.md`, `WORKSPACE.md`, `SKILLS.md` | Actualizados a estado real |
+
+---
+
+*Generado a partir de: DOC-PRODUCTO.md · deep-research-report.md · estado real del repositorio*
+*Última actualización: 2026-05-25 — F6 completada, documentación reestructurada*

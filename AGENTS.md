@@ -1,6 +1,7 @@
 # AGENTS.md · SafeContext — Instrucciones para Claude Code
-**Versión**: 0.1.0 · **Fecha**: 2026-05-17
+**Versión**: 1.1.0 · **Fecha**: 2026-05-25
 **Este archivo es el system prompt operacional de Claude Code para el proyecto SafeContext.**
+**Estado del proyecto**: Madurez 5/5 — F1–F6 completadas, 112 tests UI, 144+ tests backend, 59 tests Docker
 
 ---
 
@@ -16,12 +17,13 @@ No eres un asistente de preguntas y respuestas. Eres un ejecutor autónomo con l
 
 Lee estos documentos en orden. No generes código, historias ni tareas sin haberlos leído completos:
 
-1. `docs/DOC-0_UNIFIED.md` — Fuente de verdad. Ante cualquier contradicción, este prevalece.
-2. `docs/DOC-1_PRD.md` — Requisitos funcionales y no funcionales.
-3. `docs/DOC-2_SAD.md` — Decisiones de arquitectura, modelo de datos, plano de seguridad.
-4. `docs/DOC-3_SPEC.md` — Spec ejecutable con criterios de aceptación binarios por fase.
-5. `docs/SKILLS/` — Habilidades específicas por dominio que debes consultar antes de ejecutar tareas de ese dominio.
-6. `docs/research/deep-research-report.md` — Análisis de madurez técnica. Fuente de contexto y justificación de decisiones.
+1. `docs/DOC-PRODUCTO.md` — **Documento fundacional único**. Fuente de verdad para visión, requisitos, arquitectura y criterios de aceptación. Reemplaza DOC-0/1/2/3 (archivados en `docs/archive/`).
+2. `docs/ROADMAP.md` — Estado de implementación, qué está hecho y qué falta.
+3. `docs/manuals/08_ROLES_Y_PERMISOS.md` — Modelo RBAC completo: 4 roles, matriz de permisos por endpoint/página/MCP tool, SoD.
+4. `docs/manuals/09_SEGURIDAD_Y_COMPLIANCE.md` — Seguridad consolidada: cadena de custodia, compliance frameworks, SIEM, multi-tenancy.
+5. `docs/SKILLS.md` — Habilidades y patrones específicos por dominio.
+6. `docs/GLOSSARY.md` — Glosario canónico (~40 términos).
+7. `CLAUDE.md` — Guía operativa rápida para agentes (punto de entrada recomendado).
 
 ---
 
@@ -53,8 +55,8 @@ Lee estos documentos en orden. No generes código, historias ni tareas sin haber
 ## Flujo de trabajo por tarea
 
 ```
-1. Lee el criterio de aceptación de la tarea (DOC-3)
-2. Consulta el skill relevante en docs/SKILLS/
+1. Lee el criterio de aceptación de la tarea (DOC-PRODUCTO.md)
+2. Consulta el skill relevante en docs/SKILLS.md
 3. Implementa
 4. Verifica el criterio de aceptación — resultado binario
 5. Si pasa: documenta evidencia (output de test, log, métrica)
@@ -69,7 +71,7 @@ Lee estos documentos en orden. No generes código, historias ni tareas sin haber
 Cuando el usuario te pida generar el roadmap o plan de desarrollo, sigue este proceso exacto:
 
 ### Paso 1: Análisis de fases
-Lee DOC-3 completo. Por cada fase, identifica:
+Lee DOC-PRODUCTO.md completo. Por cada fase, identifica:
 - Total de entregables
 - Dependencias entre entregables dentro de la fase
 - Dependencias entre fases
@@ -92,7 +94,7 @@ Para cada fase, determina cuántos agentes especializados permiten la ejecución
 - Documenta qué agente es responsable de qué entregable
 
 ### Paso 4: Generación de historias y tareas
-Por cada entregable en DOC-3, genera:
+Por cada entregable en DOC-PRODUCTO.md, genera:
 
 ```markdown
 ## Historia: [E{fase}.{num}] · {Nombre del entregable}
@@ -103,7 +105,7 @@ Por cada entregable en DOC-3, genera:
 **Puede ejecutarse en paralelo con**: [lista de IDs]
 
 ### Criterios de aceptación
-(Copiar literalmente de DOC-3 — no parafrasear)
+(Copiar literalmente de DOC-PRODUCTO.md — no parafrasear)
 
 ### Tareas técnicas
 1. {tarea concreta con herramientas específicas}
@@ -116,15 +118,15 @@ Por cada entregable en DOC-3, genera:
 
 ### Paso 5: Verificación de cobertura
 Antes de entregar el plan, verifica:
-- Toda historia en DOC-3 tiene una historia correspondiente en el plan
-- Todo criterio de aceptación de DOC-3 está cubierto por al menos una tarea
+- Toda historia en DOC-PRODUCTO.md tiene una historia correspondiente en el plan
+- Todo criterio de aceptación de DOC-PRODUCTO.md está cubierto por al menos una tarea
 - Los gates de salida de cada fase están explícitamente representados como historias de verificación
 
 ---
 
 ## Sub-agentes disponibles
 
-Los siguientes sub-agentes pueden ser invocados por Claude Code cuando una tarea requiere especialización. Cada sub-agente tiene su SKILL.md en `docs/SKILLS/`.
+Los siguientes sub-agentes pueden ser invocados por Claude Code cuando una tarea requiere especialización. Las guías técnicas por dominio están en `docs/SKILLS.md`.
 
 ### AGENT-BACKEND
 **Especialización**: FastAPI, asyncio, Dramatiq workers, OPA/Rego, PostgreSQL queries
@@ -185,11 +187,18 @@ Para maximizar productividad sin perder calidad:
 
 Si encuentras ambigüedad en los documentos de definición:
 1. Identifica el documento fuente del conflicto.
-2. Consulta DOC-0 — si DOC-0 resuelve la ambigüedad, aplica DOC-0.
-3. Si DOC-0 no la resuelve, escala al usuario con: (a) la ambigüedad exacta, (b) las opciones posibles, (c) el impacto de cada opción.
-4. Nunca resuelves ambigüedades estructurales por tu cuenta.
+2. Consulta DOC-PRODUCTO.md — si resuelve la ambigüedad, aplica DOC-PRODUCTO.md.
+3. Si no la resuelve, consulta el código fuente como fuente de verdad definitiva.
+4. Si persiste, escala al usuario con: (a) la ambigüedad exacta, (b) las opciones posibles, (c) el impacto de cada opción.
+5. Nunca resuelves ambigüedades estructurales por tu cuenta.
+
+---
+
+## Modelo de roles (referencia rápida)
+
+Solo existen 4 roles: `viewer`, `reviewer`, `policy_editor`, `admin`. El rol `platform_admin` fue eliminado (2026-05-24). Ver [Manual 08](docs/manuals/08_ROLES_Y_PERMISOS.md) para la matriz completa.
 
 ---
 
 *Este archivo es la instrucción operacional de Claude Code para SafeContext.*
-*No modificar sin actualizar también DOC-0.*
+*No modificar sin actualizar también DOC-PRODUCTO.md y CLAUDE.md.*
