@@ -14,100 +14,74 @@ The chain is per-tenant: each tenant has its own independent chain.
 """
 from __future__ import annotations
 
-import hashlib
-import json
-from datetime import datetime
 from uuid import UUID
 
 import structlog
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# F7-5: the pure chain primitives now live in the shared ``db.evidence`` module
+# so the worker (which cannot import ``core.*``) and the API verifier share a
+# single source of truth. They are re-exported here for backward compatibility
+# with existing ``from core.chain import ...`` call sites.
+from db.evidence import (
+    GENESIS_HASH,
+    compute_chain_hash,
+    compute_operation_hash,
+    get_latest_chain_hash,
+    seal_operation,
+)
 
 log = structlog.get_logger(__name__)
 
-# Genesis hash — used as prev_chain_hash for the first operation in a chain
-GENESIS_HASH = "0" * 64
+__all__ = [
+    "GENESIS_HASH",
+    "compute_chain_hash",
+    "compute_operation_hash",
+    "get_latest_chain_hash",
+    "compute_and_set_chain_hash",
+    "seal_operation",
+    "seal_operation_with_settings",
+    "verify_chain",
+]
 
 
-def compute_operation_hash(
-    operation_id: UUID,
-    trace_id: UUID,
-    actor_id: UUID,
-    artifact_digest: str,
-    status: str,
-    created_at: datetime,
-) -> str:
-    """Compute the content hash of an individual operation."""
-    content = json.dumps({
-        "id": str(operation_id),
-        "trace_id": str(trace_id),
-        "actor_id": str(actor_id),
-        "artifact_digest": artifact_digest,
-        "status": status,
-        "created_at": created_at.isoformat() if created_at else "",
-    }, sort_keys=True)
-    return hashlib.sha256(content.encode()).hexdigest()
-
-
-def compute_chain_hash(prev_chain_hash: str, operation_hash: str) -> str:
-    """Compute chain_hash = SHA256(prev_chain_hash || operation_hash)."""
-    combined = f"{prev_chain_hash}{operation_hash}"
-    return hashlib.sha256(combined.encode()).hexdigest()
-
-
-async def get_latest_chain_hash(
+async def seal_operation_with_settings(
     db: AsyncSession,
-    tenant_id: UUID,
-) -> str:
-    """Get the chain_hash of the most recent operation for a tenant.
+    operation: object,  # Operation model instance
+    http_client: object | None = None,
+) -> dict:
+    """Seal a completed operation using the API's Vault settings (F7-5).
 
-    Returns GENESIS_HASH if no operations exist or none have chain_hash set.
+    Convenience wrapper for API-side write-time completion points (review,
+    MCP approvals) so they don't each have to thread Vault config. The worker
+    uses its own ``WorkerSettings`` and calls ``seal_operation`` directly.
     """
-    from db.models.operation import Operation
+    from config import settings
 
-    result = await db.execute(
-        select(Operation.chain_hash)
-        .where(
-            Operation.tenant_id == tenant_id,
-            Operation.chain_hash.isnot(None),
-        )
-        .order_by(Operation.created_at.desc())
-        .limit(1)
+    sign = settings.audit_sign_on_write
+    return await seal_operation(
+        db,
+        operation,
+        vault_addr=settings.vault_addr if sign else None,
+        vault_token=settings.vault_dev_token if sign else None,
+        vault_key=settings.vault_transit_key if sign else None,
+        http_client=http_client,  # type: ignore[arg-type]
     )
-    latest = result.scalar_one_or_none()
-    return latest or GENESIS_HASH
 
 
 async def compute_and_set_chain_hash(
     db: AsyncSession,
     operation: object,  # Operation model instance
 ) -> str:
-    """Compute and set the chain_hash for an operation.
+    """Compute and set the chain_hash for an operation (chain only, no signature).
 
-    Call this when an operation is completed (status changes to completed/approved/rejected).
+    Thin wrapper over ``db.evidence.seal_operation`` kept for backward
+    compatibility. New write-time call sites should call ``seal_operation``
+    directly so they can also persist the asymmetric signature.
     """
-    op = operation  # type alias for readability
-    prev_hash = await get_latest_chain_hash(db, op.tenant_id)  # type: ignore[attr-defined]
-
-    op_hash = compute_operation_hash(
-        operation_id=op.id,  # type: ignore[attr-defined]
-        trace_id=op.trace_id,  # type: ignore[attr-defined]
-        actor_id=op.actor_id,  # type: ignore[attr-defined]
-        artifact_digest=op.artifact_digest,  # type: ignore[attr-defined]
-        status=op.status,  # type: ignore[attr-defined]
-        created_at=op.created_at,  # type: ignore[attr-defined]
-    )
-
-    chain_hash = compute_chain_hash(prev_hash, op_hash)
-    op.chain_hash = chain_hash  # type: ignore[attr-defined]
-
-    log.info(
-        "chain.hash_computed",
-        operation_id=str(op.id),  # type: ignore[attr-defined]
-        chain_hash=chain_hash[:16] + "...",
-    )
-
-    return chain_hash
+    result = await seal_operation(db, operation)
+    return result["chain_hash"]
 
 
 async def verify_chain(

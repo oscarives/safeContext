@@ -42,6 +42,19 @@ class Settings(BaseSettings):
     tsa_url: str = "https://freetsa.org/tsr"
     tsa_enabled: bool = True  # Set False to skip TSA in dev/air-gapped
 
+    # F7-4 (H2): require the asymmetric (Vault Transit) signature on audit
+    # exports. Default False so dev/tests/air-gapped without Vault keep working;
+    # set True in production so an export is never emitted without a real
+    # non-repudiation signature (fail-closed → 503 if signing is unavailable).
+    # The HMAC is only an auxiliary checksum (shared server secret = signer is
+    # also verifier, so it proves nothing *against* SafeContext).
+    audit_require_digital_signature: bool = False
+
+    # F7-5 (H1): sign each operation with the asymmetric key at write-time (when
+    # it completes), persisting the signature on the row. Set False for
+    # air-gapped deployments without Vault — only the chain hash is written then.
+    audit_sign_on_write: bool = True
+
     http_client_timeout: float = 5.0
 
     # PostgreSQL connection pool tuning

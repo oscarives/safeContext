@@ -42,6 +42,14 @@ async def _ensure_transit_key(http_client: httpx.AsyncClient | None = None) -> b
 
     Returns True if key exists/was created, False on failure.
     This is idempotent — safe to call on every startup.
+
+    F7-3 (H4): the key is created as non-exportable (sign-only). For
+    non-repudiation the private key must never leave Vault's Transit boundary;
+    the public key is still exportable via the /keys endpoint for offline
+    verification. NOTE: keys previously created with exportable=True are NOT
+    downgraded automatically — they must be rotated to a fresh non-exportable
+    key (new key name, re-seal new operations, keep the old public key to verify
+    historical evidence).
     """
     url = f"{VAULT_ADDR}/v1/transit/keys/{TRANSIT_KEY}"
 
@@ -55,7 +63,7 @@ async def _ensure_transit_key(http_client: httpx.AsyncClient | None = None) -> b
             resp = await http_client.post(
                 url,
                 headers=_vault_headers(),
-                json={"type": "ecdsa-p256", "exportable": True},
+                json={"type": "ecdsa-p256", "exportable": False},
                 timeout=VAULT_TIMEOUT,
             )
         else:
@@ -66,7 +74,7 @@ async def _ensure_transit_key(http_client: httpx.AsyncClient | None = None) -> b
                 resp = await client.post(
                     url,
                     headers=_vault_headers(),
-                    json={"type": "ecdsa-p256", "exportable": True},
+                    json={"type": "ecdsa-p256", "exportable": False},
                     timeout=VAULT_TIMEOUT,
                 )
 
@@ -97,10 +105,13 @@ async def sign_data(
     # Vault Transit expects base64-encoded input
     input_b64 = base64.b64encode(data).decode("ascii")
 
+    # F7-1 (H6): the signing key is ecdsa-p256. `signature_algorithm` (pkcs1v15)
+    # is an RSA-only parameter — Vault ignores it for ECDSA keys, but sending it
+    # is misleading. We omit it so the request reflects the actual key type and
+    # Vault uses the correct ECDSA scheme.
     payload = {
         "input": input_b64,
         "hash_algorithm": "sha2-256",
-        "signature_algorithm": "pkcs1v15",
     }
 
     try:
@@ -198,24 +209,35 @@ async def verify_signature(
     signature: str,
     http_client: httpx.AsyncClient | None = None,
     key_name: str | None = None,
+    key_version: int = 1,
 ) -> bool:
     """Verify a signature using Vault Transit engine.
 
     Args:
         data: Original data bytes
-        signature: Base64-encoded signature to verify
+        signature: Base64-encoded signature to verify. May be either a raw
+            base64 string (as returned by ``sign_data``) or a fully-qualified
+            ``vault:vN:<sig>`` token.
         http_client: Shared httpx client
         key_name: Override key name
+        key_version: Transit key version that produced the signature. Used to
+            build the ``vault:vN:`` prefix when ``signature`` is a raw base64
+            string. Defaults to 1 for backward compatibility.
 
     Returns:
         True if signature is valid, False otherwise.
+
+    F7-2 (H5): the key version is no longer hardcoded to v1. When the signature
+    already carries a ``vault:vN:`` prefix it is honoured verbatim; otherwise the
+    prefix is built from ``key_version`` so signatures made with rotated keys
+    (v2+) can be verified against historical evidence.
     """
     key = key_name or TRANSIT_KEY
     url = f"{VAULT_ADDR}/v1/transit/verify/{key}"
 
     input_b64 = base64.b64encode(data).decode("ascii")
-    # Vault expects signature in "vault:v1:<sig>" format
-    vault_sig = f"vault:v1:{signature}" if not signature.startswith("vault:") else signature
+    # Honour an explicit "vault:vN:" prefix; otherwise build it from key_version.
+    vault_sig = signature if signature.startswith("vault:") else f"vault:v{key_version}:{signature}"
 
     payload = {
         "input": input_b64,

@@ -8,7 +8,7 @@ Criterios verificados:
 - safecontext.approve con finding escalado → approved_by_agent_id poblado
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -200,17 +200,25 @@ async def test_approve_records_agent_id(valid_token, mock_db):
 
     mock_db.add = capture_add
 
+    # F7-5: write-time sealing adds a chain query + Vault call; it is covered in
+    # tests/api/test_evidence.py, so isolate it here to keep the mock_db's fixed
+    # execute side_effect list intact.
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.post(
-            "/v1/mcp/tools/safecontext.approve",
-            headers={"Authorization": f"Bearer {valid_token}"},
-            json={
-                "finding_id": str(finding_id),
-                "decision": "approve",
-                "justification": "Automated agent review approved this finding",
-                "agent_client_id": "agent-pipeline-001",
-            },
-        )
+        with patch(
+            "core.chain.seal_operation_with_settings",
+            new_callable=AsyncMock,
+            return_value={"chain_hash": "x" * 64, "signed": False, "key_version": None},
+        ):
+            resp = await client.post(
+                "/v1/mcp/tools/safecontext.approve",
+                headers={"Authorization": f"Bearer {valid_token}"},
+                json={
+                    "finding_id": str(finding_id),
+                    "decision": "approve",
+                    "justification": "Automated agent review approved this finding",
+                    "agent_client_id": "agent-pipeline-001",
+                },
+            )
 
     assert resp.status_code == 200
     body = resp.json()

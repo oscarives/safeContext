@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -51,6 +51,16 @@ class Operation(Base):
     # F6-B2: Cryptographic chain hash — SHA256(prev_chain_hash + operation_hash)
     # NULL for operations created before F6-B2 or when chain is not yet computed.
     chain_hash: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    # F7-5 (ADR-014/H1): write-time asymmetric signature of the canonical
+    # operation_hash, produced by the Vault Transit ECDSA-P256 key the moment the
+    # operation completes. This is the non-repudiation evidence bound to the event
+    # as it occurred (not a later view of the DB). NULL when Vault was unavailable
+    # at write-time or for operations completed before F7-5.
+    event_signature: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event_signed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    signing_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     tenant: Mapped["Tenant"] = relationship(back_populates="operations")  # type: ignore[name-defined]  # noqa: F821
     findings: Mapped[list["Finding"]] = relationship(  # type: ignore[name-defined]  # noqa: F821

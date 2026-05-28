@@ -333,6 +333,29 @@ Convención de flags:
 
 ---
 
+### F7 · Endurecimiento de no-repudio del audit trail 🔄 EN CURSO
+
+**Objetivo**: cerrar los seis huecos de disciplina criptográfica detectados en la revisión de seguridad (2026-05-28) que impiden que el audit trail de F6-B sirva como prueba de no-repudio frente a un insider con acceso a BD o ante un auditor. **Origen**: ADR-014. Habilita además el registro de evidencia portátil necesario para el futuro modo sidecar/proxy MCP.
+
+**Prerrequisitos**: F6-B completada ✅ (TSA + chain hash + firma ECDSA + WORM ya implementados).
+
+**Hallazgo raíz**: `compute_and_set_chain_hash()` no tiene llamadores → el chain_hash nunca se puebla en el flujo real. La cadena de custodia hoy es inexistente en la práctica.
+
+| ID | Tarea | Descripción | Criterio de aceptación | Severidad | Estado |
+|---|---|---|---|---|---|
+| **F7-1** | Fix algoritmo de firma ECDSA | `vault_transit.sign_data` omite `signature_algorithm: pkcs1v15` (esquema RSA) para claves `ecdsa-p256`. | Suite evidencia (TestVaultTransit) verde. Sign sigue funcionando contra Vault real. | ⚪ menor | ✅ COMPLETADO |
+| **F7-2** | Versión de clave en `verify_signature` | Parsea la versión real del prefijo `vault:vN:` en lugar de hardcodear `v1`; soporta verificación de firmas con claves rotadas (v2+). | Test nuevo: verify de firma `vault:v2:` funciona. Tests existentes verdes. | 🟡 alto | ✅ COMPLETADO |
+| **F7-3** | Clave de firma no-exportable | `_ensure_transit_key` crea la clave con `"exportable": False` (sign-only). Documentar rotación de claves ya exportables. | Clave nueva no-exportable. `get_public_key` sigue exportando la pública. | 🟡 alto | ✅ COMPLETADO |
+| **F7-4** | Firma asimétrica obligatoria (gated) | Setting `audit_require_digital_signature` (default `False`). Cuando `True` y la firma falla → 503; no se emite export sin firma asimétrica. HMAC degradado a checksum auxiliar (documentado). | Default `False`: 38 tests baseline verdes. Test nuevo: con flag `True` y sign=None → 503. | 🔴 crítico | ✅ COMPLETADO |
+| **F7-5** | Sellado/firma en write-time | Migración 0012 agrega `event_signature`, `event_signed_at`, `signing_key_version` a `operations`. Helper `core/evidence.py:seal_operation()` computa `operation_hash` + `chain_hash` + firma asimétrica al completarse la operación. Audit export expone la firma write-time. | Migración aplica. `seal_operation` poblado en puntos de completado. Tests de evidencia verdes + test nuevo del helper. | 🔴 crítico | ✅ COMPLETADO |
+| **F7-6** | Anclaje de cabeza de cadena | Tabla `chain_anchors` (migración 0012). `POST /v1/audit/chain/anchor` firma (asimétrico + TSA opcional) la cabeza de la cadena por tenant. `verify_chain` valida contra el ancla firmada → tamper-proof. | Endpoint firma cabeza. Verificación detecta recomputación de cadena por insider. Tests verdes + test del anclaje. | 🔴 crítico | ✅ COMPLETADO |
+
+**Orden de ejecución** (menor → mayor riesgo): F7-1 → F7-2 → F7-3 → F7-4 → F7-5 → F7-6. Cada tarea se verifica con `pytest tests/api/test_evidence.py tests/api/test_audit.py` (baseline 38/38) antes de marcarse ✅.
+
+**Gate F7**: Audit export firmado en write-time con clave no-exportable; cadena de custodia poblada y anclada (tamper-proof); firma asimétrica obligatoria en producción; verificación resistente a rotación de claves. Evidencia auto-probatoria portátil lista para modo sidecar.
+
+---
+
 ## 6. Frontend (completado en paralelo con F2)
 
 La UI fue replanteda y completada como proyecto independiente después de detectar que el frontend inicial era un esqueleto sin funcionalidad.

@@ -258,6 +258,145 @@ class TestChainHash:
         assert result["first_broken_at"] == str(op1.id)
 
 
+# ── F7-5: write-time sealing tests ──────────────────────────────────────────
+
+
+class TestSealOperation:
+    def _make_op(self):
+        op = MagicMock()
+        op.id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+        op.trace_id = uuid.UUID("22222222-2222-2222-2222-222222222222")
+        op.actor_id = uuid.UUID("33333333-3333-3333-3333-333333333333")
+        op.tenant_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+        op.artifact_digest = "digest-xyz"
+        op.status = "completed"
+        op.created_at = datetime(2026, 5, 28, tzinfo=timezone.utc)
+        # Start unset so we can assert seal_operation populates them.
+        op.chain_hash = None
+        op.event_signature = None
+        op.event_signed_at = None
+        op.signing_key_version = None
+        return op
+
+    def _session_with_latest(self, latest_chain_hash):
+        """Mock AsyncSession whose get_latest_chain_hash query returns the given value."""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = latest_chain_hash
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        return mock_session
+
+    @pytest.mark.asyncio
+    async def test_seal_sets_chain_hash_without_vault(self):
+        """Without Vault config, sealing still populates the chain hash (the
+        critical fix for ADR-014/H3: the chain was never being written)."""
+        from db.evidence import (
+            GENESIS_HASH,
+            compute_chain_hash,
+            compute_operation_hash,
+            seal_operation,
+        )
+
+        op = self._make_op()
+        session = self._session_with_latest(None)  # first op → GENESIS
+
+        result = await seal_operation(session, op)
+
+        expected_op_hash = compute_operation_hash(
+            op.id, op.trace_id, op.actor_id, op.artifact_digest, op.status, op.created_at
+        )
+        expected_chain = compute_chain_hash(GENESIS_HASH, expected_op_hash)
+
+        assert op.chain_hash == expected_chain
+        assert result["chain_hash"] == expected_chain
+        assert result["signed"] is False
+        # No signature persisted when Vault is not configured.
+        assert op.event_signature is None
+
+    @pytest.mark.asyncio
+    async def test_seal_persists_signature_and_key_version(self):
+        """With Vault available, sealing persists the asymmetric signature, the
+        signed_at timestamp and the key version (F7-5 + F7-2)."""
+        from db.evidence import seal_operation
+
+        op = self._make_op()
+        session = self._session_with_latest(None)
+
+        with patch(
+            "db.evidence.sign_operation_hash",
+            new_callable=AsyncMock,
+            return_value=("vault:v3:c2lnbmF0dXJl", 3),
+        ):
+            result = await seal_operation(
+                session,
+                op,
+                vault_addr="http://vault:8200",
+                vault_token="token",
+                vault_key="safecontext-signing",
+            )
+
+        assert result["signed"] is True
+        assert result["key_version"] == 3
+        assert op.event_signature == "vault:v3:c2lnbmF0dXJl"
+        assert op.signing_key_version == 3
+        assert op.event_signed_at is not None
+        assert op.chain_hash is not None
+
+    @pytest.mark.asyncio
+    async def test_seal_tolerates_vault_failure(self):
+        """If Vault signing fails, the chain hash is still written and no
+        signature is persisted (best-effort write-time signing)."""
+        from db.evidence import seal_operation
+
+        op = self._make_op()
+        session = self._session_with_latest(None)
+
+        with patch(
+            "db.evidence.sign_operation_hash",
+            new_callable=AsyncMock,
+            return_value=(None, None),
+        ):
+            result = await seal_operation(
+                session,
+                op,
+                vault_addr="http://vault:8200",
+                vault_token="token",
+                vault_key="safecontext-signing",
+            )
+
+        assert result["signed"] is False
+        assert op.chain_hash is not None
+        assert op.event_signature is None
+
+    @pytest.mark.asyncio
+    async def test_sign_operation_hash_parses_key_version(self):
+        """sign_operation_hash returns the full vault token and parses the key
+        version from the vault:vN: prefix (F7-2)."""
+        from db.evidence import sign_operation_hash
+
+        op_hash = hashlib.sha256(b"op").hexdigest()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": {"signature": "vault:v5:YWJj"}}
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        sig, version = await sign_operation_hash(
+            op_hash,
+            vault_addr="http://vault:8200",
+            vault_token="token",
+            vault_key="safecontext-signing",
+            http_client=mock_client,
+        )
+
+        assert sig == "vault:v5:YWJj"
+        assert version == 5
+        # No RSA-only signature_algorithm should be sent for the ECDSA key (F7-1).
+        sent_json = mock_client.post.call_args.kwargs["json"]
+        assert "signature_algorithm" not in sent_json
+        assert sent_json["hash_algorithm"] == "sha2-256"
+
+
 # ── F6-B3: Vault Transit tests ──────────────────────────────────────────────
 
 
@@ -367,6 +506,45 @@ class TestVaultTransit:
 
         result = await verify_signature(b"data", "bad-sig", http_client=mock_client)
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_verify_signature_uses_key_version(self):
+        """F7-2 (H5): raw signature + key_version=2 must build a vault:v2: prefix."""
+        from core.vault_transit import verify_signature
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": {"valid": True}}
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        result = await verify_signature(
+            b"data", "rawsig", http_client=mock_client, key_version=2
+        )
+        assert result is True
+        sent = mock_client.post.call_args.kwargs["json"]
+        assert sent["signature"] == "vault:v2:rawsig"
+
+    @pytest.mark.asyncio
+    async def test_verify_signature_honours_versioned_prefix(self):
+        """F7-2 (H5): an already-prefixed vault:v3: signature is used verbatim."""
+        from core.vault_transit import verify_signature
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": {"valid": True}}
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        # key_version=1 must be ignored because the signature already has v3
+        result = await verify_signature(
+            b"data", "vault:v3:abc", http_client=mock_client, key_version=1
+        )
+        assert result is True
+        sent = mock_client.post.call_args.kwargs["json"]
+        assert sent["signature"] == "vault:v3:abc"
 
 
 # ── F6-B4: WORM retention tests ─────────────────────────────────────────────

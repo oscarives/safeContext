@@ -14,7 +14,7 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -154,13 +154,49 @@ async def get_audit_export(
     _raw_chain = getattr(operation, "chain_hash", None)
     chain_hash_val: str | None = _raw_chain if isinstance(_raw_chain, str) else None
 
-    # F6-B3: Digital signature via OpenBao Transit
+    # F7-5: prefer the WRITE-TIME signature persisted on the operation. This is
+    # the authoritative non-repudiation evidence — it signs the canonical
+    # operation_hash at the moment the event completed, not a later view of the
+    # DB built at export time. Only fall back to a read-time signature for legacy
+    # operations sealed before F7-5 (event_signature is NULL).
+    _raw_event_sig = getattr(operation, "event_signature", None)
+    event_signature: str | None = _raw_event_sig if isinstance(_raw_event_sig, str) else None
+    _raw_signed_at = getattr(operation, "event_signed_at", None)
+    event_signed_at = _raw_signed_at if isinstance(_raw_signed_at, datetime) else None
+    _raw_key_version = getattr(operation, "signing_key_version", None)
+    signing_key_version: int | None = _raw_key_version if isinstance(_raw_key_version, int) else None
+
     digital_sig: str | None = None
-    try:
-        sig_data = json.dumps(signable, sort_keys=True, default=str).encode()
-        digital_sig = await sign_data(sig_data, http_client=http_client)
-    except Exception as exc:
-        logger.warning("audit.vault_sign_failed", error=str(exc))
+    signature_at_write_time = False
+    if event_signature is not None:
+        digital_sig = event_signature
+        signature_at_write_time = True
+    else:
+        # Legacy fallback: sign the exported view at read-time.
+        try:
+            sig_data = json.dumps(signable, sort_keys=True, default=str).encode()
+            digital_sig = await sign_data(sig_data, http_client=http_client)
+        except Exception as exc:
+            logger.warning("audit.vault_sign_failed", error=str(exc))
+
+    # F7-4 (H2): fail-closed when the asymmetric signature is mandatory.
+    # In production (audit_require_digital_signature=True) an export without a
+    # real non-repudiation signature is worthless as evidence, so we refuse to
+    # emit it instead of falling back to the HMAC-only checksum. Default False
+    # keeps dev/tests/air-gapped (no Vault) working unchanged.
+    if settings.audit_require_digital_signature and digital_sig is None:
+        logger.error(
+            "audit.export.signature_required_unavailable",
+            trace_id=str(trace_id),
+            requested_by=actor_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Digital signature is required but the signing service is "
+                "unavailable; audit export withheld (fail-closed)."
+            ),
+        )
 
     logger.info(
         "audit.export",
@@ -172,6 +208,7 @@ async def get_audit_export(
         has_tsa=tsa_token_b64 is not None,
         has_chain_hash=chain_hash_val is not None,
         has_digital_sig=digital_sig is not None,
+        signature_at_write_time=signature_at_write_time,
     )
 
     return AuditExportResponse(
@@ -186,6 +223,9 @@ async def get_audit_export(
         tsa_token=tsa_token_b64,
         chain_hash=chain_hash_val,
         digital_signature=digital_sig,
+        signature_at_write_time=signature_at_write_time,
+        event_signed_at=event_signed_at,
+        signing_key_version=signing_key_version,
     )
 
 
@@ -290,6 +330,13 @@ class ChainVerifyResponse(BaseModel):
     checked: int
     first_broken_at: str | None
     gaps: list[str]
+    # F7-6: signed-anchor cross-check. anchored=False when no anchor exists yet
+    # (chain is only tamper-evident). When anchored, anchor_valid is the result
+    # of verifying the anchor's asymmetric signature and anchor_head_matches
+    # whether the live chain head still equals the signed one.
+    anchored: bool = False
+    anchor_valid: bool | None = None
+    anchor_head_matches: bool | None = None
 
 
 @router.get("/audit/chain/verify", response_model=ChainVerifyResponse, tags=["audit"])
@@ -321,4 +368,190 @@ async def verify_chain_endpoint(
     tenant_id = UUID(tenant_id_str) if tenant_id_str else DEFAULT_TENANT_ID
 
     result = await verify_chain(db, tenant_id)
-    return ChainVerifyResponse(**result)
+
+    # F7-6: cross-check the live chain head against the latest signed anchor.
+    # Walking the chain alone is only tamper-EVIDENT (an insider with DB write
+    # access can recompute every chain_hash). The signed anchor makes it
+    # tamper-PROOF: a rewritten chain produces a head that no longer matches the
+    # asymmetrically-signed anchor, and the insider cannot forge that signature.
+    anchor_status = await _verify_latest_anchor(db, tenant_id)
+    return ChainVerifyResponse(**result, **anchor_status)
+
+
+# ── F7-6: signed chain head anchoring ────────────────────────────────────────
+
+
+async def _verify_latest_anchor(db: AsyncSession, tenant_id: UUID) -> dict:
+    """Verify the most recent signed anchor for a tenant against the live head.
+
+    Returns a dict with ``anchored`` / ``anchor_valid`` / ``anchor_head_matches``
+    suitable for splatting into ChainVerifyResponse.
+    """
+    from db.evidence import get_latest_chain_hash
+    from db.models.chain_anchor import ChainAnchor
+
+    result = await db.execute(
+        select(ChainAnchor)
+        .where(ChainAnchor.tenant_id == tenant_id)
+        .order_by(ChainAnchor.created_at.desc())
+        .limit(1)
+    )
+    anchor: ChainAnchor | None = result.scalars().first()
+    if anchor is None:
+        return {"anchored": False, "anchor_valid": None, "anchor_head_matches": None}
+
+    # Does the anchored head still match the most recent live chain head?
+    live_head = await get_latest_chain_hash(db, tenant_id)
+    head_matches = live_head == anchor.chain_head_hash
+
+    # Verify the asymmetric signature over the anchored head.
+    from core.vault_transit import verify_signature
+
+    try:
+        signed_valid = await verify_signature(
+            bytes.fromhex(anchor.chain_head_hash),
+            anchor.signature,
+            key_version=anchor.signing_key_version or 1,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("audit.anchor.verify_error", error=str(exc))
+        signed_valid = False
+
+    return {
+        "anchored": True,
+        "anchor_valid": bool(signed_valid),
+        "anchor_head_matches": head_matches,
+    }
+
+
+class ChainAnchorResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    chain_head_hash: str
+    operations_count: int
+    signing_key_version: int | None
+    has_tsa: bool
+    created_at: datetime
+
+
+@router.post(
+    "/audit/chain/anchor",
+    response_model=ChainAnchorResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["audit"],
+)
+async def create_chain_anchor(
+    request: Request,
+    actor: Annotated[dict, Depends(require_auth)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChainAnchorResponse:
+    """Create a signed checkpoint (anchor) of the current chain head (F7-6).
+
+    Signs the latest per-tenant chain head with the asymmetric Vault Transit key
+    (and, when enabled, an RFC 3161 TSA token) and persists it in
+    ``chain_anchors``. Subsequent chain verifications cross-check the live head
+    against this signed anchor, turning the chain tamper-proof.
+
+    Requires admin role.
+    """
+    from core.auth_oidc import get_roles
+    from core.constants import DEFAULT_TENANT_ID
+    from db.evidence import GENESIS_HASH, get_latest_chain_hash, sign_operation_hash
+    from db.models.chain_anchor import ChainAnchor
+    from db.models.operation import Operation
+
+    roles = get_roles(actor)
+    if "admin" not in roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="admin role required to anchor the chain",
+        )
+
+    tenant_id_str = actor.get("tenant_id", "")
+    tenant_id = UUID(tenant_id_str) if tenant_id_str else DEFAULT_TENANT_ID
+    http_client: httpx.AsyncClient | None = getattr(request.app.state, "http_client", None)
+
+    head = await get_latest_chain_hash(db, tenant_id)
+    if head == GENESIS_HASH:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No sealed operations to anchor for this tenant.",
+        )
+
+    ops_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(Operation)
+            .where(
+                Operation.tenant_id == tenant_id,
+                Operation.chain_hash.isnot(None),
+            )
+        )
+    ).scalar_one()
+
+    # Sign the chain head with the asymmetric key. Anchoring is fail-closed: an
+    # unsigned anchor is worthless, so refuse if signing is unavailable.
+    signature, key_version = await sign_operation_hash(
+        head,
+        vault_addr=settings.vault_addr,
+        vault_token=settings.vault_dev_token,
+        vault_key=settings.vault_transit_key,
+        http_client=http_client,
+    )
+    if signature is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Signing service unavailable; cannot create a signed anchor.",
+        )
+
+    # Optional RFC 3161 timestamp over the chain head.
+    tsa_token_b64: str | None = None
+    if settings.tsa_enabled:
+        tsa_result = await request_tsa_token(bytes.fromhex(head), http_client=http_client)
+        if tsa_result:
+            tsa_token_b64 = tsa_result.token_b64
+
+    try:
+        created_by = UUID(str(actor["sub"])) if actor.get("sub") else None
+    except (ValueError, TypeError):
+        created_by = None
+
+    # Set id/created_at explicitly so the response does not depend on a DB
+    # round-trip populating server-side defaults.
+    from uuid import uuid4
+
+    anchor_id = uuid4()
+    created_at = datetime.now(UTC)
+    anchor = ChainAnchor(
+        id=anchor_id,
+        tenant_id=tenant_id,
+        chain_head_hash=head,
+        operations_count=int(ops_count),
+        signature=signature,
+        signing_key_version=key_version,
+        tsa_token=tsa_token_b64,
+        created_by=created_by,
+        created_at=created_at,
+    )
+    async with db.begin():
+        db.add(anchor)
+        await db.flush()
+
+    logger.info(
+        "audit.anchor.created",
+        tenant_id=str(tenant_id),
+        chain_head=head[:16] + "...",
+        operations_count=int(ops_count),
+        key_version=key_version,
+        has_tsa=tsa_token_b64 is not None,
+    )
+
+    return ChainAnchorResponse(
+        id=anchor_id,
+        tenant_id=tenant_id,
+        chain_head_hash=head,
+        operations_count=int(ops_count),
+        signing_key_version=key_version,
+        has_tsa=tsa_token_b64 is not None,
+        created_at=created_at,
+    )

@@ -398,6 +398,11 @@ async def tool_classify(
         )
         async with db.begin():
             db.add(operation)
+            await db.flush()  # load server-side created_at before sealing
+            # F7-5: seal this completed operation at write-time.
+            from core.chain import seal_operation_with_settings
+
+            await seal_operation_with_settings(db, operation)
 
         response.headers["X-Trace-ID"] = str(trace_uuid)
 
@@ -559,12 +564,20 @@ async def tool_approve(
                 from datetime import datetime
 
                 operation.completed_at = datetime.now(UTC)
+                # F7-5: seal at write-time.
+                from core.chain import seal_operation_with_settings
+
+                await seal_operation_with_settings(db, operation)
         else:
             async with db.begin():
                 operation.status = OperationStatus.REJECTED
                 from datetime import datetime
 
                 operation.completed_at = datetime.now(UTC)
+                # F7-5: seal the terminal (rejected) operation at write-time.
+                from core.chain import seal_operation_with_settings
+
+                await seal_operation_with_settings(db, operation)
 
         log.info(
             "mcp.approve.recorded",

@@ -33,6 +33,16 @@ class WorkerSettings(BaseSettings):
     outbox_poll_interval: float = 1.0   # seconds between outbox polls
     outbox_batch_size: int = 10         # max events per relay batch
 
+    # ── Vault Transit — write-time evidence signing (F7-5, ADR-014/H1) ─────────
+    # The auditor_agent seals each completed operation with the asymmetric key
+    # the moment it finishes. When audit_sign_on_write is False (air-gapped /
+    # no Vault) only the chain hash is written; the signature stays NULL and the
+    # read-time export can still enforce audit_require_digital_signature.
+    vault_addr: str = "http://vault:8200"
+    vault_dev_token: str = "safecontext-dev-token"
+    vault_transit_key: str = "safecontext-signing"
+    audit_sign_on_write: bool = True
+
     # ── Worker runtime ────────────────────────────────────────────────────────
     worker_concurrency: int = 4
     worker_max_retries: int = 3

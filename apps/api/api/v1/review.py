@@ -227,6 +227,11 @@ async def approve_finding(
             operation.status = OperationStatus.COMPLETED
             operation.completed_at = datetime.now(UTC)
             db.add(operation)
+            # F7-5: seal the operation (chain hash + asymmetric signature) at
+            # write-time, in the same transaction as the status change.
+            from core.chain import seal_operation_with_settings
+
+            await seal_operation_with_settings(db, operation)
 
     log.info(
         "review.finding.approved",
@@ -256,6 +261,10 @@ async def reject_finding(
         operation.status = OperationStatus.REJECTED
         operation.completed_at = datetime.now(UTC)
         db.add(operation)
+        # F7-5: seal the (terminal) operation at write-time.
+        from core.chain import seal_operation_with_settings
+
+        await seal_operation_with_settings(db, operation)
 
     log.info(
         "review.finding.rejected",

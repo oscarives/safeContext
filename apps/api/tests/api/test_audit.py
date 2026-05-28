@@ -92,6 +92,11 @@ def _make_mock_operation() -> MagicMock:
     op.artifacts = [artifact]
     op.sanitized_text = None  # None until sanitizer_agent runs; must not be MagicMock
     op.chain_hash = None  # F6-B2: None until chain is computed
+    # F7-5: write-time signature fields — None for this mock so the export falls
+    # back to the (patched) read-time signing path.
+    op.event_signature = None
+    op.event_signed_at = None
+    op.signing_key_version = None
 
     return op
 
@@ -552,3 +557,255 @@ class TestVerificationKey:
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["algorithm"] == "HMAC-SHA256"
+
+
+# ---------------------------------------------------------------------------
+# Tests — F7-4 (H2): mandatory digital signature (fail-closed)
+# ---------------------------------------------------------------------------
+
+
+class TestRequireDigitalSignature:
+    @pytest.mark.asyncio
+    async def test_export_succeeds_when_signature_not_required(
+        self, client: AsyncClient
+    ) -> None:
+        """Default (audit_require_digital_signature=False): export works even when
+        sign_data returns None (the `client` fixture patches it to None)."""
+        mock_op = _make_mock_operation()
+
+        mock_scalars = MagicMock()
+        mock_scalars.first.return_value = mock_op
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        async def _fake_db() -> AsyncGenerator[Any, None]:
+            yield mock_db
+
+        from db.session import get_db as real_get_db
+
+        app.dependency_overrides[real_get_db] = _fake_db
+
+        resp = await client.get(f"/v1/audit/{_TRACE_ID}")
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["digital_signature"] is None
+
+    @pytest.mark.asyncio
+    async def test_export_returns_503_when_signature_required_but_unavailable(
+        self, client: AsyncClient
+    ) -> None:
+        """When audit_require_digital_signature=True and sign_data returns None
+        (Vault unavailable), the export is withheld → 503 (fail-closed)."""
+        mock_op = _make_mock_operation()
+
+        mock_scalars = MagicMock()
+        mock_scalars.first.return_value = mock_op
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        async def _fake_db() -> AsyncGenerator[Any, None]:
+            yield mock_db
+
+        from db.session import get_db as real_get_db
+
+        app.dependency_overrides[real_get_db] = _fake_db
+
+        # sign_data is already patched to None by the `client` fixture.
+        with patch("api.v1.audit.settings.audit_require_digital_signature", True):
+            resp = await client.get(f"/v1/audit/{_TRACE_ID}")
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 503, resp.text
+
+    @pytest.mark.asyncio
+    async def test_export_succeeds_when_required_and_signature_available(
+        self, client: AsyncClient
+    ) -> None:
+        """When audit_require_digital_signature=True and sign_data returns a real
+        signature, the export succeeds and includes the digital signature."""
+        mock_op = _make_mock_operation()
+
+        mock_scalars = MagicMock()
+        mock_scalars.first.return_value = mock_op
+        mock_result = MagicMock()
+        mock_result.scalars.return_value = mock_scalars
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(return_value=mock_result)
+
+        async def _fake_db() -> AsyncGenerator[Any, None]:
+            yield mock_db
+
+        from db.session import get_db as real_get_db
+
+        app.dependency_overrides[real_get_db] = _fake_db
+
+        with (
+            patch("api.v1.audit.settings.audit_require_digital_signature", True),
+            patch(
+                "api.v1.audit.sign_data",
+                new_callable=AsyncMock,
+                return_value="dGVzdC1zaWduYXR1cmU=",
+            ),
+        ):
+            resp = await client.get(f"/v1/audit/{_TRACE_ID}")
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["digital_signature"] == "dGVzdC1zaWduYXR1cmU="
+
+
+# ---------------------------------------------------------------------------
+# Tests — F7-6 (H3): signed chain head anchoring
+# ---------------------------------------------------------------------------
+
+
+_ADMIN_ACTOR = {
+    "sub": str(_ACTOR_ID),
+    "preferred_username": "admin",
+    "tenant_id": "00000000-0000-0000-0000-0000000000aa",
+    "realm_access": {"roles": ["admin"]},
+}
+
+
+def _anchor_db(head_hash: str | None, ops_count: int = 3) -> AsyncMock:
+    """Mock session for create_chain_anchor: get_latest_chain_hash + count + begin."""
+    session = AsyncMock()
+    call_count = 0
+
+    async def _fake_execute(*args: Any, **kwargs: Any) -> MagicMock:
+        nonlocal call_count
+        call_count += 1
+        result = MagicMock()
+        if call_count == 1:
+            # get_latest_chain_hash → scalar_one_or_none
+            result.scalar_one_or_none.return_value = head_hash
+        else:
+            # count(*) → scalar_one
+            result.scalar_one.return_value = ops_count
+        return result
+
+    session.execute = AsyncMock(side_effect=_fake_execute)
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.begin = MagicMock()
+    session.begin.return_value.__aenter__ = AsyncMock(return_value=None)
+    session.begin.return_value.__aexit__ = AsyncMock(return_value=False)
+    return session
+
+
+class TestChainAnchor:
+    @pytest.mark.asyncio
+    async def test_anchor_created_with_signature(self, client: AsyncClient) -> None:
+        """POST /v1/audit/chain/anchor signs the chain head and returns 201."""
+        session = _anchor_db("a" * 64, ops_count=5)
+
+        async def _fake_db() -> AsyncGenerator[Any, None]:
+            yield session
+
+        from core.auth_oidc import require_auth as real_require_auth
+        from db.session import get_db as real_get_db
+
+        async def _admin() -> dict:
+            return _ADMIN_ACTOR
+
+        app.dependency_overrides[real_get_db] = _fake_db
+        app.dependency_overrides[real_require_auth] = _admin
+
+        with (
+            patch("api.v1.audit.settings.tsa_enabled", False),
+            patch(
+                "db.evidence.sign_operation_hash",
+                new_callable=AsyncMock,
+                return_value=("vault:v2:c2lnbmF0dXJl", 2),
+            ),
+        ):
+            resp = await client.post("/v1/audit/chain/anchor")
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["chain_head_hash"] == "a" * 64
+        assert body["operations_count"] == 5
+        assert body["signing_key_version"] == 2
+        assert body["has_tsa"] is False
+
+    @pytest.mark.asyncio
+    async def test_anchor_requires_admin(self, client: AsyncClient) -> None:
+        """A non-admin (reviewer) cannot create an anchor → 403."""
+        session = _anchor_db("a" * 64)
+
+        async def _fake_db() -> AsyncGenerator[Any, None]:
+            yield session
+
+        from core.auth_oidc import require_auth as real_require_auth
+        from db.session import get_db as real_get_db
+
+        async def _reviewer() -> dict:
+            return {**_ADMIN_ACTOR, "realm_access": {"roles": ["reviewer"]}}
+
+        app.dependency_overrides[real_get_db] = _fake_db
+        app.dependency_overrides[real_require_auth] = _reviewer
+
+        resp = await client.post("/v1/audit/chain/anchor")
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 403, resp.text
+
+    @pytest.mark.asyncio
+    async def test_anchor_409_when_no_sealed_operations(self, client: AsyncClient) -> None:
+        """With an empty chain (head == GENESIS) there is nothing to anchor → 409."""
+        from db.evidence import GENESIS_HASH
+
+        session = _anchor_db(GENESIS_HASH)
+
+        async def _fake_db() -> AsyncGenerator[Any, None]:
+            yield session
+
+        from core.auth_oidc import require_auth as real_require_auth
+        from db.session import get_db as real_get_db
+
+        async def _admin() -> dict:
+            return _ADMIN_ACTOR
+
+        app.dependency_overrides[real_get_db] = _fake_db
+        app.dependency_overrides[real_require_auth] = _admin
+
+        resp = await client.post("/v1/audit/chain/anchor")
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 409, resp.text
+
+    @pytest.mark.asyncio
+    async def test_anchor_503_when_signing_unavailable(self, client: AsyncClient) -> None:
+        """Anchoring is fail-closed: if signing fails, return 503 (no unsigned anchor)."""
+        session = _anchor_db("b" * 64)
+
+        async def _fake_db() -> AsyncGenerator[Any, None]:
+            yield session
+
+        from core.auth_oidc import require_auth as real_require_auth
+        from db.session import get_db as real_get_db
+
+        async def _admin() -> dict:
+            return _ADMIN_ACTOR
+
+        app.dependency_overrides[real_get_db] = _fake_db
+        app.dependency_overrides[real_require_auth] = _admin
+
+        with (
+            patch("api.v1.audit.settings.tsa_enabled", False),
+            patch(
+                "db.evidence.sign_operation_hash",
+                new_callable=AsyncMock,
+                return_value=(None, None),
+            ),
+        ):
+            resp = await client.post("/v1/audit/chain/anchor")
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 503, resp.text

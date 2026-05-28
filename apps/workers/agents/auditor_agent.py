@@ -18,8 +18,7 @@ import uuid
 
 import dramatiq
 import structlog
-from sqlalchemy import select, update
-from sqlalchemy.sql import func
+from sqlalchemy import select
 
 from db.models.artifact import Artifact
 from db.models.operation import Operation
@@ -125,11 +124,25 @@ async def _process_audit_async(operation_id: str) -> None:
             )
             session.add(artifact)
 
-            # ── Mark operation as completed ───────────────────────────────────
-            await session.execute(
-                update(Operation)
-                .where(Operation.id == op_uuid)
-                .values(status="completed", completed_at=func.now())
+            # ── Mark operation as completed + seal evidence at write-time ─────
+            # F7-5 (ADR-014/H1): instead of a blind UPDATE we mutate the loaded
+            # ORM object so seal_operation can populate the chain hash and the
+            # asymmetric signature within the same transaction, binding the
+            # evidence to the event exactly as it occurred.
+            from datetime import UTC, datetime
+
+            from db.evidence import seal_operation
+
+            operation.status = "completed"
+            operation.completed_at = datetime.now(UTC)
+            await session.flush()  # ensure created_at is loaded for hashing
+
+            sealed = await seal_operation(
+                session,
+                operation,
+                vault_addr=settings.vault_addr if settings.audit_sign_on_write else None,
+                vault_token=settings.vault_dev_token if settings.audit_sign_on_write else None,
+                vault_key=settings.vault_transit_key if settings.audit_sign_on_write else None,
             )
 
             logger.info(
@@ -137,6 +150,8 @@ async def _process_audit_async(operation_id: str) -> None:
                 id=operation_id,
                 digest=digest,
                 key=minio_key,
+                chain_hash=sealed["chain_hash"][:16] + "...",
+                signed=sealed["signed"],
             )
 
     TASKS_TOTAL.labels(agent="auditor", status="success").inc()

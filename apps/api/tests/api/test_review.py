@@ -384,10 +384,17 @@ class TestApproveFinding:
         from db.session import get_db as real_get_db
 
         app.dependency_overrides[real_get_db] = _db
-        resp = await reviewer_client.post(
-            f"/v1/review/{_FINDING_ID}/approve",
-            json={"justification": "Approved after manual review of the document"},
-        )
+        # F7-5: write-time sealing is exercised in tests/api/test_evidence.py;
+        # here we isolate the endpoint logic from Vault/chain I/O.
+        with patch(
+            "core.chain.seal_operation_with_settings",
+            new_callable=AsyncMock,
+            return_value={"chain_hash": "x" * 64, "signed": False, "key_version": None},
+        ):
+            resp = await reviewer_client.post(
+                f"/v1/review/{_FINDING_ID}/approve",
+                json={"justification": "Approved after manual review of the document"},
+            )
         app.dependency_overrides.pop(real_get_db, None)
 
         assert resp.status_code == 200, resp.text
@@ -476,10 +483,17 @@ class TestRejectFinding:
         from db.session import get_db as real_get_db
 
         app.dependency_overrides[real_get_db] = _db
-        resp = await reviewer_client.post(
-            f"/v1/review/{_FINDING_ID}/reject",
-            json={"justification": "Rejected: contains real PII, cannot proceed"},
-        )
+        # F7-5: isolate endpoint logic from write-time sealing (covered in
+        # tests/api/test_evidence.py).
+        with patch(
+            "core.chain.seal_operation_with_settings",
+            new_callable=AsyncMock,
+            return_value={"chain_hash": "x" * 64, "signed": False, "key_version": None},
+        ):
+            resp = await reviewer_client.post(
+                f"/v1/review/{_FINDING_ID}/reject",
+                json={"justification": "Rejected: contains real PII, cannot proceed"},
+            )
         app.dependency_overrides.pop(real_get_db, None)
 
         assert resp.status_code == 200, resp.text

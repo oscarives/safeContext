@@ -51,5 +51,16 @@ class AuditExportResponse(BaseModel):
     tsa_token: str | None = None
     # F6-B2: Chain hash for tamper detection
     chain_hash: str | None = None
-    # F6-B3: Digital signature from OpenBao Transit engine (base64)
+    # F6-B3: Digital signature from OpenBao Transit engine (base64).
+    # F7-5: when present this is the WRITE-TIME signature persisted at completion
+    # (operation.event_signature) — bound to the event as it occurred. Falls back
+    # to a read-time signature only for legacy operations sealed before F7-5.
     digital_signature: str | None = None
+    # F7-5: True when digital_signature was produced at write-time (authoritative
+    # non-repudiation evidence); False when it is a read-time fallback.
+    signature_at_write_time: bool = False
+    # F7-5: ISO timestamp when the write-time signature was produced.
+    event_signed_at: datetime | None = None
+    # F7-5: Transit key version that produced the write-time signature
+    # (needed to verify after key rotation — see F7-2).
+    signing_key_version: int | None = None
