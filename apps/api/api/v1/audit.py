@@ -533,9 +533,13 @@ async def create_chain_anchor(
         created_by=created_by,
         created_at=created_at,
     )
-    async with db.begin():
-        db.add(anchor)
-        await db.flush()
+    # NOTE: do not use ``async with db.begin()`` here — the SELECTs above
+    # (chain head, ops count, anchor verification) already autobegan a
+    # transaction on this session, so opening a new one raises
+    # "A transaction is already begun". Commit the in-flight transaction
+    # directly (expire_on_commit=False keeps the anchor attributes readable).
+    db.add(anchor)
+    await db.commit()
 
     logger.info(
         "audit.anchor.created",

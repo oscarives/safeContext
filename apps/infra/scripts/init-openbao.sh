@@ -16,7 +16,8 @@
 set -euo pipefail
 
 VAULT_ADDR="${VAULT_ADDR:-http://vault:8200}"
-BAO_TOKEN="${VAULT_DEV_TOKEN:-safecontext-dev-token}"
+# Debe coincidir con VAULT_DEV_TOKEN del .env (= BAO_DEV_ROOT_TOKEN_ID del compose).
+BAO_TOKEN="${VAULT_DEV_TOKEN:-safecontext-dev-vault-token}"
 
 # OpenBao CLI es 'bao'; Vault CLI es 'vault' — intentar ambos
 BAO_CMD="bao"
@@ -39,6 +40,17 @@ VAULT_TOKEN="$BAO_TOKEN" $BAO_CMD write \
     transit/keys/safecontext-minio \
     type=aes256-gcm96 2>/dev/null || echo "  Clave safecontext-minio ya existe"
 
+# ── Clave de firma de evidencia (F7 / ADR-014) ───────────────────────────────
+# ECDSA-P256 no-exportable: firma write-time del audit trail (no-repudio).
+# exportable=false (F7-3/H4) → la clave privada nunca sale de Transit; la pública
+# se obtiene de transit/keys para verificación offline. La usan API (read-time
+# fallback / anclaje) y worker (auditor_agent, sellado write-time).
+VAULT_TOKEN="$BAO_TOKEN" $BAO_CMD write \
+    -address="$VAULT_ADDR" -f \
+    transit/keys/safecontext-signing \
+    type=ecdsa-p256 exportable=false 2>/dev/null \
+    || echo "  Clave safecontext-signing ya existe"
+
 # ── Política de acceso mínimo ────────────────────────────────────────────────
 
 VAULT_TOKEN="$BAO_TOKEN" $BAO_CMD policy write \
@@ -56,7 +68,8 @@ EOF
 echo ""
 echo "OpenBao KMS configurado correctamente:"
 echo "  Motor:   transit"
-echo "  Clave:   transit/keys/safecontext-minio (AES256-GCM96)"
+echo "  Clave:   transit/keys/safecontext-minio    (AES256-GCM96, MinIO SSE)"
+echo "  Clave:   transit/keys/safecontext-signing  (ECDSA-P256, no-exportable, audit F7)"
 echo "  Política: safecontext-minio-policy"
 echo ""
 echo "Para configurar MinIO SSE-KMS, añadir al entorno de MinIO:"

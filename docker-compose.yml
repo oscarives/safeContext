@@ -151,7 +151,13 @@ services:
     cap_add:
       - IPC_LOCK
     environment:
+      # OpenBao (no HashiCorp Vault) lee variables con prefijo BAO_. Si solo se
+      # define VAULT_DEV_ROOT_TOKEN_ID, OpenBao lo IGNORA y genera un root token
+      # aleatorio → api/worker reciben 403 al firmar/cifrar. Se setean ambas por
+      # compatibilidad. El root token debe coincidir con VAULT_DEV_TOKEN.
+      BAO_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_TOKEN:-safecontext-dev-token}
       VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_TOKEN:-safecontext-dev-token}
+      BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
       VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
     ports:
       - "8200:8200"
