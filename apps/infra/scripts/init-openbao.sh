@@ -13,7 +13,7 @@
 #   - OpenBao corriendo y healthy (ver docker-compose.yml service: vault)
 #   - VAULT_ADDR y VAULT_DEV_TOKEN en el entorno (o BAO_TOKEN)
 
-set -euo pipefail
+set -eu
 
 VAULT_ADDR="${VAULT_ADDR:-http://vault:8200}"
 # Debe coincidir con VAULT_DEV_TOKEN del .env (= BAO_DEV_ROOT_TOKEN_ID del compose).
@@ -21,7 +21,7 @@ BAO_TOKEN="${VAULT_DEV_TOKEN:-safecontext-dev-vault-token}"
 
 # OpenBao CLI es 'bao'; Vault CLI es 'vault' — intentar ambos
 BAO_CMD="bao"
-if ! command -v bao &>/dev/null; then
+if ! command -v bao >/dev/null 2>&1; then
     BAO_CMD="vault"
 fi
 

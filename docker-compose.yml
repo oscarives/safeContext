@@ -172,6 +172,52 @@ services:
     networks:
       - backend
 
+  # ── Vault/OpenBao init (one-shot: transit engine + claves KMS/firma) ─────────
+  # Habilita el motor transit y crea la clave AES de MinIO SSE + la clave de
+  # firma ECDSA-P256 del audit trail (F7/ADR-014). OpenBao dev usa storage
+  # in-memory: si el contenedor vault se reinicia, las claves se pierden y este
+  # init debe volver a correr (`docker compose --profile auth up -d vault-init`).
+  vault-init:
+    profiles: ["auth", "full"]
+    image: openbao/openbao:2.5.4
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: ${VAULT_ADDR:-http://vault:8200}
+      VAULT_DEV_TOKEN: ${VAULT_DEV_TOKEN:-safecontext-dev-token}
+    volumes:
+      - ./apps/infra/scripts/init-openbao.sh:/init-openbao.sh:ro
+    entrypoint: ["/bin/sh", "/init-openbao.sh"]
+    restart: "no"
+    networks:
+      - backend
+
+  # ── DB migrations (one-shot: alembic upgrade head) ───────────────────────────
+  # Aplica el esquema SafeContext antes de que api/worker arranquen. El compose
+  # no corría migraciones automáticamente; este servicio cierra esa brecha para
+  # que `docker compose up` sea reproducible en una BD limpia.
+  migrate:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: runtime
+    image: safecontext/api:dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    networks:
+      - backend
+
   # ── FastAPI + MCP Server ─────────────────────────────────────────────────────
   # ── OPA Policy Engine ────────────────────────────────────────────────────────
   opa:
@@ -255,6 +301,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:
@@ -323,6 +371,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:
