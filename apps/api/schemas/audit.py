@@ -64,3 +64,10 @@ class AuditExportResponse(BaseModel):
     # F7-5: Transit key version that produced the write-time signature
     # (needed to verify after key rotation — see F7-2).
     signing_key_version: int | None = None
+    # F8-3 (ADR-015): the PEM public key matching signing_key_version, embedded so
+    # the digital_signature verifies OFFLINE — without Vault and without trusting
+    # SafeContext. Read from the durable signing_keys archive (fallback: live
+    # Vault fetch for legacy/unarchived versions). This is what makes the export
+    # self-contained, court-grade portable evidence.
+    verification_public_key_pem: str | None = None
+    verification_algorithm: str | None = None

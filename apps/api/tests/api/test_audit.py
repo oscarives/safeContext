@@ -809,3 +809,43 @@ class TestChainAnchor:
         app.dependency_overrides.clear()
 
         assert resp.status_code == 503, resp.text
+
+
+class TestResolvePublicKey:
+    """F8-3 (ADR-015): export embeds the verification public key, durable-first."""
+
+    @pytest.mark.asyncio
+    async def test_resolve_prefers_durable_archive(self) -> None:
+        """When the key version is archived in signing_keys, return it WITHOUT
+        touching Vault (offline-durable path)."""
+        from api.v1.audit import _resolve_public_key
+
+        db = AsyncMock()
+        row = MagicMock()
+        row.first.return_value = ("PEM-ARCHIVED", "ecdsa-p256")
+        db.execute = AsyncMock(return_value=row)
+
+        with patch(
+            "core.vault_transit.get_public_key", new_callable=AsyncMock
+        ) as live:
+            pem, algo = await _resolve_public_key(db, 3, None)
+
+        assert pem == "PEM-ARCHIVED"
+        assert algo == "ecdsa-p256"
+        live.assert_not_called()  # durable hit ⇒ no Vault dependency
+
+    @pytest.mark.asyncio
+    async def test_resolve_falls_back_to_live(self) -> None:
+        """Legacy/unarchived (key_version None) falls back to a live Vault fetch."""
+        from api.v1.audit import _resolve_public_key
+
+        db = AsyncMock()
+        with patch(
+            "core.vault_transit.get_public_key",
+            new_callable=AsyncMock,
+            return_value={"public_key_pem": "PEM-LIVE", "algorithm": "ecdsa-p256"},
+        ):
+            pem, algo = await _resolve_public_key(db, None, None)
+
+        assert pem == "PEM-LIVE"
+        assert algo == "ecdsa-p256"

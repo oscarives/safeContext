@@ -38,6 +38,9 @@ class ChainAnchor(Base):
     # Asymmetric signature over chain_head_hash.
     signature: Mapped[str] = mapped_column(Text, nullable=False)
     signing_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # PEM public key of signing_key_version, archived with the anchor so the
+    # anchor verifies offline without Vault or the signing_keys table (F8-3).
+    signing_public_key_pem: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Optional RFC 3161 timestamp token over the chain head.
     tsa_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

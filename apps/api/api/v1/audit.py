@@ -44,6 +44,41 @@ def compute_hmac(payload: dict, secret: str) -> str:
     return hmac.new(secret.encode(), data, hashlib.sha256).hexdigest()
 
 
+async def _resolve_public_key(
+    db: AsyncSession,
+    key_version: int | None,
+    http_client: httpx.AsyncClient | None,
+) -> tuple[str | None, str | None]:
+    """Resolve the PEM public key to embed in an export (F8-3, ADR-015).
+
+    Prefers the durable ``signing_keys`` archive (no Vault dependency, survives
+    key rotation / KMS decommission). Falls back to a live Vault fetch only for
+    legacy or not-yet-archived versions. Returns ``(pem, algorithm)``.
+    """
+    if key_version is not None:
+        from db.models.signing_key import SigningKey
+
+        row = (
+            await db.execute(
+                select(SigningKey.public_key_pem, SigningKey.algorithm).where(
+                    SigningKey.key_version == key_version
+                )
+            )
+        ).first()
+        if row and row[0]:
+            return row[0], row[1]
+    # Fallback: live fetch (legacy read-time signatures, or version not archived).
+    try:
+        from core.vault_transit import get_public_key
+
+        info = await get_public_key(http_client=http_client)
+        if info:
+            return info.get("public_key_pem"), info.get("algorithm")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("audit.pubkey_resolve_failed", error=str(exc))
+    return None, None
+
+
 async def get_audit_export(
     trace_id: UUID,
     db: AsyncSession,
@@ -198,6 +233,15 @@ async def get_audit_export(
             ),
         )
 
+    # F8-3 (ADR-015): embed the matching public key so the signature verifies
+    # offline. Durable archive first, live Vault fetch only as legacy fallback.
+    verification_pem: str | None = None
+    verification_algo: str | None = None
+    if digital_sig is not None:
+        verification_pem, verification_algo = await _resolve_public_key(
+            db, signing_key_version, http_client
+        )
+
     logger.info(
         "audit.export",
         trace_id=str(trace_id),
@@ -209,6 +253,7 @@ async def get_audit_export(
         has_chain_hash=chain_hash_val is not None,
         has_digital_sig=digital_sig is not None,
         signature_at_write_time=signature_at_write_time,
+        has_pubkey=verification_pem is not None,
     )
 
     return AuditExportResponse(
@@ -226,6 +271,8 @@ async def get_audit_export(
         signature_at_write_time=signature_at_write_time,
         event_signed_at=event_signed_at,
         signing_key_version=signing_key_version,
+        verification_public_key_pem=verification_pem,
+        verification_algorithm=verification_algo,
     )
 
 
@@ -429,7 +476,11 @@ class ChainAnchorResponse(BaseModel):
     tenant_id: UUID
     chain_head_hash: str
     operations_count: int
+    # F8-3: the asymmetric signature over chain_head_hash + its PEM public key,
+    # so the anchor is self-contained, offline-verifiable evidence.
+    signature: str
     signing_key_version: int | None
+    signing_public_key_pem: str | None = None
     has_tsa: bool
     created_at: datetime
 
@@ -456,7 +507,13 @@ async def create_chain_anchor(
     """
     from core.auth_oidc import get_roles
     from core.constants import DEFAULT_TENANT_ID
-    from db.evidence import GENESIS_HASH, get_latest_chain_hash, sign_operation_hash
+    from db.evidence import (
+        GENESIS_HASH,
+        archive_public_key_if_needed,
+        get_latest_chain_hash,
+        get_transit_public_key,
+        sign_operation_hash,
+    )
     from db.models.chain_anchor import ChainAnchor
     from db.models.operation import Operation
 
@@ -504,6 +561,25 @@ async def create_chain_anchor(
             detail="Signing service unavailable; cannot create a signed anchor.",
         )
 
+    # F8-3 (ADR-015): fetch + archive the public key, and store it ON the anchor
+    # so the anchor verifies offline without Vault or the signing_keys table.
+    anchor_pem, _anchor_algo = await get_transit_public_key(
+        vault_addr=settings.vault_addr,
+        vault_token=settings.vault_dev_token,
+        vault_key=settings.vault_transit_key,
+        key_version=key_version,
+        http_client=http_client,
+    )
+    if key_version is not None:
+        await archive_public_key_if_needed(
+            db,
+            key_version,
+            vault_addr=settings.vault_addr,
+            vault_token=settings.vault_dev_token,
+            vault_key=settings.vault_transit_key,
+            http_client=http_client,
+        )
+
     # Optional RFC 3161 timestamp over the chain head.
     tsa_token_b64: str | None = None
     if settings.tsa_enabled:
@@ -529,6 +605,7 @@ async def create_chain_anchor(
         operations_count=int(ops_count),
         signature=signature,
         signing_key_version=key_version,
+        signing_public_key_pem=anchor_pem,
         tsa_token=tsa_token_b64,
         created_by=created_by,
         created_at=created_at,
@@ -555,7 +632,9 @@ async def create_chain_anchor(
         tenant_id=tenant_id,
         chain_head_hash=head,
         operations_count=int(ops_count),
+        signature=signature,
         signing_key_version=key_version,
+        signing_public_key_pem=anchor_pem,
         has_tsa=tsa_token_b64 is not None,
         created_at=created_at,
     )

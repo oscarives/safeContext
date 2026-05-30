@@ -333,7 +333,7 @@ Convención de flags:
 
 ---
 
-### F7 · Endurecimiento de no-repudio del audit trail 🔄 EN CURSO
+### F7 · Endurecimiento de no-repudio del audit trail ✅ COMPLETADA
 
 **Objetivo**: cerrar los seis huecos de disciplina criptográfica detectados en la revisión de seguridad (2026-05-28) que impiden que el audit trail de F6-B sirva como prueba de no-repudio frente a un insider con acceso a BD o ante un auditor. **Origen**: ADR-014. Habilita además el registro de evidencia portátil necesario para el futuro modo sidecar/proxy MCP.
 
@@ -353,6 +353,28 @@ Convención de flags:
 **Orden de ejecución** (menor → mayor riesgo): F7-1 → F7-2 → F7-3 → F7-4 → F7-5 → F7-6. Cada tarea se verifica con `pytest tests/api/test_evidence.py tests/api/test_audit.py` (baseline 38/38) antes de marcarse ✅.
 
 **Gate F7**: Audit export firmado en write-time con clave no-exportable; cadena de custodia poblada y anclada (tamper-proof); firma asimétrica obligatoria en producción; verificación resistente a rotación de claves. Evidencia auto-probatoria portátil lista para modo sidecar.
+
+---
+
+### F8 · Evidencia auto-contenida y verificación offline ✅ COMPLETADA
+
+**Objetivo**: que la evidencia firmada sea verificable por un tercero **sin red, sin Vault y sin confiar en SafeContext**, para siempre. Cierra la dependencia residual de F7: hoy la clave pública se obtiene en vivo de Vault al exportar, así que un Vault caído/rotado/decomisionado dejaba la evidencia sin verificar. **Origen**: ADR-015 (continuación de ADR-014).
+
+**Prerrequisitos**: F7 completada ✅ (firma write-time + anclaje).
+
+**Insight**: la verificación ECDSA usa la **clave pública**; archivándola por versión junto a la evidencia, perder Vault deja de invalidar la evidencia histórica. La durabilidad de Vault pasa a ser hardening operativo (runbook), no bloqueante.
+
+| ID | Tarea | Descripción | Criterio de aceptación | Severidad | Estado |
+|---|---|---|---|---|---|
+| **F8-1** | Tabla `signing_keys` + migración 0013 | Modelo `signing_keys` (`key_version` PK → `public_key_pem`, `algorithm`) como archivo durable de claves públicas; col `signing_public_key_pem` en `chain_anchors`. | Migración 0013 aplica; modelos importan; suite verde. | 🔴 crítico | ✅ COMPLETADO |
+| **F8-2** | Archivar pública en write-time | `db/evidence.py`: `get_transit_public_key` + `archive_public_key_if_needed` (upsert idempotente, una vez por versión, best-effort) invocado en `seal_operation` tras firma. Compartido API+worker. | Test: firma exitosa → INSERT en `signing_keys`; tolera Vault caído. | 🔴 crítico | ✅ COMPLETADO |
+| **F8-3** | Export/anchor sirven pública durable | `_resolve_public_key` durable-first (tabla) con fallback a fetch en vivo; export embebe `verification_public_key_pem`; anchor persiste y devuelve `signing_public_key_pem`. | Tests: hit durable no llama a Vault; fallback en vivo para legacy. Suite verde. | 🔴 crítico | ✅ COMPLETADO |
+| **F8-4** | Verificador offline standalone | `apps/tools/verify_offline.py` (stdlib + `cryptography`): recomputa `operation_hash` y verifica firma ECDSA-P256 con la pública embebida, sin red. Verifica también anclas. | Tests: export válido pasa; manipulación/clave errónea/sin pública fallan; hash coincide con el del servidor. | 🟡 alto | ✅ COMPLETADO |
+| **F8-5** | Docs ADR-015 + ROADMAP F8 + runbook | ADR-015, esta sección, y runbook `vault-kms-durability.md` (Raft + unseal + snapshots) como contraparte operativa del Vault dev in-memory. | Documentos creados y enlazados en el índice de ADRs. | ⚪ menor | ✅ COMPLETADO |
+
+**Orden de ejecución** (menor → mayor riesgo): F8-1 → F8-2 → F8-3 → F8-4 → F8-5. Cada tarea verificada con `pytest tests/` (baseline 273 → 281) antes de marcarse ✅.
+
+**Gate F8**: el audit export y las anclas embeben la clave pública (durable-first), verificables offline con `verify_offline.py`; la evidencia sobrevive a rotación/pérdida de Vault. Paquete de evidencia portátil grado-tribunal.
 
 ---
 
@@ -476,6 +498,8 @@ Estas tareas surgieron del análisis externo (`docs/research/deep-research-repor
 | ADR-011 | Port & Adapter pattern para Redis (BrokerPort, CachePort) y MinIO (StoragePort) | Cerrado |
 | ADR-012 | Documento sanitizado como artefacto del pipeline | Cerrado |
 | ADR-013 | Evaluación de storage provider (MinIO CE → AIStor) | Cerrado |
+| ADR-014 | Endurecimiento del no-repudio del audit trail (F7) | Cerrado |
+| ADR-015 | Evidencia auto-contenida y verificación offline (F8) | Cerrado |
 
 ---
 

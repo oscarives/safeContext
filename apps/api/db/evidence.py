@@ -155,6 +155,93 @@ async def sign_operation_hash(
         return None, None
 
 
+async def get_transit_public_key(
+    *,
+    vault_addr: str,
+    vault_token: str,
+    vault_key: str,
+    key_version: int | None = None,
+    http_client: httpx.AsyncClient | None = None,
+) -> tuple[str | None, str | None]:
+    """Fetch the PEM public key for a Transit key version (F8-1, ADR-015).
+
+    Returns ``(public_key_pem, algorithm)`` or ``(None, None)`` on any failure.
+    Reads ``transit/keys/{key}`` (no private material — ``exportable=false`` keys
+    still expose the public half here) and picks the entry for ``key_version``
+    (or the latest version if not given).
+    """
+    url = f"{vault_addr}/v1/transit/keys/{vault_key}"
+    headers = {"X-Vault-Token": vault_token}
+
+    async def _get(client: httpx.AsyncClient) -> tuple[str | None, str | None]:
+        resp = await client.get(url, headers=headers, timeout=_VAULT_TIMEOUT)
+        if resp.status_code != 200:
+            log.warning("evidence.pubkey_failed", status=resp.status_code, key=vault_key)
+            return None, None
+        data = resp.json().get("data", {})
+        algorithm = data.get("type")
+        keys = data.get("keys", {})
+        ver = str(key_version if key_version is not None else data.get("latest_version", ""))
+        entry = keys.get(ver) or {}
+        pem = entry.get("public_key") if isinstance(entry, dict) else None
+        return (pem or None), algorithm
+
+    try:
+        if http_client:
+            return await _get(http_client)
+        async with httpx.AsyncClient() as client:
+            return await _get(client)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("evidence.pubkey_error", error=str(exc), key=vault_key)
+        return None, None
+
+
+async def archive_public_key_if_needed(
+    db: AsyncSession,
+    key_version: int,
+    *,
+    vault_addr: str,
+    vault_token: str,
+    vault_key: str,
+    http_client: httpx.AsyncClient | None = None,
+) -> None:
+    """Idempotently archive the PEM public key for ``key_version`` (F8-2).
+
+    Skips the Vault round-trip if the version is already archived, so signing N
+    operations with the same key version costs at most one extra fetch. Stores
+    nothing (and never raises) if Vault is unavailable — archival is best-effort,
+    exactly like write-time signing.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    from db.models.signing_key import SigningKey
+
+    try:
+        existing = await db.execute(
+            select(SigningKey.key_version).where(SigningKey.key_version == key_version)
+        )
+        if existing.scalar_one_or_none() is not None:
+            return
+        pem, algorithm = await get_transit_public_key(
+            vault_addr=vault_addr,
+            vault_token=vault_token,
+            vault_key=vault_key,
+            key_version=key_version,
+            http_client=http_client,
+        )
+        if not pem:
+            return
+        stmt = (
+            pg_insert(SigningKey)
+            .values(key_version=key_version, public_key_pem=pem, algorithm=algorithm)
+            .on_conflict_do_nothing(index_elements=["key_version"])
+        )
+        await db.execute(stmt)
+        log.info("evidence.pubkey_archived", key_version=key_version)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("evidence.pubkey_archive_error", error=str(exc), key_version=key_version)
+
+
 # ── Write-time sealing ───────────────────────────────────────────────────────
 
 
@@ -209,6 +296,17 @@ async def seal_operation(
             op.event_signature = signature  # type: ignore[attr-defined]
             op.event_signed_at = datetime.now(UTC)  # type: ignore[attr-defined]
             op.signing_key_version = key_version  # type: ignore[attr-defined]
+            # F8-2 (ADR-015): archive the public key for this version so the
+            # signature stays verifiable offline, forever, without Vault.
+            if key_version is not None:
+                await archive_public_key_if_needed(
+                    db,
+                    key_version,
+                    vault_addr=vault_addr,
+                    vault_token=vault_token,
+                    vault_key=vault_key,
+                    http_client=http_client,
+                )
 
     log.info(
         "evidence.sealed",

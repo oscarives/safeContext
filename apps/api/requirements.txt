@@ -13,6 +13,10 @@ opentelemetry-instrumentation-fastapi>=0.63b0,<1.0
 dramatiq[redis]>=1.18.0,<3.0
 boto3>=1.34.0,<2.0
 httpx>=0.28.1,<1.0
+# F8-4 (ADR-015): ECDSA-P256 verification for the offline evidence verifier
+# (apps/tools/verify_offline.py). Already pulled transitively (PyJWT[crypto]);
+# pinned explicitly so the verifier's dependency is intentional.
+cryptography>=42.0.0,<49.0
 presidio-analyzer>=2.2.354,<3.0
 presidio-anonymizer>=2.2.354,<3.0
 spacy>=3.8.0,<4.0

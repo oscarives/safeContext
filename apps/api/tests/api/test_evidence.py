@@ -322,10 +322,19 @@ class TestSealOperation:
         op = self._make_op()
         session = self._session_with_latest(None)
 
-        with patch(
-            "db.evidence.sign_operation_hash",
-            new_callable=AsyncMock,
-            return_value=("vault:v3:c2lnbmF0dXJl", 3),
+        with (
+            patch(
+                "db.evidence.sign_operation_hash",
+                new_callable=AsyncMock,
+                return_value=("vault:v3:c2lnbmF0dXJl", 3),
+            ),
+            # F8-2: pubkey archival runs after a successful signature; isolate it
+            # from the network here (it has its own dedicated test below).
+            patch(
+                "db.evidence.get_transit_public_key",
+                new_callable=AsyncMock,
+                return_value=(None, None),
+            ),
         ):
             result = await seal_operation(
                 session,
@@ -341,6 +350,52 @@ class TestSealOperation:
         assert op.signing_key_version == 3
         assert op.event_signed_at is not None
         assert op.chain_hash is not None
+
+    @pytest.mark.asyncio
+    async def test_seal_archives_public_key(self):
+        """F8-2 (ADR-015): a successful signature archives the PEM public key for
+        that key version (upsert into signing_keys) so it verifies offline."""
+        from db.evidence import seal_operation
+
+        op = self._make_op()
+        session = self._session_with_latest(None)
+
+        executed: list = []
+        original_execute = session.execute
+
+        async def _record_execute(stmt, *a, **k):
+            executed.append(stmt)
+            return await original_execute(stmt, *a, **k)
+
+        session.execute = _record_execute
+
+        pem = "-----BEGIN PUBLIC KEY-----\nMFkw...\n-----END PUBLIC KEY-----\n"
+        with (
+            patch(
+                "db.evidence.sign_operation_hash",
+                new_callable=AsyncMock,
+                return_value=("vault:v3:c2lnbmF0dXJl", 3),
+            ),
+            patch(
+                "db.evidence.get_transit_public_key",
+                new_callable=AsyncMock,
+                return_value=(pem, "ecdsa-p256"),
+            ),
+        ):
+            await seal_operation(
+                session,
+                op,
+                vault_addr="http://vault:8200",
+                vault_token="token",
+                vault_key="safecontext-signing",
+            )
+
+        # An INSERT into signing_keys must have been issued (existence check +
+        # insert ⇒ at least the get_latest + check + insert executes).
+        sql = [str(s).lower() for s in executed]
+        assert any(
+            "insert into signing_keys" in s for s in sql
+        ), f"expected an insert into signing_keys, got: {sql}"
 
     @pytest.mark.asyncio
     async def test_seal_tolerates_vault_failure(self):
